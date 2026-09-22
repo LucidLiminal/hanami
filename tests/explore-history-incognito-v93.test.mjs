@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {applyReadProgress} from '../public/library-progress.js';
+const [app,library,history,heart,updates,more,sw,pkgText]=await Promise.all(['app.js','library.js','history-tab.js','library-heart.js','updates-tab.js','more-tab.js','sw.js'].map(x=>readFile(new URL('../public/'+x,import.meta.url),'utf8')).concat(readFile(new URL('../package.json',import.meta.url),'utf8')));
+for(const x of ['function recordExploreHistory','favorite:false',"store.get('hanami-incognito',false)",'if(incognito)return x||null','lastReadChapterUrl','lastReadAt:now','window.HanamiExploreHistory','recordExploreHistory(c);const tracking='])assert(app.includes(x),x);
+for(const x of ["get('hanami-incognito',false)",'if(!incognito)x.lastRead','if(!incognito)chapterMeta.lastReadAt','recordHistory:!incognito'])assert(library.includes(x),x);
+assert(history.includes('Math.max(Number(m.lastRead)||0,chapterActivity(m)?.at||0)'));assert(!history.includes('Math.max(Number(m.lastRead)||0,Number(m.readingProgress?.updatedAt)'));
+assert(history.includes('if(m.favorite===false)continue'));
+assert(library.includes('filter(x=>x.favorite!==false)'));assert(updates.includes('library().filter(x=>x.favorite!==false)'));assert(more.includes("get('hanami-library',[]).filter(x=>x.favorite!==false)"));
+assert(heart.includes('existing.favorite=true'));assert(heart.includes('x.favorite!==false&&key'));
+const privateItem={};applyReadProgress(privateItem,[{url:'c1',number:1}],{url:'c1',number:1},{recordHistory:false});assert.equal(privateItem.lastRead,undefined);assert.equal(privateItem.lastReadChapterUrl,undefined);assert.equal(privateItem.readCount,1);
+const normalItem={};applyReadProgress(normalItem,[{url:'c1',number:1}],{url:'c1',number:1});assert(normalItem.lastRead>0);assert.equal(normalItem.lastReadChapterUrl,'c1');
+assert(sw.includes('hanami-group-mihon-details-v119'));const pkg=JSON.parse(pkgText);assert.equal(pkg.version,'5.8.52');assert(pkg.scripts.test.includes('explore-history-incognito-v93.test.mjs'));
+console.log('PASS: Explore reading creates history-only records while incognito blocks new history timestamps without losing reading progress');

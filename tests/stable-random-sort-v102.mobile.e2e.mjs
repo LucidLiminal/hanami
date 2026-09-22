@@ -1,0 +1,23 @@
+import{chromium}from'playwright';
+import assert from'node:assert/strict';
+const browser=await chromium.launch({headless:true,executablePath:'/usr/local/bin/chromium',args:['--no-sandbox']});
+const page=await browser.newPage({viewport:{width:390,height:844},hasTouch:true,isMobile:true});
+const errors=[];page.on('pageerror',error=>errors.push(error.message));
+await page.addInitScript(()=>{
+  localStorage.setItem('hanami-categories',JSON.stringify([{id:'default',name:'Predeterminada',order:0}]));
+  localStorage.setItem('hanami-library-sort',JSON.stringify({type:'alpha',dir:'asc'}));
+  localStorage.setItem('hanami-library',JSON.stringify(Array.from({length:10},(_,i)=>({id:`m${i}`,title:`Obra ${String(i).padStart(2,'0')}`,url:`/m${i}`,sourceId:'hanami.es.olympus',categories:['default'],totalChapters:1,unreadCount:1}))));
+});
+await page.goto('http://127.0.0.1:4173/');
+await page.locator('[data-tab="library"]').click();
+await page.locator('[data-lib-settings]').click();
+await page.locator('[data-lib-settings-tab="1"]').click();
+await page.locator('[data-lib-sort-choice="random"]').click();
+const order=()=>page.locator('.library-grid [data-lib-id]').evaluateAll(nodes=>nodes.map(node=>node.dataset.libId));
+const seed1=await page.evaluate(()=>JSON.parse(localStorage.getItem('hanami-library-random-seed'))),order1=await order();
+await page.evaluate(()=>{document.querySelector('#modal')?.close();HanamiLibrary.render();HanamiLibrary.render()});
+assert.deepEqual(await order(),order1,'renderizar no debe volver a barajar');
+await page.locator('[data-lib-settings]').click();await page.locator('[data-lib-settings-tab="1"]').click();await page.locator('[data-lib-sort-choice="random"]').click();
+const seed2=await page.evaluate(()=>JSON.parse(localStorage.getItem('hanami-library-random-seed'))),order2=await order();
+assert.notEqual(seed2,seed1);assert.notDeepEqual(order2,order1);assert.equal(await page.locator('[data-lib-sort-choice="random"] i').textContent(),'↻');assert.deepEqual(errors,[]);
+await browser.close();console.log('PASS: mobile random sort persists across renders and reshuffles only on explicit refresh');

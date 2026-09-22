@@ -1,0 +1,15 @@
+import assert from'node:assert/strict';
+import{readFile}from'node:fs/promises';
+import{stableShuffle,seededRandom,createRandomSeed}from'../public/random-sort.js';
+const library=await readFile(new URL('../public/library.js',import.meta.url),'utf8'),sw=await readFile(new URL('../public/sw.js',import.meta.url),'utf8'),pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
+const input=['a','b','c','d','e','f','g','h','i','j'];
+const first=stableShuffle(input,421337),again=stableShuffle(input,421337),second=stableShuffle(input,-90210);
+assert.deepEqual(first,again,'la misma semilla debe conservar exactamente el orden');
+assert.notDeepEqual(first,second,'una semilla nueva debe volver a barajar');
+assert.deepEqual([...first].sort(),input);assert.deepEqual(input,['a','b','c','d','e','f','g','h','i','j'],'no debe mutar la biblioteca');
+assert.equal(typeof seededRandom(1)(),'number');assert.equal(createRandomSeed({getRandomValues:a=>{a[0]=0xfeedbeef}}),0xfeedbeef|0);
+for(const token of ["from'./random-sort.js'","hanami-library-random-seed","if(L.sort.type==='random')return stableShuffle(a,L.randomSeed)","renewRandomSeed()","v==='random'?'↻'"])assert(library.includes(token),token);
+assert(!library.includes('random:Math.random()'),'Math.random no puede ejecutarse dentro del comparador');
+assert(library.includes('a[Math.floor(Math.random()*a.length)]'),'Abrir manga aleatorio debe seguir siendo una acción independiente');
+assert(sw.includes('hanami-group-mihon-details-v119')&&sw.includes("'/random-sort.js'"));assert.equal(pkg.version,'5.8.52');assert(pkg.scripts.test.includes('node tests/stable-random-sort-v102.test.mjs'));
+console.log('PASS: seeded random sort stays stable, reshuffles explicitly and remains independent from open-random');

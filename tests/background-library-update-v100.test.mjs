@@ -1,0 +1,11 @@
+import assert from'node:assert/strict';
+import fs from'node:fs';
+const read=name=>fs.readFileSync(new URL(name,import.meta.url),'utf8');
+const bg=read('../public/background-updates.js'),badges=read('../public/global-badges.js'),sw=read('../public/sw.js'),more=read('../public/more-tab.js'),html=read('../public/index.html'),css=read('../public/more-tab.css'),pkg=JSON.parse(read('../package.json'));
+for(const token of ['hanami-background-v1','indexedDB.open','periodicSync?.register','runIfDue(\'startup\')',"addEventListener('online'","visibilitychange","addEventListener('focus'",'hanami-library-change','navigator.getBattery','navigator.connection','requestNotifications','HanamiGlobalBadges','HANAMI_BACKGROUND_RUN','applyOutput'])assert(bg.includes(token),token);
+for(const token of ["self.addEventListener('sync'","self.addEventListener('periodicsync'","self.addEventListener('notificationclick'",'bgEligible','bgMerge','Promise.all(Array.from({length:Math.min(5','/api/sources','La fuente requiere el runtime foreground','registration.showNotification','HANAMI_BACKGROUND_STATUS','registration.sync?.register'])assert(sw.includes(token),token);
+for(const token of ['function background()','Actualización en segundo plano','data-mt-bg-interval','data-mt-bg-restriction','data-mt-bg-categories','data-mt-bg-notifications','data-mt-bg-smart','data-mt-bg-smart-toggle','refreshMetadata','showBadge','mt-bg-overflow','Resultado detallado','Periodic Sync'])assert(more.includes(token),token);
+assert(bg.includes('recordUpdates')&&badges.includes('setAppBadge'));
+assert(html.includes('/background-updates.js'));assert(sw.includes("'/background-updates.js'"));assert(css.includes('.mt-background{')&&css.includes('.mt-bg-status'));
+assert(sw.includes('hanami-group-mihon-details-v119'));assert.equal(pkg.version,'5.8.52');assert(pkg.scripts.test.includes('background-library-update-v100.test.mjs'));
+console.log('PASS: web background updates use persistent IDB state, Sync/Periodic Sync, constraints, notifications, status UI and foreground fallbacks');

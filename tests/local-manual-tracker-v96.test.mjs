@@ -1,0 +1,11 @@
+import assert from'node:assert/strict';
+import fs from'node:fs';
+const read=name=>fs.readFileSync(new URL(name,import.meta.url),'utf8');
+const local=read('../public/local-source.js'),app=read('../public/app.js'),css=read('../public/local-source.css'),sw=read('../public/sw.js'),pkg=JSON.parse(read('../package.json'));
+for(const token of ['data-local-create','data-local-edit','data-local-chapter','data-local-chapters','data-local-save-series','data-local-save-chapter','data-local-tracker-search','/api/tracker/anilist/search','data-local-tracker-result','data-local-delete-chapter-confirm','coverFromUrl','remoteCoverUrl'])assert(local.includes(token),token);
+for(const token of ['local-editor','local-tracker-result','local-chapter-manager','local-fields'])assert(css.includes(token),token);
+assert(app.includes('data-local-create'));
+assert(sw.includes('hanami-group-mihon-details-v119'));
+assert.equal(pkg.version,'5.8.52');
+assert(pkg.scripts.test.includes('local-manual-tracker-v96.test.mjs'));
+console.log('PASS: Local series can be created and edited manually, populated from AniList, and receive image, ZIP/CBZ or PDF chapters');

@@ -1,0 +1,17 @@
+import assert from'node:assert/strict';
+import fs from'node:fs';
+const read=name=>fs.readFileSync(new URL(name,import.meta.url),'utf8');
+const local=read('../public/local-source.js'),app=read('../public/app.js'),library=read('../public/library.js'),reader=read('../public/reader.js'),downloads=read('../public/download-manager.js'),html=read('../public/index.html'),sw=read('../public/sw.js');
+for(const token of ["SOURCE_ID='hanami.local'","indexedDB.open(DB,VERSION)","new DecompressionStream('deflate-raw')","application/pdf","zip|cbz","data-local-import","data-local-manage","data-local-help","data-local-delete","hanami-local-source-change"])assert(local.includes(token),token);
+assert.match(app,/HanamiLocalSource\.invoke/);
+assert.match(app,/state\.activeSource\.id==='hanami\.local'/);
+assert.match(library,/sourceData\(x\.sourceId,'pages'/);
+assert.match(reader,/reader-page-pdf/);
+assert.match(reader,/<iframe title=/);
+assert.match(reader,/pageData\?\.pdfUrl/);
+assert.match(downloads,/String\(sourceId\)==='hanami\.local'/);
+assert.ok(html.indexOf('/local-source.js')<html.indexOf('/download-manager.js'));
+assert.match(html,/local-source\.css/);
+assert.match(sw,/hanami-group-mihon-details-v119/);
+assert.match(sw,/local-source\.js/);
+console.log('PASS: Local source imports ZIP/CBZ series into IndexedDB and Reader supports one PDF per chapter');

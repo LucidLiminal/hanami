@@ -1,0 +1,46 @@
+{
+  "schema": "hanami-extension-store/v1",
+  "name": "Mi catálogo Hanami",
+  "badgeLabel": "COMMUNITY",
+  "contact": {
+    "website": "https://github.com/usuario/hanami-extensions",
+    "discord": null
+  },
+  "extensions": [
+    {
+      "id": "hanami.es.ejemplo",
+      "name": "Fuente de ejemplo",
+      "version": "1.0.0",
+      "lang": "es",
+      "runtime": "vercel-js",
+      "status": "beta",
+      "entry": "extensions/ejemplo/index.mjs",
+      "manifest": "extensions/ejemplo/manifest.json",
+      "operations": [
+        "popular",
+        "latest",
+        "search",
+        "details",
+        "chapters",
+        "pages"
+      ],
+      "description": "Adaptador web de ejemplo para Hanami.",
+      "sources": [
+        {
+          "id": "hanami.es.ejemplo",
+          "name": "Fuente de ejemplo",
+          "lang": "es",
+          "baseUrl": "https://lector.example",
+          "hosts": [
+            "https://lector.example",
+            "https://api.lector.example",
+            "https://cdn.lector.example"
+          ],
+          "imageHeaders": {
+            "Referer": "https://lector.example/"
+          }
+        }
+      ]
+    }
+  ]
+}

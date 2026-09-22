@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+const [more,css,nav,app,lib,html,sw,pkg]=await Promise.all(['more-tab.js','more-tab.css','navigation.js','app.js','library.js','index.html','sw.js'].map(x=>readFile(new URL('../public/'+x,import.meta.url),'utf8')).concat(readFile(new URL('../package.json',import.meta.url),'utf8')));
+for(const x of ['HanamiMoreTab','onReselect','more-screen','data-mt-downloaded-only','data-mt-incognito','downloads','categories','stats','storage','settings','support','about','help','data-mt-download-sort-menu','mt-overflow','data-mt-download-clear-all','data-mt-download-toggle','data-mt-category-row','data-category-create','mt-stat-grid','data-mt-settings-search','data-mt-setting-toggle','function openSetting','more-setting','hanami-extension-store/v1','HanamiScreens?.push','pointerdown','dragstart'])assert(more.includes(x),x);
+assert(css.includes('@media(min-width:760px)')&&css.includes('@media(prefers-reduced-motion:reduce)')&&css.includes('@keyframes mtSlide'));
+assert(nav.includes('if(window.HanamiMoreTab)return window.HanamiMoreTab.render()'));
+assert(app.includes("b.dataset.tab==='more'")&&app.includes('HanamiMoreTab?.onReselect?.()'));
+assert(lib.includes("get('hanami-downloaded-only',false)"));
+assert(html.includes('/more-tab.css')&&html.includes('/more-tab.js'));
+assert(sw.includes('hanami-group-mihon-details-v119')&&sw.includes("'/more-tab.css'")&&sw.includes("'/more-tab.js'"));
+const p=JSON.parse(pkg);assert.equal(p.version,'5.8.52');assert(p.scripts.test.includes('more-tab-port-v91.test.mjs'));
+console.log('PASS: MoreTab ports root switches, queue, categories, stats, data, settings, support, about, help, itemOverflow, dialogs, animations and gestures');

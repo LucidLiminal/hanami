@@ -1,0 +1,1 @@
+{"schemaVersion":1,"generatedAt":"2026-09-16T00:00:00Z","extensions":[{"id":"hanami.es.olympus","name":"Olympus Scanlation","version":"1.1.0","lang":"es","runtime":"vercel-js","status":"beta","source":"extensions/olympus/index.mjs","upstream":"keiyoushi/extensions-source/src/es/olympusscanlation"}]}

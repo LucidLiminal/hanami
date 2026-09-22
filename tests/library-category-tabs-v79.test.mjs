@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+const library = await readFile(new URL('../public/library.js', import.meta.url), 'utf8');
+const sw = await readFile(new URL('../public/sw.js', import.meta.url), 'utf8');
+assert(!library.includes('data-lib-tab="all"'), 'No debe existir la pestaña sintética Todo');
+assert(!library.includes("L.active==='all'"), 'La categoría activa no debe conservar la semántica Todo');
+assert(library.includes("get('hanami-library-category','default')"), 'Predeterminada debe ser la categoría inicial');
+assert(library.includes("value==='all'?'default':value"), 'Las instalaciones antiguas deben migrar Todo a Predeterminada');
+assert(library.includes("if(!categories.some(x=>x.id===L.active)){L.active='default'"), 'Una categoría eliminada debe volver a Predeterminada');
+assert(library.includes('orderedCategories().map'), 'Las pestañas deben proceder solo de categorías reales');
+assert(sw.includes('hanami-group-mihon-details-v119'));
+console.log('PASS: Library tabs contain only real categories, including Predeterminada, and legacy all state migrates safely');

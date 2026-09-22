@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+const [library,history,sw,pkgText]=await Promise.all(['../public/library.js','../public/history-tab.js','../public/sw.js','../package.json'].map(x=>readFile(new URL(x,import.meta.url),'utf8')));
+assert(library.includes("new CustomEvent('hanami-library-change'"),'Los guardados de Biblioteca deben publicar cambios');
+assert(library.includes("reason:'library-save'"));
+for(const token of ['function chapterActivity(m)','lastReadAt','function readAt(m)','Math.max(Number(m.lastRead)','readAt(x)>0','readAt(b)-readAt(a)','addEventListener(\'hanami-library-change\',syncFromLibrary)','addEventListener(\'storage\'','requestAnimationFrame(render)'])assert(history.includes(token),token);
+assert(history.includes('delete x.lastReadAt')&&history.includes('delete x.readAt'),'Al borrar historial también deben limpiarse timestamps derivados');
+assert(sw.includes('hanami-group-mihon-details-v119'));
+const pkg=JSON.parse(pkgText);assert.equal(pkg.version,'5.8.52');assert(pkg.scripts.test.includes('history-library-sync-v82.test.mjs'));
+console.log('PASS: reader/library changes update History live and chapter metadata can reconstruct recent entries');

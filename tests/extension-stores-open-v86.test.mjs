@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+const files=['../public/app.js','../public/index.html','../public/sw.js','../package.json'];
+const [a,i,s,p]=await Promise.all(files.map(x=>readFile(new URL(x,import.meta.url),'utf8')));
+assert(i.includes('<button data-extension-stores>Repositorios de extensiones</button>'));
+assert(a.includes('function closeExtensionMenuThen(action)'));
+assert(a.includes("window.HanamiOverlays?.current?.()===menu"));
+assert(a.includes("addEventListener('hanami-overlay-close',()=>setTimeout(action,0),{once:true})"));
+assert(a.includes('window.HanamiOverlays.close()'));
+assert(a.includes("if(b.hasAttribute('data-extension-stores'))closeExtensionMenuThen(()=>extensionStoresDialog())"));
+assert(a.includes("showBrowseChild('extension-stores'"));
+assert(!a.includes("if(b.hasAttribute('data-extension-stores')){$('#extensionMenu').classList.add('hidden');extensionStoresDialog()}"));
+assert(s.includes('hanami-group-mihon-details-v119'));
+const pkg=JSON.parse(p);assert.equal(pkg.version,'5.8.52');assert(pkg.scripts.test.includes('extension-stores-open-v86.test.mjs'));
+console.log('PASS: extension repository waits for itemOverflow history closure before opening its child screen');

@@ -1,0 +1,14 @@
+import assert from'node:assert/strict';
+import fs from'node:fs';
+import{matchingChapterIndexes,mergeFetchedChapterMetadata}from'../public/library-progress.js';
+const read=name=>fs.readFileSync(new URL(name,import.meta.url),'utf8');
+const library=read('../public/library.js'),detail=read('../public/manga-detail.js'),more=read('../public/more-tab.js'),css=read('../public/styles.css'),sw=read('../public/sw.js'),pkg=JSON.parse(read('../package.json'));
+assert.deepEqual(matchingChapterIndexes([{url:'a',number:7},{url:'b',number:7},{url:'c',number:8}],{number:7}),[0,1]);
+const item={_chapters:[{url:'old',number:3}],_chapterMeta:{old:{read:true}}};mergeFetchedChapterMetadata(item,[{url:'old',number:3},{url:'duplicate-new',number:3},{url:'next',number:4}],{markNewDuplicates:true});assert.equal(item._chapterMeta['duplicate-new'].read,true);assert.equal(item._chapterMeta.next.read,false);assert.equal(item.readCount,2);assert.equal(item.unreadCount,1);
+const disabled={_chapters:[{url:'read',number:9}],_chapterMeta:{read:{read:true}}};mergeFetchedChapterMetadata(disabled,[{url:'read',number:9},{url:'new',number:9}],{markNewDuplicates:false});assert.equal(disabled._chapterMeta.new.read,false);
+for(const token of ['mergeFetchedChapterMetadata','markExistingDuplicates','matchingChapterIndexes',"includes('new')","includes('existing')"])assert(library.includes(token),token);
+for(const token of ['hanami-hide-missing-chapters','missingTotal','chapterGap','md-missing-chapters','capítulo${count===1'])assert(detail.includes(token),token);
+for(const token of ['function duplicateReadSettings(','hanami-mark-duplicate-read','data-mt-duplicate-read','Al obtener capítulos nuevos','Al terminar de leer un capítulo','hanami-hide-missing-chapters'])assert(more.includes(token),token);
+assert(css.includes('.md-missing-chapters{')&&css.includes('.mt-multi-setting{'));
+assert(sw.includes('hanami-group-mihon-details-v119'));assert.equal(pkg.version,'5.8.52');assert(pkg.scripts.test.includes('library-behavior-preferences-v99.test.mjs'));
+console.log('PASS: Library behavior preferences apply missing indicators and duplicate-read rules for new and completed chapters');

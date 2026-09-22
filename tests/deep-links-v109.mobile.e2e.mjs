@@ -1,0 +1,22 @@
+import{chromium}from'playwright';import assert from'node:assert/strict';
+const browser=await chromium.launch({headless:true,executablePath:'/usr/local/bin/chromium',args:['--no-sandbox']});const context=await browser.newContext({viewport:{width:390,height:844},hasTouch:true,isMobile:true});
+async function open(path){const page=await context.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));await page.route('**/api/**',async route=>{const url=new URL(route.request().url()),path=url.pathname;if(path==='/api/sources')return route.fulfill({json:[{id:'s1',name:'Fuente prueba',lang:'es',baseUrl:'https://example.com',runtime:'web',status:'ready'}]});if(path==='/api/extensions')return route.fulfill({json:{items:[]}});if(path.endsWith('/details'))return route.fulfill({json:{title:'Obra enlazada',url:'/work',description:'Detalle'}});if(path.endsWith('/chapters'))return route.fulfill({json:[{id:'c1',url:'/chapter-1',name:'Capítulo 1',number:1}]});if(path.endsWith('/pages'))return route.fulfill({json:[{imageUrl:'http://127.0.0.1:4173/assets/fallen.webp'}]});if(path.endsWith('/search'))return route.fulfill({json:{mangas:[{title:'Needle',url:'/work',thumbnailUrl:'/assets/fallen.webp'}]}});return route.fulfill({status:404,json:{error:'mock missing'}})});await page.addInitScript(()=>{localStorage.setItem('hanami-reduce-motion','true');localStorage.setItem('hanami-install-seeded','true');localStorage.setItem('hanami-installed-sources',JSON.stringify(['s1']));localStorage.setItem('hanami-library',JSON.stringify([{id:'m1',title:'Obra enlazada',url:'/work',sourceId:'s1',favorite:true,categories:['default'],thumbnailUrl:'/assets/fallen.webp',_chapters:[{id:'c1',url:'/chapter-1',name:'Capítulo 1',number:1}]}]))});await page.goto('http://127.0.0.1:4173'+path);await page.waitForFunction(()=>document.documentElement.dataset.hanamiReady==='true'&&window.HanamiDeepLinks);return{page,errors}}
+{
+ const{page,errors}=await open('/extensions');await page.waitForFunction(()=>document.body.dataset.root==='explore'&&!document.querySelector('#extensions').classList.contains('hidden'));assert.equal(page.url(),'http://127.0.0.1:4173/extensions');await page.goBack();await page.waitForFunction(()=>document.body.dataset.root==='library');assert.equal(new URL(page.url()).pathname,'/library');assert.deepEqual(errors,[]);await page.close()
+}
+{
+ const{page,errors}=await open('/search?q=Needle');await page.waitForFunction(()=>HanamiScreens.current().type==='global-search'&&document.querySelector('#globalQuery')?.value==='Needle');assert.equal(new URL(page.url()).pathname,'/search');await page.waitForFunction(()=>document.querySelectorAll('#globalResults .card').length===1);assert.deepEqual(errors,[]);await page.close()
+}
+{
+ const{page,errors}=await open('/manga/m1');await page.waitForFunction(()=>HanamiScreens.current().type==='library-detail');assert.equal(new URL(page.url()).pathname,'/manga/m1');assert(await page.getByText('Obra enlazada',{exact:true}).count());await page.reload();await page.waitForFunction(()=>HanamiScreens.current().type==='library-detail');assert.deepEqual(errors,[]);await page.close()
+}
+{
+ const{page,errors}=await open('/manga/m1/chapter?chapter=%2Fchapter-1');await page.waitForFunction(()=>HanamiScreens.current().type==='reader'&&!document.querySelector('#reader').classList.contains('hidden'));assert.equal(new URL(page.url()).pathname,'/manga/m1/chapter');assert.equal(new URL(page.url()).searchParams.get('chapter'),'/chapter-1');assert.deepEqual(errors,[]);await page.close()
+}
+{
+ const{page,errors}=await open('/downloads');await page.waitForFunction(()=>HanamiScreens.current().type==='more-downloads');assert.equal(new URL(page.url()).pathname,'/downloads');await page.close();assert.deepEqual(errors,[])
+}
+{
+ const{page,errors}=await open('/settings/reader');await page.waitForFunction(()=>HanamiScreens.current().type==='more-setting'&&HanamiScreens.current().data.name==='reader');assert.equal(new URL(page.url()).pathname,'/settings/reader');await page.setViewportSize({width:1024,height:768});await page.waitForFunction(()=>document.body.classList.contains('nav-rail'));await page.goBack();await page.waitForFunction(()=>document.body.dataset.root==='more');assert.equal(new URL(page.url()).pathname,'/more');assert.deepEqual(errors,[]);await page.close()
+}
+await browser.close();console.log('PASS: deep links restore search, manga, reader, extensions, downloads and settings on mobile/tablet with canonical Back URLs');

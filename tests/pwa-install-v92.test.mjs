@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+const [more,css,manifestText,html,sw,pkg]=await Promise.all(['more-tab.js','more-tab.css','manifest.webmanifest','index.html','sw.js'].map(x=>readFile(new URL('../public/'+x,import.meta.url),'utf8')).concat(readFile(new URL('../package.json',import.meta.url),'utf8')));
+for(const x of ['beforeinstallprompt','preventDefault()','installEvent','event.prompt()','event.userChoice','appinstalled','display-mode: standalone','navigator.standalone','function isIOS','MacIntel','function isSafari','data-mt-open="install"','data-mt-install-now','iosInstallDialog','fallbackInstallDialog','Hanami ya está instalada','Añadir a pantalla de inicio','no instala APK'])assert(more.includes(x),x);
+for(const x of ['.mt-install-card','.mt-install-action','.mt-install-dialog','.mt-install-done'])assert(css.includes(x),x);
+const manifest=JSON.parse(manifestText);assert.equal(manifest.id,'/');assert.equal(manifest.scope,'/');assert.equal(manifest.display,'standalone');assert.equal(manifest.prefer_related_applications,false);assert(manifest.icons.some(x=>x.sizes==='192x192'));assert(manifest.icons.some(x=>x.sizes==='512x512'&&x.purpose==='any'));assert(manifest.icons.some(x=>x.purpose==='maskable'));
+assert(html.includes('apple-mobile-web-app-capable')&&html.includes('hanami-apple-touch-180.png'));
+for(const x of ['hanami-group-mihon-details-v119','hanami-pwa-192.png','hanami-pwa-512.png','hanami-pwa-maskable-512.png','hanami-apple-touch-180.png'])assert(sw.includes(x),x);
+const p=JSON.parse(pkg);assert.equal(p.version,'5.8.52');assert(p.scripts.test.includes('pwa-install-v92.test.mjs'));
+console.log('PASS: MoreTab offers professional PWA installation with native prompt, iOS/manual guides, installed state and complete manifest icons');

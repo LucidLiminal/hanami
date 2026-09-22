@@ -1,0 +1,10 @@
+const KEYS={updates:'hanami-unseen-updates-count',extensions:'hanami-extension-updates-count',token:'hanami-unseen-updates-token',showUpdates:'hanami-show-updates-badge'};
+const get=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key))??fallback}catch{return fallback}},set=(key,value)=>localStorage.setItem(key,JSON.stringify(value));
+function snapshot(){return{updates:Math.max(0,Number(get(KEYS.updates,0))||0),extensions:Math.max(0,Number(get(KEYS.extensions,0))||0),showUpdates:get(KEYS.showUpdates,true)!==false}}
+function render(){const value=snapshot(),updates=value.showUpdates?value.updates:0;window.HanamiNavigation?.setBadge?.('updates',updates,`${updates} capítulo${updates===1?'':'s'} nuevo${updates===1?'':'s'}`);window.HanamiNavigation?.setBadge?.('explore',value.extensions,`${value.extensions} actualización${value.extensions===1?'':'es'} de extensiones`);if(updates)navigator.setAppBadge?.(updates).catch?.(()=>{});else navigator.clearAppBadge?.().catch?.(()=>{});dispatchEvent(new CustomEvent('hanami-global-badges',{detail:value}));return value}
+function recordUpdates(count,token){count=Math.max(0,Number(count)||0);if(!count)return snapshot();const fingerprint=String(token||'');if(fingerprint&&get(KEYS.token,'')===fingerprint)return snapshot();set(KEYS.updates,snapshot().updates+count);if(fingerprint)set(KEYS.token,fingerprint);return render()}
+function clearUpdates(){set(KEYS.updates,0);set(KEYS.token,'');return render()}
+function setExtensions(count){set(KEYS.extensions,Math.max(0,Number(count)||0));return render()}
+function showUpdates(value){set(KEYS.showUpdates,!!value);return render()}
+addEventListener('storage',event=>{if(Object.values(KEYS).includes(event.key))render()});
+window.HanamiGlobalBadges={snapshot,render,recordUpdates,clearUpdates,setExtensions,showUpdates,keys:KEYS};

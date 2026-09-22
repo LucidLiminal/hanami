@@ -1,0 +1,1 @@
+{"id":"hanami.es.olympus","name":"Olympus Scanlation","version":"1.3.5","lang":"es","runtime":"vercel-js","status":"beta","upstream":"keiyoushi/extensions-source/src/es/olympusscanlation","operations":["popular","latest","search","details","chapters","pages"]}

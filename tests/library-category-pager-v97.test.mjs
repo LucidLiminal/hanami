@@ -1,0 +1,17 @@
+import assert from'node:assert/strict';
+import fs from'node:fs';
+const read=name=>fs.readFileSync(new URL(name,import.meta.url),'utf8');
+const library=read('../public/library.js'),css=read('../public/styles.css'),sw=read('../public/sw.js'),pkg=JSON.parse(read('../package.json'));
+assert(!library.includes("const ids=['all'"),'El gesto no debe crear una página all');
+assert(!library.includes('data-lib-tab="all"'),'El DOM no debe crear una pestaña all');
+for(const token of ['function orderedCategories()','function activeCategoryIndex()','function changeCategory(','role="tablist"','role="tab"','aria-selected=','library-page-empty','scrollActiveCategory()',"['ArrowLeft','ArrowRight','Home','End']","const next=activeCategoryIndex()+(dx<0?1:-1)"])assert(library.includes(token),token);
+assert(library.includes("value==='all'?'default':value"),'La única semántica all permitida es la migración de instalaciones antiguas');
+assert.equal((library.match(/value==='all'/g)||[]).length,1);
+assert(library.includes("e.detail?.reason==='library-save'"),'Los guardados propios no deben provocar un segundo render y perder la transición');
+assert(css.includes('@keyframes libraryPageNext'));
+assert(css.includes('@keyframes libraryPagePrev'));
+assert(css.includes('@media(prefers-reduced-motion:reduce)'));
+assert(sw.includes('hanami-group-mihon-details-v119'));
+assert.equal(pkg.version,'5.8.52');
+assert(pkg.scripts.test.includes('library-category-pager-v97.test.mjs'));
+console.log('PASS: Library pager contains only real categories and supports swipe, tabs, keyboard, empty states and legacy migration');
