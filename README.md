@@ -24,7 +24,22 @@ Primer port manual del catálogo TypeScript de Hanami. Funciona como un único p
 3. Framework preset: **Other**.
 4. Build command: vacío.
 5. Output directory: `public`.
-6. Deploy.
+6. Añade `SUPABASE_URL` y `SUPABASE_ANON_KEY` para los grupos compartidos.
+7. Deploy.
+
+## Grupos compartidos
+
+Ejecuta en Supabase SQL Editor, en este orden:
+
+```text
+supabase/hanami-social-v117.sql
+supabase/hanami-group-library-v118.sql
+supabase/hanami-invite-access-v120.sql
+```
+
+Después habilita **Authentication → Providers → Anonymous Sign-Ins**. Hanami
+crea identidades ligadas al dispositivo y consume invitaciones privadas de un
+solo uso; ya no depende de enlaces mágicos por correo.
 
 ## Desarrollo local
 
@@ -43,7 +58,9 @@ npm test
 vercel
 ```
 
-`vercel.json` reescribe `/api/*` a una función Node serverless. No hacen falta variables; opcionalmente `OLYMPUS_BASE_URL` permite cambiar el espejo.
+`vercel.json` reescribe `/api/*` a una función Node serverless. La lectura local
+no necesita variables. La sincronización social requiere `SUPABASE_URL` y
+`SUPABASE_ANON_KEY`; opcionalmente `OLYMPUS_BASE_URL` permite cambiar el espejo.
 
 ## Estado del port
 

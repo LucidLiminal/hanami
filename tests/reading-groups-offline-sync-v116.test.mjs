@@ -51,7 +51,7 @@ assert(navigation.includes("if(root==='groups')window.HanamiReadingGroups?.rende
 assert(css.includes(".reading-groups-hero"));
 assert(css.includes(".reading-room-grid"));
 assert(css.includes("@media(max-width:600px)"));
-assert(sw.includes("hanami-group-mihon-details-v119"));
+assert(sw.includes("hanami-invite-only-anonymous-v120"));
 for (const asset of [
   "/reading-groups.css",
   "/reading-groups.js",
@@ -60,7 +60,7 @@ for (const asset of [
   "/assets/reading-room-nazuna.webp",
 ])
   assert(sw.includes(asset), asset);
-assert.equal(pkg.version, "5.8.52");
+assert.equal(pkg.version, "5.8.53");
 assert(
   pkg.scripts.test.includes(
     "node tests/reading-groups-offline-sync-v116.test.mjs",

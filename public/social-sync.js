@@ -23,6 +23,11 @@ const state = () => ({
   configured: !!(config?.url && config?.anonKey),
   authenticated: !!session?.access_token,
   user: session?.user || null,
+  anonymous: !!session?.user?.is_anonymous,
+  displayName:
+    session?.user?.user_metadata?.display_name ||
+    session?.user?.email?.split("@")[0] ||
+    "",
   syncing,
   lastError,
 });
@@ -125,24 +130,40 @@ async function refreshSession() {
   write(SESSION_KEY, session);
   return session;
 }
-async function signIn(email) {
-  const clean = String(email || "").trim().toLowerCase();
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(clean))
-    throw new Error("Escribe un correo válido.");
-  const redirect = `${location.origin}/groups`;
-  await jsonRequest(
-    `/auth/v1/otp?redirect_to=${encodeURIComponent(redirect)}`,
+function cleanDisplayName(value) {
+  const clean = String(value || "").trim().replace(/\s+/g, " ");
+  if (clean.length < 2 || clean.length > 40)
+    throw new Error("El nombre debe tener entre 2 y 40 caracteres.");
+  return clean;
+}
+function storeSession(payload) {
+  if (!payload?.access_token || !payload?.refresh_token || !payload?.user)
+    throw new Error("Supabase no devolvió una sesión anónima válida.");
+  session = {
+    ...payload,
+    expires_at:
+      Math.floor(Date.now() / 1000) + Number(payload.expires_in || 3600),
+  };
+  write(SESSION_KEY, session);
+  emit();
+  return session.user;
+}
+async function signInAnonymously(displayName) {
+  const clean = cleanDisplayName(displayName);
+  if (session?.access_token) {
+    await updateProfile(clean);
+    return session.user;
+  }
+  const payload = await jsonRequest(
+    "/auth/v1/signup",
     {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        email: clean,
-        create_user: true,
-      }),
+      body: JSON.stringify({ data: { display_name: clean } }),
     },
     false,
   );
-  return true;
+  return storeSession(payload);
 }
 async function signOut() {
   if (session?.access_token)
@@ -190,13 +211,97 @@ async function createGroup({ name, quote }) {
   });
   return mapGroup(Array.isArray(rows) ? rows[0] : rows);
 }
-async function joinGroup(code) {
-  const rows = await jsonRequest("/rest/v1/rpc/join_reading_group", {
+async function updateProfile(displayName) {
+  const clean = cleanDisplayName(displayName);
+  if (!session?.user?.id) throw new Error("No hay una identidad activa.");
+  const rows = await jsonRequest(
+    `/rest/v1/profiles?id=eq.${encodeURIComponent(session.user.id)}&select=*`,
+    {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        prefer: "return=representation",
+      },
+      body: JSON.stringify({
+        display_name: clean,
+        updated_at: new Date().toISOString(),
+      }),
+    },
+  );
+  session.user = {
+    ...session.user,
+    user_metadata: {
+      ...(session.user.user_metadata || {}),
+      display_name: clean,
+    },
+  };
+  write(SESSION_KEY, session);
+  emit();
+  return Array.isArray(rows) ? rows[0] : rows;
+}
+async function redeemInvite(code, displayName) {
+  const cleanCode = String(code || "").trim().toUpperCase();
+  const cleanName = cleanDisplayName(displayName);
+  if (!/^[A-Z0-9-]{8,20}$/.test(cleanCode))
+    throw new Error("Escribe un código de invitación válido.");
+  const createdIdentity = !session?.access_token;
+  if (createdIdentity) await signInAnonymously(cleanName);
+  try {
+    const rows = await jsonRequest(
+      "/rest/v1/rpc/redeem_reading_group_invite",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          invite_code_input: cleanCode,
+          display_name_input: cleanName,
+        }),
+      },
+    );
+    await updateProfile(cleanName);
+    const group = mapGroup(Array.isArray(rows) ? rows[0] : rows);
+    groupCache = [
+      group,
+      ...groupCache.filter((candidate) => candidate.id !== group.id),
+    ];
+    return group;
+  } catch (error) {
+    if (createdIdentity) await signOut();
+    throw error;
+  }
+}
+async function createInvite(groupId, expiresInHours = 168, maxUses = 1) {
+  const rows = await jsonRequest(
+    "/rest/v1/rpc/create_reading_group_invite",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        target_group: groupId,
+        expires_in_hours: Number(expiresInHours),
+        allowed_uses: Number(maxUses),
+      }),
+    },
+  );
+  return Array.isArray(rows) ? rows[0] : rows;
+}
+async function listInvites(groupId) {
+  const rows = await jsonRequest(
+    "/rest/v1/rpc/list_reading_group_invites",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ target_group: groupId }),
+    },
+  );
+  return rows || [];
+}
+async function revokeInvite(inviteId) {
+  return jsonRequest("/rest/v1/rpc/revoke_reading_group_invite", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ code: String(code).trim().toUpperCase() }),
+    body: JSON.stringify({ target_invite: inviteId }),
   });
-  return mapGroup(Array.isArray(rows) ? rows[0] : rows);
 }
 function mapLibraryEntry(row) {
   return {
@@ -444,11 +549,15 @@ window.HanamiSocialSync = {
   ready,
   state,
   configure,
-  signIn,
+  signInAnonymously,
   signOut,
+  updateProfile,
   listGroups,
   createGroup,
-  joinGroup,
+  redeemInvite,
+  createInvite,
+  listInvites,
+  revokeInvite,
   listGroupLibrary,
   recommendManga,
   saveGroupProgress,

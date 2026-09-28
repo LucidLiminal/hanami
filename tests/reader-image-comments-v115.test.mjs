@@ -32,9 +32,9 @@ assert(css.includes(".reader-comment-layer"));
 assert(css.includes(".reader-comment-editor"));
 assert(css.includes("touch-action:none"));
 assert(html.includes('src="/reader-comments.js"'));
-assert(sw.includes("hanami-group-mihon-details-v119"));
+assert(sw.includes("hanami-invite-only-anonymous-v120"));
 assert(sw.includes("'/reader-comments.js'"));
-assert.equal(pkg.version, "5.8.52");
+assert.equal(pkg.version, "5.8.53");
 assert(
   pkg.scripts.test.includes(
     "node tests/reader-image-comments-v115.test.mjs",

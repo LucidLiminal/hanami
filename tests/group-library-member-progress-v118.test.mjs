@@ -63,9 +63,9 @@ assert(index.includes('href="/group-library.css"'));
 assert(index.includes('src="/group-library.js"'));
 assert(css.includes(".group-library-grid"));
 assert(css.includes(".group-progress-list"));
-assert(sw.includes("hanami-group-mihon-details-v119"));
+assert(sw.includes("hanami-invite-only-anonymous-v120"));
 assert(sw.includes("'/group-library.js'"));
-assert.equal(pkg.version, "5.8.52");
+assert.equal(pkg.version, "5.8.53");
 assert(
   pkg.scripts.test.includes(
     "node tests/group-library-member-progress-v118.test.mjs",

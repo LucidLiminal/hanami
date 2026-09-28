@@ -21,12 +21,9 @@ const pkg = JSON.parse(packageText);
 for (const token of [
   "hanami-supabase-config-v1",
   "hanami-supabase-session-v1",
-  "/auth/v1/otp",
   "/auth/v1/token?grant_type=refresh_token",
-  "redirect_to=",
   "list_my_reading_groups",
   "create_reading_group",
-  "join_reading_group",
   "reader_comments?on_conflict=id",
   "comment-media",
   "pendingOperations",
@@ -37,12 +34,11 @@ for (const token of [
 
 for (const token of [
   "data-social-configure",
-  "data-social-login",
   "data-social-sync",
   "data-social-signout",
   "mergeRemoteGroups",
   "Sala sincronizada",
-  "V117",
+  "V120",
 ])
   assert(groups.includes(token), token);
 
@@ -77,9 +73,9 @@ assert(!api.includes("SUPABASE_SERVICE_ROLE_KEY"));
 assert(index.includes('src="/social-sync.js"'));
 assert(css.includes(".reading-room-cloud"));
 assert(css.includes(".reading-social-actions"));
-assert(sw.includes("hanami-group-mihon-details-v119"));
+assert(sw.includes("hanami-invite-only-anonymous-v120"));
 assert(sw.includes("'/social-sync.js'"));
-assert.equal(pkg.version, "5.8.52");
+assert.equal(pkg.version, "5.8.53");
 assert(
   pkg.scripts.test.includes(
     "node tests/supabase-groups-auth-sync-v117.test.mjs",
@@ -87,5 +83,5 @@ assert(
 );
 
 console.log(
-  "PASS: Supabase magic-link auth, private groups, RLS, media storage and offline comment queue synchronization are wired for v117",
+  "PASS: Supabase sessions, private groups, RLS, media storage and offline comment queue synchronization remain wired after invite-only auth supersedes magic links",
 );
