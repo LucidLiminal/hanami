@@ -39,6 +39,18 @@ function progresses() {
 function saveProgresses(value) {
   write(PROGRESS_KEY, value);
 }
+function rerenderGroup(groupId) {
+  if (
+    document.body.dataset.root === "library" &&
+    window.HanamiLibraryGroups?.scope?.() === groupId
+  )
+    window.HanamiLibrary?.render?.();
+  else if (window.HanamiReadingGroups?.active?.()?.id === groupId)
+    window.HanamiReadingGroups?.detail?.(
+      window.HanamiReadingGroups.active(),
+      true,
+    );
+}
 function profile() {
   const user = window.HanamiSocialSync?.state?.().user;
   if (user?.id) {
@@ -149,11 +161,7 @@ async function refresh(groupId, rerender = true) {
     await window.HanamiSocialSync.pullComments(groupId);
   }
   loadedGroups.add(groupId);
-  if (rerender && window.HanamiReadingGroups?.active?.()?.id === groupId)
-    window.HanamiReadingGroups.detail(
-      window.HanamiReadingGroups.active(),
-      true,
-    );
+  if (rerender) rerenderGroup(groupId);
   return entries(groupId);
 }
 function ensure(groupId) {
@@ -214,7 +222,7 @@ async function recommend(groupId, libraryId) {
     mergeRemote(groupId, [remote]);
   }
   document.querySelector("#modal")?.close();
-  window.HanamiReadingGroups.detail(window.HanamiReadingGroups.active(), true);
+  rerenderGroup(groupId);
 }
 function setContext(groupId, entry) {
   sessionStorage.setItem(

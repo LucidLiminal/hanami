@@ -100,7 +100,9 @@ function date(value) {
   });
 }
 function root() {
-  return document.querySelector("#groupsRoot");
+  return document.querySelector(
+    document.body.dataset.root === "library" ? "#libraryRoot" : "#groupsRoot",
+  );
 }
 function roomCard(group, index) {
   const current = group.id === activeId();
@@ -167,21 +169,24 @@ function showGroupAfterAccess(group) {
   if (!group) return;
   mergeRemoteGroups([group], false);
   setActive(group.id);
-  window.HanamiScreens?.replace(
-    "reading-group",
-    { id: group.id },
-    { restore: () => detail(groups().find((item) => item.id === group.id), true) },
-  );
-  detail(groups().find((item) => item.id === group.id), true);
+  window.HanamiLibraryGroups?.activate?.(group.id, false);
+  const current = window.HanamiScreens?.current?.();
+  if (current) {
+    window.HanamiScreens.markClosed(current.id);
+    window.HanamiScreens.back();
+  } else {
+    window.HanamiAppShowTab?.("library", false);
+    window.HanamiLibrary?.render?.();
+  }
 }
 function detail(group, restoring = false) {
   if (!group || !root()) return;
   document.body.classList.remove("group-access-mode");
-  window.HanamiNavigation?.setChild?.(false);
+  window.HanamiNavigation?.setChild?.(true);
   setActive(group.id);
   const socialUser = window.HanamiSocialSync?.state?.().user;
   const canInvite = group.remote && socialUser?.id === group.ownerId;
-  root().innerHTML = `<section class="reading-group-detail"><header><button data-group-back aria-label="Atrás">←</button><div><small>PRIVATE ROOM // V120</small><h2>${esc(group.name)}</h2></div><button data-group-more>•••</button></header><div class="reading-group-banner"><img src="${esc(group.cover)}" alt=""><div><span>${group.remote ? "SALA SINCRONIZADA" : "SALA LOCAL"}</span><blockquote>“${esc(group.quote)}”</blockquote></div></div>${window.HanamiGroupLibrary?.section?.(group) || ""}<div class="reading-group-columns"><section><div class="reading-groups-heading"><div><small>PRESENCE</small><h3>Miembros</h3></div>${canInvite ? '<button class="btn" data-group-invites>Crear invitación</button>' : ""}</div><div class="reading-member-list">${(group.members || []).map((member) => `<article><i>${esc(member.initials || initials(member.name))}</i><div><b>${esc(member.name)}</b><small>${member.id === group.ownerId ? "ADMINISTRA LA SALA" : "MIEMBRO"}</small></div><span>${member.id === socialUser?.id ? "este dispositivo" : "miembro"}</span></article>`).join("")}</div></section><aside><small>SYNC QUEUE</small><strong>${window.HanamiReaderComments?.pendingCount?.() ?? 0}</strong><p>${group.remote ? "Cambios preparados para Supabase." : "Sala local disponible sin conexión."}</p>${group.remote ? '<button class="btn acid" data-social-sync>Sincronizar ahora</button>' : '<button class="btn acid" data-group-export>Exportar ahora</button>'}<button class="btn" data-group-rename>Editar sala</button></aside></div></section>`;
+  root().innerHTML = `<section class="reading-group-detail"><header><button data-group-back aria-label="Atrás">←</button><div><small>PRIVATE ROOM // V121</small><h2>${esc(group.name)}</h2></div><button data-group-more>•••</button></header><div class="reading-group-banner"><img src="${esc(group.cover)}" alt=""><div><span>${group.remote ? "SALA SINCRONIZADA" : "SALA LOCAL"}</span><blockquote>“${esc(group.quote)}”</blockquote></div></div><div class="reading-group-columns"><section><div class="reading-groups-heading"><div><small>PRESENCE</small><h3>Miembros</h3></div>${canInvite ? '<button class="btn" data-group-invites>Crear invitación</button>' : ""}</div><div class="reading-member-list">${(group.members || []).map((member) => `<article><i>${esc(member.initials || initials(member.name))}</i><div><b>${esc(member.name)}</b><small>${member.id === group.ownerId ? "ADMINISTRA LA SALA" : "MIEMBRO"}</small></div><span>${member.id === socialUser?.id ? "este dispositivo" : "miembro"}</span></article>`).join("")}</div></section><aside><small>SYNC QUEUE</small><strong>${window.HanamiReaderComments?.pendingCount?.() ?? 0}</strong><p>${group.remote ? "Cambios preparados para Supabase." : "Sala local disponible sin conexión."}</p>${group.remote ? '<button class="btn acid" data-social-sync>Sincronizar ahora</button>' : '<button class="btn acid" data-group-export>Exportar ahora</button>'}<button class="btn" data-group-rename>Editar sala</button></aside></div></section>`;
   window.HanamiGroupLibrary?.ensure?.(group.id);
   if (!restoring && window.HanamiScreens)
     window.HanamiScreens.push(
@@ -312,7 +317,11 @@ function mergeRemoteGroups(
     else all.push(value);
   }
   saveGroups(all);
-  if (shouldRender) render();
+  if (shouldRender) {
+    if (document.body.dataset.root === "library")
+      window.HanamiLibrary?.render?.();
+    else if (document.body.dataset.root === "groups") render();
+  }
   return all;
 }
 async function exportActive() {

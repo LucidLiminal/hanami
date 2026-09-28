@@ -42,16 +42,17 @@ for (const token of [
   assert(comments.includes(token), token);
 
 assert(index.includes('id="groups"'));
-assert(index.includes('data-tab="groups"'));
+assert(!index.includes('data-tab="groups"'));
+assert(index.includes('src="/library-groups.js"'));
 assert(index.includes('href="/reading-groups.css"'));
 assert(index.includes('src="/reading-groups.js"'));
 assert(app.includes("'library','updates','history','groups','more'"));
-assert(app.includes("if(root==='groups')window.HanamiReadingGroups?.render()"));
-assert(navigation.includes("if(root==='groups')window.HanamiReadingGroups?.render()"));
+assert(app.includes("if(id==='groups')id='library'"));
+assert(!navigation.includes("if(root==='groups')window.HanamiReadingGroups?.render()"));
 assert(css.includes(".reading-groups-hero"));
 assert(css.includes(".reading-room-grid"));
 assert(css.includes("@media(max-width:600px)"));
-assert(sw.includes("hanami-invite-only-anonymous-v120"));
+assert(sw.includes("hanami-library-room-switcher-v121"));
 for (const asset of [
   "/reading-groups.css",
   "/reading-groups.js",
@@ -60,7 +61,7 @@ for (const asset of [
   "/assets/reading-room-nazuna.webp",
 ])
   assert(sw.includes(asset), asset);
-assert.equal(pkg.version, "5.8.53");
+assert.equal(pkg.version, "5.8.54");
 assert(
   pkg.scripts.test.includes(
     "node tests/reading-groups-offline-sync-v116.test.mjs",
@@ -68,5 +69,5 @@ assert(
 );
 
 console.log(
-  "PASS: reading groups add an editorial main tab and comments migrate to IndexedDB with identity, group, revision, queue and portable bundles",
+  "PASS: reading groups retain IndexedDB identity, group, revision, queue and portable bundles after moving from a main tab into Library",
 );

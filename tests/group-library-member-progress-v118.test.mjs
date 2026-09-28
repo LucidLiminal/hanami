@@ -36,7 +36,7 @@ for (const token of [
 ])
   assert(library.includes(token), token);
 
-assert(groups.includes("HanamiGroupLibrary?.section"));
+assert(library.includes("function rerenderGroup"));
 assert(groups.includes("HanamiGroupLibrary?.ensure"));
 for (const token of [
   "list_group_library",
@@ -63,9 +63,9 @@ assert(index.includes('href="/group-library.css"'));
 assert(index.includes('src="/group-library.js"'));
 assert(css.includes(".group-library-grid"));
 assert(css.includes(".group-progress-list"));
-assert(sw.includes("hanami-invite-only-anonymous-v120"));
+assert(sw.includes("hanami-library-room-switcher-v121"));
 assert(sw.includes("'/group-library.js'"));
-assert.equal(pkg.version, "5.8.53");
+assert.equal(pkg.version, "5.8.54");
 assert(
   pkg.scripts.test.includes(
     "node tests/group-library-member-progress-v118.test.mjs",

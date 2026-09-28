@@ -38,7 +38,7 @@ for (const token of [
   "reading-group-access",
   "reading-group-invites",
   "data-invite-revoke",
-  "HanamiScreens?.replace",
+  "HanamiScreens.markClosed",
 ])
   assert(groups.includes(token), token);
 
@@ -58,10 +58,10 @@ assert(css.includes("@media(max-width:600px)"));
 assert(gitignore.includes("node_modules/"));
 assert(gitignore.includes(".env.*"));
 assert(gitignore.includes(".vercel/"));
-assert(sw.includes("hanami-invite-only-anonymous-v120"));
-assert.equal(pkg.version, "5.8.53");
+assert(sw.includes("hanami-library-room-switcher-v121"));
+assert.equal(pkg.version, "5.8.54");
 assert(
-  pkg.scripts.test.startsWith(
+  pkg.scripts.test.includes(
     "node tests/invite-only-anonymous-access-v120.test.mjs",
   ),
 );

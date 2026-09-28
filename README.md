@@ -41,6 +41,12 @@ Después habilita **Authentication → Providers → Anonymous Sign-Ins**. Hanam
 crea identidades ligadas al dispositivo y consume invitaciones privadas de un
 solo uso; ya no depende de enlaces mágicos por correo.
 
+Desde v121, las salas ya no ocupan una pestaña principal. Aparecen bajo la
+toolbar de **Biblioteca** como una barra horizontal de accesos circulares. Un
+toque alterna entre la biblioteca personal y la biblioteca independiente de
+cada sala; una pulsación prolongada abre los detalles, miembros, sincronización
+e invitaciones del grupo.
+
 ## Desarrollo local
 
 ```bash
