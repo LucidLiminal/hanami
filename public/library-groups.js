@@ -64,23 +64,12 @@ function roomButton(group, index) {
       "/assets/reading-room-graffiti.webp",
       "/assets/reading-room-nazuna.webp",
     ][index % 3];
-  return `<button class="library-room ${selected ? "active" : ""}" data-library-room="${esc(group.id)}" aria-pressed="${selected}" aria-label="${esc(group.name)}. Toca para abrir su biblioteca; mantén pulsado para ver los detalles."><span><img src="${esc(cover)}" alt=""></span><b>${esc(group.name)}</b><small>${group.memberCount || group.members?.length || 1} lector(es)</small></button>`;
+  return `<button class="library-room ${selected ? "active" : ""}" data-library-room="${esc(group.id)}" aria-pressed="${selected}" aria-label="${esc(group.name)}. Toca para abrir su biblioteca; mantén pulsado para ver los detalles."><span><img src="${esc(cover)}" alt=""></span></button>`;
 }
 function bar() {
-  const selected = activeGroup();
   const user = profile();
   const rooms = groups();
-  const members = selected?.members || [{ ...user }];
-  const title = selected?.name || "Mi biblioteca";
-  const quote =
-    selected?.quote || "Tu estantería personal, tus ritmos y tus noches.";
-  return `<section class="library-room-switcher"><aside><div><small>SALA ACTIVA</small><b>${esc(title)}</b><blockquote>“${esc(quote)}”</blockquote></div><div class="reading-group-avatars">${members
-    .slice(0, 5)
-    .map(
-      (member) =>
-        `<i title="${esc(member.name)}">${esc(member.initials || initials(member.name))}</i>`,
-    )
-    .join("")}</div></aside><nav aria-label="Bibliotecas y grupos de lectura"><button class="library-room personal ${scope() === "personal" ? "active" : ""}" data-library-room="personal" aria-pressed="${scope() === "personal"}" aria-label="Mi biblioteca personal"><span>${esc(user.initials || initials(user.name))}</span><b>Mi biblioteca</b><small>Individual</small></button>${rooms.map(roomButton).join("")}<button class="library-room add" data-library-room-add aria-label="Añadir grupo de lectura"><span>＋</span><b>Añadir sala</b><small>Invitar o crear</small></button></nav></section>`;
+  return `<section class="library-room-switcher"><nav aria-label="Bibliotecas y grupos de lectura"><button class="library-room personal ${scope() === "personal" ? "active" : ""}" data-library-room="personal" aria-pressed="${scope() === "personal"}" aria-label="Mi biblioteca personal"><span>${esc(user.initials || initials(user.name))}</span></button>${rooms.map(roomButton).join("")}<button class="library-room add" data-library-room-add aria-label="Añadir grupo de lectura"><span>＋</span></button></nav></section>`;
 }
 function progressSummary(groupId, entryId) {
   const rows = window.HanamiGroupLibrary?.progressFor?.(groupId, entryId) || [];
@@ -105,9 +94,13 @@ function progressSummary(groupId, entryId) {
 function groupEntry(entry, groupId) {
   return `<article class="lib-item comfortable library-group-item" data-library-group-entry="${esc(entry.id)}" data-group-id="${esc(groupId)}"><div class="lib-cover"><img src="${esc(entry.thumbnailUrl || "/assets/fallen.webp")}" alt=""><span class="library-group-recommender">${entry.remote ? "compartido" : "pendiente"}</span></div><div class="lib-meta"><b>${esc(entry.title)}</b><small>Recomendado por ${esc(entry.recommendedByName || "un miembro")}</small><blockquote>“${esc(entry.recommendation || "Deberíamos leer esto juntos.")}”</blockquote>${progressSummary(groupId, entry.id)}</div></article>`;
 }
+function recommendationItem(groupId) {
+  return `<button class="lib-item comfortable library-group-add-item" data-library-group-recommend="${esc(groupId)}" aria-label="Recomendar una lectura"><span class="lib-cover" aria-hidden="true"><i>＋</i></span><span class="lib-meta"><b>Recomendar lectura</b></span></button>`;
+}
 function pager(query = "") {
   const group = activeGroup();
   if (!group) return "";
+  const members = group.members || [];
   const term = String(query || "").trim().toLowerCase();
   const entries = (window.HanamiGroupLibrary?.entries?.(group.id) || []).filter(
     (entry) =>
@@ -116,7 +109,13 @@ function pager(query = "") {
       String(entry.recommendation || "").toLowerCase().includes(term),
   );
   window.HanamiGroupLibrary?.ensure?.(group.id);
-  return `<section class="library-group-shelf"><header><div><small>SHARED SHELF // ${esc(group.name)}</small><h3>Biblioteca compartida</h3><p>Recomendaciones y progreso independientes de tu biblioteca personal.</p></div><div><button class="btn" data-library-group-refresh="${esc(group.id)}">Actualizar</button><button class="btn acid" data-library-group-recommend="${esc(group.id)}">Recomendar lectura</button></div></header><div class="library-pager" data-library-scope="${esc(group.id)}">${entries.length ? `<div class="library-grid mode-comfortable">${entries.map((entry) => groupEntry(entry, group.id)).join("")}</div>` : `<div class="library-page-empty"><p class="empty">${term ? "No se encontraron recomendaciones." : "La biblioteca de esta sala está vacía."}</p>${term ? "" : `<button class="btn acid" data-library-group-recommend="${esc(group.id)}">Recomendar una obra</button>`}</div>`}</div></section>`;
+  return `<section class="library-group-shelf"><header><aside><div><small>SALA ACTIVA</small><b>${esc(group.name)}</b><blockquote>“${esc(group.quote || "Leamos algo juntos.")}”</blockquote></div><div class="reading-group-avatars">${members
+    .slice(0, 5)
+    .map(
+      (member) =>
+        `<i title="${esc(member.name)}">${esc(member.initials || initials(member.name))}</i>`,
+    )
+    .join("")}</div></aside><p>Recomendaciones y progreso independientes de tu biblioteca personal.</p></header><div class="library-pager" data-library-scope="${esc(group.id)}"><div class="library-grid mode-comfortable">${recommendationItem(group.id)}${entries.map((entry) => groupEntry(entry, group.id)).join("")}</div>${!entries.length ? `<div class="library-page-empty"><p class="empty">${term ? "No se encontraron recomendaciones." : "La biblioteca de esta sala está vacía."}</p></div>` : ""}</div></section>`;
 }
 function activate(value, render = true) {
   if (value !== "personal" && !groupById(value)) return false;
@@ -147,7 +146,7 @@ function openDetails(groupId) {
 
 document.addEventListener("click", async (event) => {
   const target = event.target.closest(
-    "[data-library-room],[data-library-room-add],[data-library-room-join],[data-library-room-create],[data-library-group-entry],[data-library-group-refresh],[data-library-group-recommend]",
+    "[data-library-room],[data-library-room-add],[data-library-room-join],[data-library-room-create],[data-library-group-entry],[data-library-group-recommend]",
   );
   if (!target) return;
   if (target.dataset.libraryRoom) {
@@ -172,13 +171,6 @@ document.addEventListener("click", async (event) => {
       target.dataset.groupId,
       target.dataset.libraryGroupEntry,
     );
-  if (target.dataset.libraryGroupRefresh) {
-    await window.HanamiGroupLibrary?.refresh?.(
-      target.dataset.libraryGroupRefresh,
-      false,
-    );
-    window.HanamiLibrary?.render?.();
-  }
   if (target.dataset.libraryGroupRecommend)
     window.HanamiGroupLibrary?.recommendDialog?.(
       target.dataset.libraryGroupRecommend,

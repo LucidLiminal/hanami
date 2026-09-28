@@ -41,13 +41,13 @@ for (const token of [
   "roomHoldTimer",
   "openDetails",
   "data-library-group-entry",
-  "Biblioteca compartida",
+  "library-group-shelf",
 ])
   assert(rooms.includes(token), token);
 
-assert(roomCss.includes("overflow-x:auto"));
-assert(roomCss.includes("border-radius:50%"));
-assert(roomCss.includes("@media(max-width:600px)"));
+assert(/overflow-x:\s*auto/.test(roomCss));
+assert(/border-radius:\s*50%/.test(roomCss));
+assert(/@media\s*\(max-width:\s*600px\)/.test(roomCss));
 assert(groups.includes('document.body.dataset.root === "library"'));
 assert(groups.includes('window.HanamiNavigation?.setChild?.(true)'));
 assert(!groups.includes("HanamiGroupLibrary?.section?.(group)"));
@@ -58,11 +58,11 @@ assert(app.includes("const root=$('#libraryRoot')"));
 assert(deep.includes("['/groups','library']"));
 assert(sw.includes("'/library-groups.css'"));
 assert(sw.includes("'/library-groups.js'"));
-assert(sw.includes("hanami-library-room-switcher-v121"));
-assert.equal(pkg.version, "5.8.54");
+assert(sw.includes("hanami-library-room-header-v122"));
+assert.equal(pkg.version, "5.8.55");
 assert(
   pkg.scripts.test.startsWith(
-    "node tests/library-room-switcher-v121.test.mjs",
+    "node tests/library-room-switcher-v122.test.mjs",
   ),
 );
 

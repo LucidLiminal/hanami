@@ -20,6 +20,6 @@ for(const token of ['localExtensionTrustDialog','enableLocalExtension','HanamiLo
 assert(html.includes('/local-extensions.js')&&sw.includes("'/local-extensions.js'"));
 for(const token of ['Runtime descargable en el navegador','Web Worker','IndexedDB','permisos de red','Integridad opcional'])assert(guide.includes(token),token);
 assert(Array.isArray(JSON.parse(example).extensions[0].sources));
-assert(sw.includes('hanami-library-room-switcher-v121'));
-const pkg=JSON.parse(pkgText);assert.equal(pkg.version,'5.8.54');assert(pkg.scripts.test.includes('local-browser-extensions-v89.test.mjs'));
+assert(sw.includes('hanami-library-room-header-v122'));
+const pkg=JSON.parse(pkgText);assert.equal(pkg.version,'5.8.55');assert(pkg.scripts.test.includes('local-browser-extensions-v89.test.mjs'));
 console.log('PASS: external Hanami bundles download to IndexedDB, run in a Worker, use repository-verified hosts and enable without APK installation');
