@@ -54,10 +54,12 @@ for (const token of [
   assert(library.includes(token), token);
 
 assert(shelf.includes("group-library-categories"));
-assert(shelf.includes("data-group-entry-manage"));
+assert(!shelf.includes("data-group-entry-manage"));
+assert(library.includes("beginSelection"));
+assert(library.includes("data-group-selection-delete"));
 assert(shelf.includes('membership?.state !== "muted"'));
 assert(groupCss.includes(".reading-member-manage"));
-assert(shelfCss.includes(".group-library-categories"));
+assert(!shelfCss.includes(".group-library-categories button"));
 
 for (const token of [
   "leave_reading_group",
@@ -74,11 +76,11 @@ for (const token of [
 ])
   assert(sql.includes(token), token);
 
-assert(sw.includes("hanami-supabase-sql-keyword-v124"));
-assert.equal(pkg.version, "5.8.57");
+assert(sw.includes("hanami-group-library-parity-v125"));
+assert.equal(pkg.version, "5.8.58");
 assert(
   pkg.scripts.test.startsWith(
-    "node tests/supabase-sql-keyword-v124.test.mjs",
+    "node tests/group-library-parity-v125.test.mjs",
   ),
 );
 

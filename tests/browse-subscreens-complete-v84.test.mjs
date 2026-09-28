@@ -13,6 +13,6 @@ for(const token of [
 ])assert(a.includes(token)||b.includes(token)||c.includes(token)||i.includes(token),token);
 assert(n.includes("active==='explore'&&window.HanamiBrowseTab?.back?.()"));
 for(const type of ['sources-filter','extensions-filter','extension-details','extension-stores','source-preferences','missing-source','migrate-manga'])assert(a.includes(`'${type}'`),type);
-assert(s.includes('hanami-supabase-sql-keyword-v124'));
-const pkg=JSON.parse(p);assert.equal(pkg.version,'5.8.57');assert(pkg.scripts.test.includes('browse-subscreens-complete-v84.test.mjs'));
+assert(s.includes('hanami-group-library-parity-v125'));
+const pkg=JSON.parse(p);assert.equal(pkg.version,'5.8.58');assert(pkg.scripts.test.includes('browse-subscreens-complete-v84.test.mjs'));
 console.log('PASS: Sources, Extensions and Migration are real Browse child screens with filters, details, preferences, stores, selection and centralized Back');

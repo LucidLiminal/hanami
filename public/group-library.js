@@ -23,6 +23,12 @@ const write = (key, value) =>
 const keyFor = (sourceId, mangaUrl) => `${sourceId}|${mangaUrl}`;
 let loadedGroups = new Set();
 let progressTimer = 0;
+const selectedEntries = new Set();
+let selectionAnchor = null;
+let suppressEntryClick = false;
+let entryHoldTimer = 0;
+let entryHoldPoint = null;
+let groupTouchStart = null;
 
 function libraries() {
   return read(LIBRARY_KEY, {});
@@ -50,10 +56,11 @@ function activeCategories() {
   return read(ACTIVE_CATEGORY_KEY, {});
 }
 function activeCategory(groupId) {
-  const value = activeCategories()[groupId] || "all";
-  return value === "all" || categories(groupId).some((item) => item.id === value)
+  const stored = activeCategories()[groupId] || "default";
+  const value = stored === "all" ? "default" : stored;
+  return value === "default" || categories(groupId).some((item) => item.id === value)
     ? value
-    : "all";
+    : "default";
 }
 function setActiveCategory(groupId, categoryId) {
   const all = activeCategories();
@@ -218,11 +225,90 @@ async function refresh(groupId, rerender = true) {
 }
 function categoryDialog(groupId) {
   if (!isOwner(groupId)) return;
-  const modal = document.querySelector("#modal");
-  const body = document.querySelector("#modalBody");
-  const list = categories(groupId);
-  body.innerHTML = `<section class="dialog-section group-category-dialog"><small class="eyebrow">BIBLIOTECA DEL GRUPO</small><h3>Categorías</h3><p>Estas categorías solo organizan la estantería compartida.</p><div class="group-category-list">${list.length ? list.map((item) => `<article><b>${esc(item.name)}</b><div><button class="btn" data-group-category-rename="${esc(item.id)}" data-group-id="${esc(groupId)}">Renombrar</button><button class="btn danger" data-group-category-delete="${esc(item.id)}" data-group-id="${esc(groupId)}">Eliminar</button></div></article>`).join("") : '<p class="empty">Todavía no hay categorías.</p>'}</div><button class="btn acid" data-group-category-add="${esc(groupId)}">Añadir categoría</button></section>`;
-  if (!modal.open) modal.showModal();
+  window.HanamiCategories?.manageScoped?.({
+    list: () => categories(groupId),
+    count: (categoryId) =>
+      entries(groupId).filter((entry) =>
+        (entry.categoryIds || []).includes(categoryId),
+      ).length,
+    create: async (name) => {
+      if (isRemote(groupId) && window.HanamiSocialSync?.state?.().authenticated)
+        await window.HanamiSocialSync.manageGroupCategory(
+          groupId,
+          "create",
+          null,
+          name,
+        );
+      else
+        saveCategories(groupId, [
+          ...categories(groupId),
+          {
+            id: crypto.randomUUID(),
+            groupId,
+            name,
+            position: categories(groupId).length,
+          },
+        ]);
+    },
+    rename: async (categoryId, name) => {
+      if (isRemote(groupId) && window.HanamiSocialSync?.state?.().authenticated)
+        await window.HanamiSocialSync.manageGroupCategory(
+          groupId,
+          "rename",
+          categoryId,
+          name,
+        );
+      else
+        saveCategories(
+          groupId,
+          categories(groupId).map((item) =>
+            item.id === categoryId ? { ...item, name } : item,
+          ),
+        );
+    },
+    remove: async (categoryId) => {
+      if (isRemote(groupId) && window.HanamiSocialSync?.state?.().authenticated)
+        await window.HanamiSocialSync.manageGroupCategory(
+          groupId,
+          "delete",
+          categoryId,
+          null,
+        );
+      else {
+        saveCategories(
+          groupId,
+          categories(groupId).filter((item) => item.id !== categoryId),
+        );
+        saveEntries(
+          groupId,
+          entries(groupId).map((entry) => ({
+            ...entry,
+            categoryIds: (entry.categoryIds || []).filter(
+              (id) => id !== categoryId,
+            ),
+          })),
+        );
+      }
+      if (activeCategory(groupId) === categoryId)
+        setActiveCategory(groupId, "default");
+    },
+    reorder: async (ids) => {
+      if (isRemote(groupId) && window.HanamiSocialSync?.state?.().authenticated)
+        await window.HanamiSocialSync.reorderGroupCategories(groupId, ids);
+      else
+        saveCategories(
+          groupId,
+          ids
+            .map((id) => categories(groupId).find((item) => item.id === id))
+            .filter(Boolean)
+            .map((item, position) => ({ ...item, position })),
+        );
+    },
+    refresh: async () => {
+      await refresh(groupId, false);
+      rerenderGroup(groupId);
+    },
+  });
 }
 async function addCategory(groupId) {
   const name = prompt("Nombre de la categoría")?.trim();
@@ -530,6 +616,206 @@ function importBundle(groupId, bundle = {}) {
   saveProgresses(all);
   return merged;
 }
+function selected(groupId) {
+  return entries(groupId).filter((entry) => selectedEntries.has(entry.id));
+}
+function visibleEntries(groupId) {
+  const categoryId = activeCategory(groupId);
+  return entries(groupId).filter((entry) =>
+    categoryId === "default"
+      ? !(entry.categoryIds || []).length
+      : (entry.categoryIds || []).includes(categoryId),
+  );
+}
+function selectionCount() {
+  return selectedEntries.size;
+}
+function selectionTop() {
+  return window.HanamiSelectionToolbar.top(
+    "library-group",
+    selectedEntries.size,
+    {
+      className: "selection-toolbar",
+      close: "data-group-selection-close",
+      all: "data-group-selection-all",
+      invert: "data-group-selection-invert",
+    },
+  );
+}
+function canDelete(groupId, entry) {
+  return isOwner(groupId) || entry.recommendedBy === profile().id;
+}
+function selectionBottom(groupId) {
+  const chosen = selected(groupId);
+  return window.HanamiSelectionToolbar.bottom("library-group", [
+    {
+      attr: "data-group-selection-category",
+      icon: "category",
+      label: "Asignar categorías",
+      disabled: !isOwner(groupId),
+    },
+    {
+      attr: "data-group-selection-delete",
+      icon: "delete",
+      label: "Eliminar",
+      disabled: !chosen.length || chosen.some((entry) => !canDelete(groupId, entry)),
+    },
+  ]);
+}
+function clearSelection(render = true) {
+  selectedEntries.clear();
+  selectionAnchor = null;
+  suppressEntryClick = false;
+  if (render) rerenderGroup(window.HanamiLibraryGroups?.scope?.());
+}
+function toggleSelection(groupId, entryId) {
+  if (selectedEntries.has(entryId)) selectedEntries.delete(entryId);
+  else selectedEntries.add(entryId);
+  selectionAnchor = selectedEntries.size ? entryId : null;
+  rerenderGroup(groupId);
+}
+function beginSelection(groupId, entryId) {
+  const visible = visibleEntries(groupId);
+  if (selectionAnchor) {
+    const from = visible.findIndex((entry) => entry.id === selectionAnchor);
+    const to = visible.findIndex((entry) => entry.id === entryId);
+    if (from >= 0 && to >= 0)
+      visible
+        .slice(Math.min(from, to), Math.max(from, to) + 1)
+        .forEach((entry) => selectedEntries.add(entry.id));
+    else selectedEntries.add(entryId);
+  } else selectedEntries.add(entryId);
+  selectionAnchor = entryId;
+  suppressEntryClick = true;
+  navigator.vibrate?.(30);
+  rerenderGroup(groupId);
+}
+function handleEntryClick(groupId, entryId) {
+  if (suppressEntryClick) {
+    suppressEntryClick = false;
+    return true;
+  }
+  if (!selectedEntries.size) return false;
+  toggleSelection(groupId, entryId);
+  return true;
+}
+function selectAll(groupId) {
+  visibleEntries(groupId).forEach((entry) => selectedEntries.add(entry.id));
+  rerenderGroup(groupId);
+}
+function invertSelection(groupId) {
+  visibleEntries(groupId).forEach((entry) =>
+    selectedEntries.has(entry.id)
+      ? selectedEntries.delete(entry.id)
+      : selectedEntries.add(entry.id),
+  );
+  selectionAnchor = selectedEntries.size ? [...selectedEntries].at(-1) : null;
+  rerenderGroup(groupId);
+}
+async function assignSelectedCategories(groupId) {
+  const items = selected(groupId);
+  window.HanamiCategories?.chooseBulkScoped?.({
+    list: () => categories(groupId),
+    items,
+    create: async (name) => {
+      if (isRemote(groupId))
+        await window.HanamiSocialSync.manageGroupCategory(
+          groupId,
+          "create",
+          null,
+          name,
+        );
+      else
+        saveCategories(groupId, [
+          ...categories(groupId),
+          {
+            id: crypto.randomUUID(),
+            groupId,
+            name,
+            position: categories(groupId).length,
+          },
+        ]);
+    },
+    rename: async (categoryId, name) => {
+      if (isRemote(groupId))
+        await window.HanamiSocialSync.manageGroupCategory(
+          groupId,
+          "rename",
+          categoryId,
+          name,
+        );
+      else
+        saveCategories(
+          groupId,
+          categories(groupId).map((item) =>
+            item.id === categoryId ? { ...item, name } : item,
+          ),
+        );
+    },
+    remove: async (categoryId) => {
+      if (isRemote(groupId))
+        await window.HanamiSocialSync.manageGroupCategory(
+          groupId,
+          "delete",
+          categoryId,
+          null,
+        );
+      else
+        saveCategories(
+          groupId,
+          categories(groupId).filter((item) => item.id !== categoryId),
+        );
+    },
+    reorder: async (ids) => {
+      if (isRemote(groupId))
+        await window.HanamiSocialSync.reorderGroupCategories(groupId, ids);
+      else
+        saveCategories(
+          groupId,
+          ids
+            .map((id) => categories(groupId).find((item) => item.id === id))
+            .filter(Boolean)
+            .map((item, position) => ({ ...item, position })),
+        );
+    },
+    refresh: async () => {
+      await refresh(groupId, false);
+    },
+    onConfirm: async (include, exclude) => {
+      for (const entry of items) {
+        const next = new Set(entry.categoryIds || []);
+        include.forEach((id) => next.add(id));
+        exclude.forEach((id) => next.delete(id));
+        const ids = [...next];
+        if (isRemote(groupId))
+          await window.HanamiSocialSync.setEntryCategories(
+            groupId,
+            entry.id,
+            ids,
+          );
+        entry.categoryIds = ids;
+      }
+      saveEntries(groupId, entries(groupId));
+      clearSelection(false);
+      await refresh(groupId);
+    },
+  });
+}
+async function deleteSelected(groupId) {
+  const items = selected(groupId);
+  if (!items.length || !confirm(`¿Eliminar ${items.length} recomendación(es)?`))
+    return;
+  for (const entry of items)
+    if (canDelete(groupId, entry) && isRemote(groupId))
+      await window.HanamiSocialSync.deleteGroupEntry(groupId, entry.id);
+  const ids = new Set(items.map((entry) => entry.id));
+  saveEntries(
+    groupId,
+    entries(groupId).filter((entry) => !ids.has(entry.id)),
+  );
+  clearSelection(false);
+  await refresh(groupId);
+}
 document.addEventListener("click", async (event) => {
   const target = event.target.closest(
     "[data-group-library-recommend],[data-group-recommend-item],[data-group-library-open],[data-group-library-details],[data-group-library-read],[data-group-library-refresh],[data-group-category-filter],[data-group-category-manage],[data-group-category-add],[data-group-category-rename],[data-group-category-delete],[data-group-entry-manage],[data-group-entry-categories-save],[data-group-entry-delete]",
@@ -572,6 +858,128 @@ document.addEventListener("click", async (event) => {
   if (target.dataset.groupEntryDelete)
     await deleteEntry(target.dataset.groupId, target.dataset.groupEntryDelete);
 });
+document.addEventListener("click", async (event) => {
+  const button = event.target.closest("button");
+  if (!button) return;
+  const groupId = window.HanamiLibraryGroups?.scope?.();
+  if (!groupId || groupId === "personal") return;
+  if (button.hasAttribute("data-group-selection-close")) clearSelection();
+  if (button.hasAttribute("data-group-selection-all")) selectAll(groupId);
+  if (button.hasAttribute("data-group-selection-invert"))
+    invertSelection(groupId);
+  if (button.hasAttribute("data-group-selection-category"))
+    await assignSelectedCategories(groupId);
+  if (button.hasAttribute("data-group-selection-delete"))
+    await deleteSelected(groupId);
+});
+document.addEventListener("pointerdown", (event) => {
+  const card = event.target.closest(".library-group-item");
+  if (!card || event.target.closest("button,input")) return;
+  clearTimeout(entryHoldTimer);
+  entryHoldPoint = { x: event.clientX, y: event.clientY };
+  entryHoldTimer = setTimeout(() => {
+    entryHoldPoint = null;
+    beginSelection(card.dataset.groupId, card.dataset.libraryGroupEntry);
+  }, 500);
+});
+for (const type of ["pointerup", "pointercancel"])
+  document.addEventListener(type, () => {
+    clearTimeout(entryHoldTimer);
+    entryHoldPoint = null;
+  });
+document.addEventListener("pointermove", (event) => {
+  if (
+    !entryHoldPoint ||
+    Math.hypot(
+      event.clientX - entryHoldPoint.x,
+      event.clientY - entryHoldPoint.y,
+    ) < 12
+  )
+    return;
+  clearTimeout(entryHoldTimer);
+  entryHoldPoint = null;
+});
+addEventListener("hanami-library-room-change", () => clearSelection(false));
+document.addEventListener("keydown", (event) => {
+  const tab = event.target.closest?.("[data-group-category-filter]");
+  if (!tab || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key))
+    return;
+  const groupId = tab.dataset.groupId;
+  const ordered = [
+    { id: "default" },
+    ...categories(groupId).slice().sort((a, b) => a.position - b.position),
+  ];
+  const current = ordered.findIndex(
+    (item) => item.id === activeCategory(groupId),
+  );
+  const next =
+    event.key === "Home"
+      ? 0
+      : event.key === "End"
+        ? ordered.length - 1
+        : Math.max(
+            0,
+            Math.min(
+              ordered.length - 1,
+              current + (event.key === "ArrowRight" ? 1 : -1),
+            ),
+          );
+  event.preventDefault();
+  setActiveCategory(groupId, ordered[next].id);
+  requestAnimationFrame(() =>
+    document
+      .querySelector('[data-group-category-filter][aria-selected="true"]')
+      ?.focus(),
+  );
+});
+document.addEventListener(
+  "touchstart",
+  (event) => {
+    if (
+      !window.HanamiLibraryGroups?.isGroup?.() ||
+      !event.target.closest(".library-group-shelf .library-pager")
+    )
+      return;
+    const touch = event.touches[0];
+    groupTouchStart = {
+      x: touch.clientX,
+      y: touch.clientY,
+      top: scrollY,
+    };
+  },
+  { passive: true },
+);
+document.addEventListener(
+  "touchend",
+  (event) => {
+    if (!groupTouchStart) return;
+    const touch = event.changedTouches[0];
+    const dx = touch.clientX - groupTouchStart.x;
+    const dy = touch.clientY - groupTouchStart.y;
+    const groupId = window.HanamiLibraryGroups?.scope?.();
+    if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy)) {
+      const ordered = [
+        { id: "default" },
+        ...categories(groupId).slice().sort((a, b) => a.position - b.position),
+      ];
+      const current = ordered.findIndex(
+        (item) => item.id === activeCategory(groupId),
+      );
+      const next = Math.max(
+        0,
+        Math.min(ordered.length - 1, current + (dx < 0 ? 1 : -1)),
+      );
+      setActiveCategory(groupId, ordered[next].id);
+    } else if (
+      dy > 90 &&
+      groupTouchStart.top < 10 &&
+      !selectedEntries.size
+    )
+      refresh(groupId);
+    groupTouchStart = null;
+  },
+  { passive: true },
+);
 addEventListener("hanami-reader-progress", (event) =>
   localProgress(event.detail || {}),
 );
@@ -592,6 +1000,12 @@ window.HanamiGroupLibrary = {
   activeCategory,
   isOwner,
   categoryDialog,
+  selectionCount,
+  selectionTop,
+  selectionBottom,
+  clearSelection,
+  handleEntryClick,
+  isSelected: (entryId) => selectedEntries.has(entryId),
   progressFor,
   recommendDialog,
   openEntry,

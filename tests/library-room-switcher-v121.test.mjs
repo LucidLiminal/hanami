@@ -58,11 +58,11 @@ assert(app.includes("const root=$('#libraryRoot')"));
 assert(deep.includes("['/groups','library']"));
 assert(sw.includes("'/library-groups.css'"));
 assert(sw.includes("'/library-groups.js'"));
-assert(sw.includes("hanami-supabase-sql-keyword-v124"));
-assert.equal(pkg.version, "5.8.57");
+assert(sw.includes("hanami-group-library-parity-v125"));
+assert.equal(pkg.version, "5.8.58");
 assert(
   pkg.scripts.test.startsWith(
-    "node tests/supabase-sql-keyword-v124.test.mjs",
+    "node tests/group-library-parity-v125.test.mjs",
   ),
 );
 

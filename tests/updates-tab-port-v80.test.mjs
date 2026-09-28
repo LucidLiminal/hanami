@@ -17,6 +17,6 @@ assert(n.includes('window.HanamiUpdatesTab?.pullRefresh?.()'));
 assert(a.includes("window.HanamiUpdatesTab?.onReselect?.()"));
 assert(o.includes("'.updates-item-overflow'"));
 assert(i.includes('/updates-tab.css')&&i.includes('/updates-tab.js'));
-assert(s.includes('hanami-supabase-sql-keyword-v124')&&s.includes("'/updates-tab.css'")&&s.includes("'/updates-tab.js'"));
-const pkg=JSON.parse(p);assert.equal(pkg.version,'5.8.57');assert(pkg.scripts.test.includes('updates-tab-port-v80.test.mjs'));
+assert(s.includes('hanami-group-library-parity-v125')&&s.includes("'/updates-tab.css'")&&s.includes("'/updates-tab.js'"));
+const pkg=JSON.parse(p);assert.equal(pkg.version,'5.8.58');assert(pkg.scripts.test.includes('updates-tab-port-v80.test.mjs'));
 console.log('PASS: UpdatesTab ports screens, bars, actions, dialogs, itemOverflow, animations, effects and gestures');

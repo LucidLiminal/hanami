@@ -35,7 +35,7 @@ Ejecuta en Supabase SQL Editor, en este orden:
 supabase/hanami-social-v117.sql
 supabase/hanami-group-library-v118.sql
 supabase/hanami-invite-access-v120.sql
-supabase/hanami-group-administration-v124.sql
+supabase/hanami-library-parity-v125.sql
 ```
 
 Después habilita **Authentication → Providers → Anonymous Sign-Ins**. Hanami
@@ -47,7 +47,9 @@ Las salas no ocupan una pestaña principal. Aparecen bajo la toolbar de
 toque alterna entre la biblioteca personal y la biblioteca independiente de
 cada sala; una pulsación prolongada abre sus detalles. La sala activa encabeza
 su estantería, **Recomendar lectura** es la primera tarjeta y **Actualizar
-biblioteca** del menú actualiza el grupo que se esté mostrando.
+biblioteca** del menú actualiza el grupo que se esté mostrando. Las bibliotecas
+de grupo reutilizan las mismas pestañas, subpantallas de categorías, gestos de
+selección y barras contextuales que la Biblioteca personal.
 
 ## Desarrollo local
 

@@ -73,9 +73,9 @@ assert(!api.includes("SUPABASE_SERVICE_ROLE_KEY"));
 assert(index.includes('src="/social-sync.js"'));
 assert(css.includes(".reading-room-cloud"));
 assert(css.includes(".reading-social-actions"));
-assert(sw.includes("hanami-supabase-sql-keyword-v124"));
+assert(sw.includes("hanami-group-library-parity-v125"));
 assert(sw.includes("'/social-sync.js'"));
-assert.equal(pkg.version, "5.8.57");
+assert.equal(pkg.version, "5.8.58");
 assert(
   pkg.scripts.test.includes(
     "node tests/supabase-groups-auth-sync-v117.test.mjs",

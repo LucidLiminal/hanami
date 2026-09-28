@@ -429,6 +429,16 @@ async function manageGroupCategory(groupId, action, categoryId, name) {
     }),
   });
 }
+async function reorderGroupCategories(groupId, categoryIds) {
+  return jsonRequest("/rest/v1/rpc/reorder_group_library_categories", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      target_group: groupId,
+      ordered_categories: categoryIds,
+    }),
+  });
+}
 async function setEntryCategories(groupId, entryId, categoryIds) {
   return jsonRequest("/rest/v1/rpc/set_group_library_entry_categories", {
     method: "POST",
@@ -691,6 +701,7 @@ window.HanamiSocialSync = {
   listGroupLibrary,
   listGroupCategories,
   manageGroupCategory,
+  reorderGroupCategories,
   setEntryCategories,
   deleteGroupEntry,
   recommendManga,

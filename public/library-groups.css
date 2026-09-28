@@ -315,4 +315,3 @@
     transition: none;
   }
 }
-.group-library-categories{display:flex;gap:7px;overflow-x:auto;padding:0 0 12px;border-bottom:1px solid var(--line);scrollbar-width:thin}.group-library-categories button{flex:0 0 auto;min-height:36px;padding:0 12px;border:1px solid #ffffff24;background:#ffffff05;color:var(--muted);font:8px var(--mono);text-transform:uppercase}.group-library-categories button.active{border-color:var(--acid);color:var(--acid)}.group-library-categories button.manage{border-style:dashed;border-color:var(--purple);color:var(--paper)}.library-group-entry-more{position:absolute;z-index:4;top:6px;right:6px;width:34px;height:34px;border:1px solid #ffffff45;background:#09080be8;color:var(--paper)}

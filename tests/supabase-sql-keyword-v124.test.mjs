@@ -19,10 +19,10 @@ assert(sql.includes("sort_order integer"));
 assert(sql.includes("category.position as sort_order"));
 assert(!sql.includes("position integer,"));
 assert(social.includes("row.sort_order ?? row.position"));
-assert(sw.includes("hanami-supabase-sql-keyword-v124"));
-assert.equal(pkg.version, "5.8.57");
+assert(sw.includes("hanami-group-library-parity-v125"));
+assert.equal(pkg.version, "5.8.58");
 assert(
-  pkg.scripts.test.startsWith("node tests/supabase-sql-keyword-v124.test.mjs"),
+  pkg.scripts.test.startsWith("node tests/group-library-parity-v125.test.mjs"),
 );
 
 console.log(

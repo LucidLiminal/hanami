@@ -91,8 +91,9 @@ function progressSummary(groupId, entryId) {
     })
     .join("")}</div>`;
 }
-function groupEntry(entry, groupId, manageable) {
-  return `<article class="lib-item comfortable library-group-item" data-library-group-entry="${esc(entry.id)}" data-group-id="${esc(groupId)}"><div class="lib-cover"><img src="${esc(entry.thumbnailUrl || "/assets/fallen.webp")}" alt=""><span class="library-group-recommender">${entry.remote ? "compartido" : "pendiente"}</span>${manageable ? `<button class="library-group-entry-more" data-group-entry-manage="${esc(entry.id)}" data-group-id="${esc(groupId)}" aria-label="Administrar ${esc(entry.title)}">•••</button>` : ""}</div><div class="lib-meta"><b>${esc(entry.title)}</b><small>Recomendado por ${esc(entry.recommendedByName || "un miembro")}</small><blockquote>“${esc(entry.recommendation || "Deberíamos leer esto juntos.")}”</blockquote>${progressSummary(groupId, entry.id)}</div></article>`;
+function groupEntry(entry, groupId) {
+  const selected = window.HanamiGroupLibrary?.isSelected?.(entry.id);
+  return `<article class="lib-item comfortable library-group-item ${selected ? "selected" : ""}" data-library-group-entry="${esc(entry.id)}" data-group-id="${esc(groupId)}"><div class="lib-cover"><img src="${esc(entry.thumbnailUrl || "/assets/fallen.webp")}" alt=""><span class="library-group-recommender">${entry.remote ? "compartido" : "pendiente"}</span><input class="check lib-check" type="checkbox" tabindex="-1" ${selected ? "checked" : ""}></div><div class="lib-meta"><b>${esc(entry.title)}</b><small>Recomendado por ${esc(entry.recommendedByName || "un miembro")}</small><blockquote>“${esc(entry.recommendation || "Deberíamos leer esto juntos.")}”</blockquote>${progressSummary(groupId, entry.id)}</div></article>`;
 }
 function recommendationItem(groupId) {
   return `<button class="lib-item comfortable library-group-add-item" data-library-group-recommend="${esc(groupId)}" aria-label="Recomendar una lectura"><span class="lib-cover" aria-hidden="true"><i>＋</i></span><span class="lib-meta"><b>Recomendar lectura</b></span></button>`;
@@ -103,22 +104,29 @@ function pager(query = "") {
   const members = group.members || [];
   const userId =
     window.HanamiSocialSync?.state?.().user?.id || profile().id;
-  const owner = group.ownerId === userId;
   const membership = members.find((member) => member.id === userId);
   const canRecommend = !group.remote || membership?.state !== "muted";
   const categoryList =
     window.HanamiGroupLibrary?.categories?.(group.id) || [];
   const activeCategory =
-    window.HanamiGroupLibrary?.activeCategory?.(group.id) || "all";
+    window.HanamiGroupLibrary?.activeCategory?.(group.id) || "default";
+  const categoryPreferences = window.HanamiCategories?.preferences?.() || {};
+  const showCounts = categoryPreferences.showCounts !== false;
   const term = String(query || "").trim().toLowerCase();
-  const entries = (window.HanamiGroupLibrary?.entries?.(group.id) || []).filter(
+  const allEntries = window.HanamiGroupLibrary?.entries?.(group.id) || [];
+  const entries = allEntries.filter(
     (entry) =>
-      (activeCategory === "all" ||
-        (entry.categoryIds || []).includes(activeCategory)) &&
+      (activeCategory === "default"
+        ? !(entry.categoryIds || []).length
+        : (entry.categoryIds || []).includes(activeCategory)) &&
       (!term ||
         String(entry.title || "").toLowerCase().includes(term) ||
         String(entry.recommendation || "").toLowerCase().includes(term)),
   );
+  const tabs =
+    categoryPreferences.showTabs === false
+      ? ""
+      : `<div class="lib-tabs group-library-categories" role="tablist" aria-label="Categorías de Biblioteca"><button role="tab" aria-selected="${activeCategory === "default"}" tabindex="${activeCategory === "default" ? "0" : "-1"}" class="${activeCategory === "default" ? "on" : ""}" data-group-category-filter="default" data-group-id="${esc(group.id)}">Predeterminada${showCounts ? ` (${allEntries.filter((entry) => !(entry.categoryIds || []).length).length})` : ""}</button>${categoryList.map((category) => `<button role="tab" aria-selected="${activeCategory === category.id}" tabindex="${activeCategory === category.id ? "0" : "-1"}" class="${activeCategory === category.id ? "on" : ""}" data-group-category-filter="${esc(category.id)}" data-group-id="${esc(group.id)}">${esc(category.name)}${showCounts ? ` (${allEntries.filter((entry) => (entry.categoryIds || []).includes(category.id)).length})` : ""}</button>`).join("")}</div>`;
   window.HanamiGroupLibrary?.ensure?.(group.id);
   return `<section class="library-group-shelf"><header><aside><div><small>SALA ACTIVA</small><b>${esc(group.name)}</b><blockquote>“${esc(group.quote || "Leamos algo juntos.")}”</blockquote></div><div class="reading-group-avatars">${members
     .slice(0, 5)
@@ -126,7 +134,7 @@ function pager(query = "") {
       (member) =>
         `<i title="${esc(member.name)}">${esc(member.initials || initials(member.name))}</i>`,
     )
-    .join("")}</div></aside><p>Recomendaciones y progreso independientes de tu biblioteca personal.</p></header><nav class="group-library-categories" aria-label="Categorías de la biblioteca del grupo"><button class="${activeCategory === "all" ? "active" : ""}" data-group-category-filter="all" data-group-id="${esc(group.id)}">Todas</button>${categoryList.map((category) => `<button class="${activeCategory === category.id ? "active" : ""}" data-group-category-filter="${esc(category.id)}" data-group-id="${esc(group.id)}">${esc(category.name)}</button>`).join("")}${owner ? `<button class="manage" data-group-category-manage="${esc(group.id)}" aria-label="Administrar categorías">＋ Categoría</button>` : ""}</nav><div class="library-pager" data-library-scope="${esc(group.id)}"><div class="library-grid mode-comfortable">${canRecommend ? recommendationItem(group.id) : ""}${entries.map((entry) => groupEntry(entry, group.id, owner || entry.recommendedBy === userId)).join("")}</div>${!entries.length ? `<div class="library-page-empty"><p class="empty">${term || activeCategory !== "all" ? "No se encontraron recomendaciones." : canRecommend ? "La biblioteca de esta sala está vacía." : "No hay recomendaciones en esta sala."}</p></div>` : ""}</div></section>`;
+    .join("")}</div></aside><p>Recomendaciones y progreso independientes de tu biblioteca personal.</p></header>${tabs}<div class="library-pager" data-library-scope="${esc(group.id)}"><div class="library-grid mode-comfortable">${canRecommend ? recommendationItem(group.id) : ""}${entries.map((entry) => groupEntry(entry, group.id)).join("")}</div>${!entries.length ? `<div class="library-page-empty"><p class="empty">${term || activeCategory !== "default" ? "No se encontraron recomendaciones." : canRecommend ? "La biblioteca de esta sala está vacía." : "No hay recomendaciones en esta sala."}</p></div>` : ""}</div></section>`;
 }
 function activate(value, render = true) {
   if (value !== "personal" && !groupById(value)) return false;
@@ -156,7 +164,6 @@ function openDetails(groupId) {
 }
 
 document.addEventListener("click", async (event) => {
-  if (event.target.closest("[data-group-entry-manage]")) return;
   const target = event.target.closest(
     "[data-library-room],[data-library-room-add],[data-library-room-join],[data-library-room-create],[data-library-group-entry],[data-library-group-recommend]",
   );
@@ -178,7 +185,13 @@ document.addEventListener("click", async (event) => {
       target.hasAttribute("data-library-room-join") ? "join" : "create",
     );
   }
-  if (target.dataset.libraryGroupEntry)
+  if (
+    target.dataset.libraryGroupEntry &&
+    !window.HanamiGroupLibrary?.handleEntryClick?.(
+      target.dataset.groupId,
+      target.dataset.libraryGroupEntry,
+    )
+  )
     await window.HanamiGroupLibrary?.openEntry?.(
       target.dataset.groupId,
       target.dataset.libraryGroupEntry,
