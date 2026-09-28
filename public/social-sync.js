@@ -413,7 +413,7 @@ async function listGroupCategories(groupId) {
     id: row.id,
     groupId: row.group_id,
     name: row.name,
-    position: Number(row.position) || 0,
+    position: Number(row.sort_order ?? row.position) || 0,
     entryIds: Array.isArray(row.entry_ids) ? row.entry_ids : [],
   }));
 }

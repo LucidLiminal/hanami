@@ -51,11 +51,11 @@ assert(library.includes("data-lib-toolbar-more"));
 assert(library.includes("data-lib-refresh-global"));
 assert(library.includes("HanamiGroupLibrary?.refresh?.(g.id,false)"));
 
-assert(sw.includes("hanami-group-administration-v123"));
-assert.equal(pkg.version, "5.8.56");
+assert(sw.includes("hanami-supabase-sql-keyword-v124"));
+assert.equal(pkg.version, "5.8.57");
 assert(
   pkg.scripts.test.startsWith(
-    "node tests/group-administration-v123.test.mjs",
+    "node tests/supabase-sql-keyword-v124.test.mjs",
   ),
 );
 

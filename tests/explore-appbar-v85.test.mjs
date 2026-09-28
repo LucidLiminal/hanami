@@ -16,6 +16,6 @@ assert(c.includes('body[data-root="explore"]>.top,body[data-root="explore"] #her
 assert(c.includes('.explore-chrome{position:sticky;top:0'));
 assert(c.includes('.browse-appbar .browse-toolbar-actions'));
 assert(c.includes('.explore-tabs{position:relative;top:auto'));
-assert(s.includes('hanami-group-administration-v123'));
-const pkg=JSON.parse(p);assert.equal(pkg.version,'5.8.56');assert(pkg.scripts.test.includes('explore-appbar-v85.test.mjs'));
+assert(s.includes('hanami-supabase-sql-keyword-v124'));
+const pkg=JSON.parse(p);assert.equal(pkg.version,'5.8.57');assert(pkg.scripts.test.includes('explore-appbar-v85.test.mjs'));
 console.log('PASS: Explore uses an Updates-style app bar, contextual actions and tabs without the Hanami header or hero');

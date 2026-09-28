@@ -21,8 +21,8 @@ assert(app.includes("mangaUrl:screen.entry.mangaUrl"));
 assert(app.includes("HanamiReader.open"));
 assert(app.includes("HanamiScreens?.registerType?.('group-manga-detail'"));
 assert(groups.includes("HanamiNavigation?.setChild?.(false)"));
-assert(sw.includes("hanami-group-administration-v123"));
-assert.equal(pkg.version, "5.8.56");
+assert(sw.includes("hanami-supabase-sql-keyword-v124"));
+assert.equal(pkg.version, "5.8.57");
 assert(
   pkg.scripts.test.includes(
     "node tests/group-mihon-details-v119.test.mjs",

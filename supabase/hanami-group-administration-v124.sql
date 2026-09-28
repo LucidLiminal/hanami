@@ -1,4 +1,4 @@
--- Hanami v123 · salida de grupos, administración y categorías compartidas
+-- Hanami v124 · salida de grupos, administración y categorías compartidas
 
 alter table public.reading_group_members
   add column if not exists state text not null default 'active'

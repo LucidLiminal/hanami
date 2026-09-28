@@ -11,7 +11,7 @@ const [groups, social, library, shelf, groupCss, shelfCss, sql, sw, packageText]
     readFile(new URL("../public/library-groups.css", import.meta.url), "utf8"),
     readFile(
       new URL(
-        "../supabase/hanami-group-administration-v123.sql",
+        "../supabase/hanami-group-administration-v124.sql",
         import.meta.url,
       ),
       "utf8",
@@ -74,11 +74,11 @@ for (const token of [
 ])
   assert(sql.includes(token), token);
 
-assert(sw.includes("hanami-group-administration-v123"));
-assert.equal(pkg.version, "5.8.56");
+assert(sw.includes("hanami-supabase-sql-keyword-v124"));
+assert.equal(pkg.version, "5.8.57");
 assert(
   pkg.scripts.test.startsWith(
-    "node tests/group-administration-v123.test.mjs",
+    "node tests/supabase-sql-keyword-v124.test.mjs",
   ),
 );
 
