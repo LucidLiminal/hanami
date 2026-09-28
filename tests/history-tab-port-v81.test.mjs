@@ -12,6 +12,6 @@ assert(n.includes('if(window.HanamiHistoryTab)return window.HanamiHistoryTab.ren
 assert(n.includes("active==='history'&&window.HanamiHistoryTab?.back?.()"));
 assert(a.includes("window.HanamiHistoryTab?.onReselect?.()"));
 assert(i.includes('/history-tab.css')&&i.includes('/history-tab.js'));
-assert(s.includes('hanami-reader-comment-position-v126')&&s.includes("'/history-tab.css'")&&s.includes("'/history-tab.js'"));
-const pkg=JSON.parse(p);assert.equal(pkg.version,'5.8.59');assert(pkg.scripts.test.includes('history-tab-port-v81.test.mjs'));
+assert(s.includes('hanami-group-progress-resume-v127')&&s.includes("'/history-tab.css'")&&s.includes("'/history-tab.js'"));
+const pkg=JSON.parse(p);assert.equal(pkg.version,'5.8.60');assert(pkg.scripts.test.includes('history-tab-port-v81.test.mjs'));
 console.log('PASS: HistoryTab ports search, rows, resume, favorite, dialogs, duplicate/category/migration flows, animations and Back behavior');

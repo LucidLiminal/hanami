@@ -54,11 +54,11 @@ assert(!css.includes(".group-library-categories button"));
 assert(social.includes("reorderGroupCategories"));
 assert(sql.includes("reorder_group_library_categories"));
 
-assert(sw.includes("hanami-reader-comment-position-v126"));
-assert.equal(pkg.version, "5.8.59");
+assert(sw.includes("hanami-group-progress-resume-v127"));
+assert.equal(pkg.version, "5.8.60");
 assert(
   pkg.scripts.test.startsWith(
-    "node tests/reader-comment-position-v126.test.mjs",
+    "node tests/group-progress-resume-v127.test.mjs",
   ),
 );
 

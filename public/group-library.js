@@ -129,6 +129,10 @@ function progressFor(groupId, entryId) {
     (item) => item.groupId === groupId && item.entryId === entryId,
   );
 }
+function ownProgress(groupId, entryId) {
+  const user = profile();
+  return progresses()[`${groupId}|${entryId}|${user.id}`] || null;
+}
 function progressLabel(item) {
   if (!item) return "Sin empezar";
   const chapter =
@@ -548,6 +552,7 @@ function localProgress(detail) {
     chapterNumber: detail.chapterNumber,
     chapterName: detail.chapterName,
     pageIndex: detail.pageIndex,
+    pageOffset: detail.pageOffset,
     pageCount: detail.pageCount,
     completed: !!detail.completed,
     updatedAt: Date.now(),
@@ -1007,6 +1012,7 @@ window.HanamiGroupLibrary = {
   handleEntryClick,
   isSelected: (entryId) => selectedEntries.has(entryId),
   progressFor,
+  ownProgress,
   recommendDialog,
   openEntry,
   restoreDetails,

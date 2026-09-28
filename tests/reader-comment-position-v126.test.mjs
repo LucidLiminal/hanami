@@ -18,8 +18,8 @@ assert(
   !reader.includes("restore:()=>open(o,true)"),
   "reader must not reopen from the stale initial resume point",
 );
-assert.equal(pkg.version, "5.8.59");
-assert(sw.includes("hanami-reader-comment-position-v126"));
+assert.equal(pkg.version, "5.8.60");
+assert(sw.includes("hanami-group-progress-resume-v127"));
 
 console.log(
   "PASS: returning from a comment preserves the live reader position",

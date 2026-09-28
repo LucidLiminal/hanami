@@ -16,6 +16,6 @@ for(const token of ['STORE_CONTRACT','REQUIRED_EXTENSION_OPERATIONS','hasAndroid
 assert(app.includes('purgeIncompatibleExtensionStores')&&app.includes("contract==='hanami-extension-store/v1'"));
 for(const token of ['Qué es una extensión Hanami','Contrato del adaptador','Contrato del repositorio','Descarga, confianza y ejecución','manga.genre','import()'])assert(guide.includes(token),token);
 assert.equal(JSON.parse(example).schema,'hanami-extension-store/v1');
-assert(sw.includes('hanami-reader-comment-position-v126'));
-const pkg=JSON.parse(pkgText);assert.equal(pkg.version,'5.8.59');assert(pkg.scripts.test.includes('strict-hanami-extension-contract-v88.test.mjs'));
+assert(sw.includes('hanami-group-progress-resume-v127'));
+const pkg=JSON.parse(pkgText);assert.equal(pkg.version,'5.8.60');assert(pkg.scripts.test.includes('strict-hanami-extension-contract-v88.test.mjs'));
 console.log('PASS: Hanami strictly rejects Mihon/APK/mixed repositories and documents its vercel-js extension contract');

@@ -11,5 +11,5 @@ assert.equal(typeof seededRandom(1)(),'number');assert.equal(createRandomSeed({g
 for(const token of ["from'./random-sort.js'","hanami-library-random-seed","if(L.sort.type==='random')return stableShuffle(a,L.randomSeed)","renewRandomSeed()","v==='random'?'↻'"])assert(library.includes(token),token);
 assert(!library.includes('random:Math.random()'),'Math.random no puede ejecutarse dentro del comparador');
 assert(library.includes('a[Math.floor(Math.random()*a.length)]'),'Abrir manga aleatorio debe seguir siendo una acción independiente');
-assert(sw.includes('hanami-reader-comment-position-v126')&&sw.includes("'/random-sort.js'"));assert.equal(pkg.version,'5.8.59');assert(pkg.scripts.test.includes('node tests/stable-random-sort-v102.test.mjs'));
+assert(sw.includes('hanami-group-progress-resume-v127')&&sw.includes("'/random-sort.js'"));assert.equal(pkg.version,'5.8.60');assert(pkg.scripts.test.includes('node tests/stable-random-sort-v102.test.mjs'));
 console.log('PASS: seeded random sort stays stable, reshuffles explicitly and remains independent from open-random');

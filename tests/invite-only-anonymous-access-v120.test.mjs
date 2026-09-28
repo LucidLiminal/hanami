@@ -58,8 +58,8 @@ assert(css.includes("@media(max-width:600px)"));
 assert(gitignore.includes("node_modules/"));
 assert(gitignore.includes(".env.*"));
 assert(gitignore.includes(".vercel/"));
-assert(sw.includes("hanami-reader-comment-position-v126"));
-assert.equal(pkg.version, "5.8.59");
+assert(sw.includes("hanami-group-progress-resume-v127"));
+assert.equal(pkg.version, "5.8.60");
 assert(
   pkg.scripts.test.includes(
     "node tests/invite-only-anonymous-access-v120.test.mjs",

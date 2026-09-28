@@ -19,10 +19,10 @@ assert(sql.includes("sort_order integer"));
 assert(sql.includes("category.position as sort_order"));
 assert(!sql.includes("position integer,"));
 assert(social.includes("row.sort_order ?? row.position"));
-assert(sw.includes("hanami-reader-comment-position-v126"));
-assert.equal(pkg.version, "5.8.59");
+assert(sw.includes("hanami-group-progress-resume-v127"));
+assert.equal(pkg.version, "5.8.60");
 assert(
-  pkg.scripts.test.startsWith("node tests/reader-comment-position-v126.test.mjs"),
+  pkg.scripts.test.startsWith("node tests/group-progress-resume-v127.test.mjs"),
 );
 
 console.log(

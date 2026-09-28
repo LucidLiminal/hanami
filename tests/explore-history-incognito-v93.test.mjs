@@ -10,5 +10,5 @@ assert(library.includes('filter(x=>x.favorite!==false)'));assert(updates.include
 assert(heart.includes('existing.favorite=true'));assert(heart.includes('x.favorite!==false&&key'));
 const privateItem={};applyReadProgress(privateItem,[{url:'c1',number:1}],{url:'c1',number:1},{recordHistory:false});assert.equal(privateItem.lastRead,undefined);assert.equal(privateItem.lastReadChapterUrl,undefined);assert.equal(privateItem.readCount,1);
 const normalItem={};applyReadProgress(normalItem,[{url:'c1',number:1}],{url:'c1',number:1});assert(normalItem.lastRead>0);assert.equal(normalItem.lastReadChapterUrl,'c1');
-assert(sw.includes('hanami-reader-comment-position-v126'));const pkg=JSON.parse(pkgText);assert.equal(pkg.version,'5.8.59');assert(pkg.scripts.test.includes('explore-history-incognito-v93.test.mjs'));
+assert(sw.includes('hanami-group-progress-resume-v127'));const pkg=JSON.parse(pkgText);assert.equal(pkg.version,'5.8.60');assert(pkg.scripts.test.includes('explore-history-incognito-v93.test.mjs'));
 console.log('PASS: Explore reading creates history-only records while incognito blocks new history timestamps without losing reading progress');
