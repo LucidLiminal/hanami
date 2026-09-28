@@ -41,8 +41,8 @@ assert(
 assert(rooms.includes("function recommendationItem"));
 assert(rooms.includes("library-group-add-item"));
 assert(
-  rooms.indexOf("${recommendationItem(group.id)}") <
-    rooms.indexOf("${entries.map((entry) => groupEntry(entry, group.id))"),
+  rooms.indexOf("recommendationItem(group.id)") <
+    rooms.indexOf("entries.map((entry) => groupEntry"),
 );
 assert(!rooms.includes("data-library-group-refresh"));
 assert(css.includes(".library-group-add-item .lib-cover"));
@@ -51,11 +51,11 @@ assert(library.includes("data-lib-toolbar-more"));
 assert(library.includes("data-lib-refresh-global"));
 assert(library.includes("HanamiGroupLibrary?.refresh?.(g.id,false)"));
 
-assert(sw.includes("hanami-library-room-header-v122"));
-assert.equal(pkg.version, "5.8.55");
+assert(sw.includes("hanami-group-administration-v123"));
+assert.equal(pkg.version, "5.8.56");
 assert(
   pkg.scripts.test.startsWith(
-    "node tests/library-room-switcher-v122.test.mjs",
+    "node tests/group-administration-v123.test.mjs",
   ),
 );
 

@@ -35,6 +35,7 @@ Ejecuta en Supabase SQL Editor, en este orden:
 supabase/hanami-social-v117.sql
 supabase/hanami-group-library-v118.sql
 supabase/hanami-invite-access-v120.sql
+supabase/hanami-group-administration-v123.sql
 ```
 
 Después habilita **Authentication → Providers → Anonymous Sign-Ins**. Hanami

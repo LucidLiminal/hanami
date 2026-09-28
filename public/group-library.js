@@ -1,6 +1,8 @@
 const LIBRARY_KEY = "hanami-group-libraries-v1";
 const PROGRESS_KEY = "hanami-group-progress-v1";
 const CONTEXT_KEY = "hanami-group-reading-context-v1";
+const CATEGORY_KEY = "hanami-group-library-categories-v1";
+const ACTIVE_CATEGORY_KEY = "hanami-group-library-active-category-v1";
 const esc = (value) =>
   String(value ?? "").replace(
     /[&<>"']/g,
@@ -32,6 +34,45 @@ function saveEntries(groupId, value) {
   const all = libraries();
   all[groupId] = value;
   write(LIBRARY_KEY, all);
+}
+function categoryStore() {
+  return read(CATEGORY_KEY, {});
+}
+function categories(groupId) {
+  return categoryStore()[groupId] || [];
+}
+function saveCategories(groupId, value) {
+  const all = categoryStore();
+  all[groupId] = value;
+  write(CATEGORY_KEY, all);
+}
+function activeCategories() {
+  return read(ACTIVE_CATEGORY_KEY, {});
+}
+function activeCategory(groupId) {
+  const value = activeCategories()[groupId] || "all";
+  return value === "all" || categories(groupId).some((item) => item.id === value)
+    ? value
+    : "all";
+}
+function setActiveCategory(groupId, categoryId) {
+  const all = activeCategories();
+  all[groupId] = categoryId;
+  write(ACTIVE_CATEGORY_KEY, all);
+  rerenderGroup(groupId);
+}
+function group(groupId) {
+  return (
+    window.HanamiReadingGroups?.groups?.().find((item) => item.id === groupId) ||
+    null
+  );
+}
+function isOwner(groupId) {
+  const userId = window.HanamiSocialSync?.state?.().user?.id || profile().id;
+  return group(groupId)?.ownerId === userId;
+}
+function isRemote(groupId) {
+  return !!group(groupId)?.remote;
 }
 function progresses() {
   return read(PROGRESS_KEY, {});
@@ -154,15 +195,143 @@ function mergeRemote(groupId, remote = []) {
   return merged;
 }
 async function refresh(groupId, rerender = true) {
-  if (window.HanamiSocialSync?.state?.().authenticated) {
+  if (
+    isRemote(groupId) &&
+    window.HanamiSocialSync?.state?.().authenticated
+  ) {
     await flush(groupId);
-    const remote = await window.HanamiSocialSync.listGroupLibrary(groupId);
+    const [remote, remoteCategories] = await Promise.all([
+      window.HanamiSocialSync.listGroupLibrary(groupId),
+      window.HanamiSocialSync.listGroupCategories(groupId),
+    ]);
+    for (const entry of remote)
+      entry.categoryIds = remoteCategories
+        .filter((category) => category.entryIds?.includes(entry.id))
+        .map((category) => category.id);
     mergeRemote(groupId, remote);
+    saveCategories(groupId, remoteCategories);
     await window.HanamiSocialSync.pullComments(groupId);
   }
   loadedGroups.add(groupId);
   if (rerender) rerenderGroup(groupId);
   return entries(groupId);
+}
+function categoryDialog(groupId) {
+  if (!isOwner(groupId)) return;
+  const modal = document.querySelector("#modal");
+  const body = document.querySelector("#modalBody");
+  const list = categories(groupId);
+  body.innerHTML = `<section class="dialog-section group-category-dialog"><small class="eyebrow">BIBLIOTECA DEL GRUPO</small><h3>Categorías</h3><p>Estas categorías solo organizan la estantería compartida.</p><div class="group-category-list">${list.length ? list.map((item) => `<article><b>${esc(item.name)}</b><div><button class="btn" data-group-category-rename="${esc(item.id)}" data-group-id="${esc(groupId)}">Renombrar</button><button class="btn danger" data-group-category-delete="${esc(item.id)}" data-group-id="${esc(groupId)}">Eliminar</button></div></article>`).join("") : '<p class="empty">Todavía no hay categorías.</p>'}</div><button class="btn acid" data-group-category-add="${esc(groupId)}">Añadir categoría</button></section>`;
+  if (!modal.open) modal.showModal();
+}
+async function addCategory(groupId) {
+  const name = prompt("Nombre de la categoría")?.trim();
+  if (!name) return;
+  if (isRemote(groupId) && window.HanamiSocialSync?.state?.().authenticated)
+    await window.HanamiSocialSync.manageGroupCategory(
+      groupId,
+      "create",
+      null,
+      name,
+    );
+  else
+    saveCategories(groupId, [
+      ...categories(groupId),
+      { id: crypto.randomUUID(), groupId, name, position: categories(groupId).length },
+    ]);
+  await refresh(groupId, false);
+  categoryDialog(groupId);
+  rerenderGroup(groupId);
+}
+async function renameCategory(groupId, categoryId) {
+  const current = categories(groupId).find((item) => item.id === categoryId);
+  const name = prompt("Nuevo nombre", current?.name || "")?.trim();
+  if (!name) return;
+  if (isRemote(groupId) && window.HanamiSocialSync?.state?.().authenticated)
+    await window.HanamiSocialSync.manageGroupCategory(
+      groupId,
+      "rename",
+      categoryId,
+      name,
+    );
+  else
+    saveCategories(
+      groupId,
+      categories(groupId).map((item) =>
+        item.id === categoryId ? { ...item, name } : item,
+      ),
+    );
+  await refresh(groupId, false);
+  categoryDialog(groupId);
+  rerenderGroup(groupId);
+}
+async function deleteCategory(groupId, categoryId) {
+  if (!confirm("¿Eliminar esta categoría? Las recomendaciones no se borrarán."))
+    return;
+  if (isRemote(groupId) && window.HanamiSocialSync?.state?.().authenticated)
+    await window.HanamiSocialSync.manageGroupCategory(
+      groupId,
+      "delete",
+      categoryId,
+      null,
+    );
+  else {
+    saveCategories(
+      groupId,
+      categories(groupId).filter((item) => item.id !== categoryId),
+    );
+    saveEntries(
+      groupId,
+      entries(groupId).map((item) => ({
+        ...item,
+        categoryIds: (item.categoryIds || []).filter(
+          (id) => id !== categoryId,
+        ),
+      })),
+    );
+  }
+  setActiveCategory(groupId, "all");
+  await refresh(groupId, false);
+  categoryDialog(groupId);
+}
+function entryManageDialog(groupId, entryId) {
+  const entry = entries(groupId).find((item) => item.id === entryId);
+  const userId = profile().id;
+  if (!entry || (!isOwner(groupId) && entry.recommendedBy !== userId)) return;
+  const modal = document.querySelector("#modal");
+  const body = document.querySelector("#modalBody");
+  const selected = new Set(entry.categoryIds || []);
+  body.innerHTML = `<section class="dialog-section group-entry-manage-dialog"><small class="eyebrow">RECOMENDACIÓN</small><h3>${esc(entry.title)}</h3>${categories(groupId).length ? `<fieldset><legend>Categorías</legend>${categories(groupId).map((item) => `<label><input type="checkbox" data-group-entry-category="${esc(item.id)}" ${selected.has(item.id) ? "checked" : ""}> ${esc(item.name)}</label>`).join("")}</fieldset>` : '<p class="empty">Crea categorías desde la administración de la sala.</p>'}<div><button class="btn acid" data-group-entry-categories-save="${esc(entryId)}" data-group-id="${esc(groupId)}">Guardar categorías</button><button class="btn danger" data-group-entry-delete="${esc(entryId)}" data-group-id="${esc(groupId)}">Eliminar recomendación</button></div></section>`;
+  if (!modal.open) modal.showModal();
+}
+async function saveEntryCategories(groupId, entryId) {
+  const ids = [
+    ...document.querySelectorAll(
+      "#modalBody [data-group-entry-category]:checked",
+    ),
+  ].map((item) => item.dataset.groupEntryCategory);
+  if (isRemote(groupId) && window.HanamiSocialSync?.state?.().authenticated)
+    await window.HanamiSocialSync.setEntryCategories(groupId, entryId, ids);
+  saveEntries(
+    groupId,
+    entries(groupId).map((item) =>
+      item.id === entryId ? { ...item, categoryIds: ids } : item,
+    ),
+  );
+  document.querySelector("#modal")?.close();
+  await refresh(groupId);
+}
+async function deleteEntry(groupId, entryId) {
+  if (!confirm("¿Eliminar esta recomendación de la biblioteca del grupo?"))
+    return;
+  if (isRemote(groupId) && window.HanamiSocialSync?.state?.().authenticated)
+    await window.HanamiSocialSync.deleteGroupEntry(groupId, entryId);
+  saveEntries(
+    groupId,
+    entries(groupId).filter((item) => item.id !== entryId),
+  );
+  document.querySelector("#modal")?.close();
+  await refresh(groupId);
 }
 function ensure(groupId) {
   if (loadedGroups.has(groupId)) return;
@@ -217,7 +386,7 @@ async function recommend(groupId, libraryId) {
     ...list.filter((item) => item.id !== entry.id),
     entry,
   ]);
-  if (window.HanamiSocialSync?.state?.().authenticated) {
+  if (isRemote(groupId) && window.HanamiSocialSync?.state?.().authenticated) {
     const remote = await window.HanamiSocialSync.recommendManga(entry);
     mergeRemote(groupId, [remote]);
   }
@@ -303,7 +472,11 @@ function localProgress(detail) {
   progressTimer = setTimeout(() => flushProgress(reading.groupId), 1200);
 }
 async function flushProgress(groupId) {
-  if (!window.HanamiSocialSync?.state?.().authenticated) return;
+  if (
+    !isRemote(groupId) ||
+    !window.HanamiSocialSync?.state?.().authenticated
+  )
+    return;
   const all = progresses();
   for (const [id, item] of Object.entries(all)) {
     if (item.groupId !== groupId || item.syncState !== "pending") continue;
@@ -313,7 +486,11 @@ async function flushProgress(groupId) {
   saveProgresses(all);
 }
 async function flush(groupId) {
-  if (!window.HanamiSocialSync?.state?.().authenticated) return;
+  if (
+    !isRemote(groupId) ||
+    !window.HanamiSocialSync?.state?.().authenticated
+  )
+    return;
   const list = entries(groupId);
   for (const entry of list.filter((item) => item.syncState === "pending")) {
     const remote = await window.HanamiSocialSync.recommendManga(entry);
@@ -355,7 +532,7 @@ function importBundle(groupId, bundle = {}) {
 }
 document.addEventListener("click", async (event) => {
   const target = event.target.closest(
-    "[data-group-library-recommend],[data-group-recommend-item],[data-group-library-open],[data-group-library-details],[data-group-library-read],[data-group-library-refresh]",
+    "[data-group-library-recommend],[data-group-recommend-item],[data-group-library-open],[data-group-library-details],[data-group-library-read],[data-group-library-refresh],[data-group-category-filter],[data-group-category-manage],[data-group-category-add],[data-group-category-rename],[data-group-category-delete],[data-group-entry-manage],[data-group-entry-categories-save],[data-group-entry-delete]",
   );
   if (!target) return;
   if (target.dataset.groupLibraryRecommend)
@@ -369,6 +546,31 @@ document.addEventListener("click", async (event) => {
   if (entryId) await openEntry(target.dataset.groupId, entryId);
   if (target.dataset.groupLibraryRefresh)
     await refresh(target.dataset.groupLibraryRefresh);
+  if (target.dataset.groupCategoryFilter)
+    setActiveCategory(target.dataset.groupId, target.dataset.groupCategoryFilter);
+  if (target.dataset.groupCategoryManage)
+    categoryDialog(target.dataset.groupCategoryManage);
+  if (target.dataset.groupCategoryAdd)
+    await addCategory(target.dataset.groupCategoryAdd);
+  if (target.dataset.groupCategoryRename)
+    await renameCategory(
+      target.dataset.groupId,
+      target.dataset.groupCategoryRename,
+    );
+  if (target.dataset.groupCategoryDelete)
+    await deleteCategory(
+      target.dataset.groupId,
+      target.dataset.groupCategoryDelete,
+    );
+  if (target.dataset.groupEntryManage)
+    entryManageDialog(target.dataset.groupId, target.dataset.groupEntryManage);
+  if (target.dataset.groupEntryCategoriesSave)
+    await saveEntryCategories(
+      target.dataset.groupId,
+      target.dataset.groupEntryCategoriesSave,
+    );
+  if (target.dataset.groupEntryDelete)
+    await deleteEntry(target.dataset.groupId, target.dataset.groupEntryDelete);
 });
 addEventListener("hanami-reader-progress", (event) =>
   localProgress(event.detail || {}),
@@ -386,6 +588,10 @@ window.HanamiGroupLibrary = {
   ensure,
   refresh,
   entries,
+  categories,
+  activeCategory,
+  isOwner,
+  categoryDialog,
   progressFor,
   recommendDialog,
   openEntry,

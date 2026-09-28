@@ -58,11 +58,11 @@ assert(app.includes("const root=$('#libraryRoot')"));
 assert(deep.includes("['/groups','library']"));
 assert(sw.includes("'/library-groups.css'"));
 assert(sw.includes("'/library-groups.js'"));
-assert(sw.includes("hanami-library-room-header-v122"));
-assert.equal(pkg.version, "5.8.55");
+assert(sw.includes("hanami-group-administration-v123"));
+assert.equal(pkg.version, "5.8.56");
 assert(
   pkg.scripts.test.startsWith(
-    "node tests/library-room-switcher-v122.test.mjs",
+    "node tests/group-administration-v123.test.mjs",
   ),
 );
 

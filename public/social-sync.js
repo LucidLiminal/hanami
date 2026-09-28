@@ -211,6 +211,81 @@ async function createGroup({ name, quote }) {
   });
   return mapGroup(Array.isArray(rows) ? rows[0] : rows);
 }
+async function updateGroup(groupId, { name, quote, cover }) {
+  const rows = await jsonRequest("/rest/v1/rpc/update_reading_group", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      target_group: groupId,
+      group_name: name,
+      group_quote: quote,
+      group_cover: cover || null,
+    }),
+  });
+  const group = mapGroup(Array.isArray(rows) ? rows[0] : rows);
+  groupCache = [
+    group,
+    ...groupCache.filter((candidate) => candidate.id !== group.id),
+  ];
+  return group;
+}
+async function leaveGroup(groupId) {
+  await jsonRequest("/rest/v1/rpc/leave_reading_group", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ target_group: groupId }),
+  });
+  groupCache = groupCache.filter((group) => group.id !== groupId);
+  return true;
+}
+async function manageMember(groupId, userId, action) {
+  const rows = await jsonRequest("/rest/v1/rpc/manage_reading_group_member", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      target_group: groupId,
+      target_user: userId,
+      member_action: action,
+    }),
+  });
+  const group = mapGroup(Array.isArray(rows) ? rows[0] : rows);
+  groupCache = [
+    group,
+    ...groupCache.filter((candidate) => candidate.id !== group.id),
+  ];
+  return group;
+}
+async function uploadGroupCover(groupId, file) {
+  if (!file?.type?.startsWith("image/"))
+    throw new Error("Selecciona una imagen válida.");
+  if (file.size > 4 * 1024 * 1024)
+    throw new Error("La imagen no puede superar 4 MB.");
+  const extension =
+    file.type === "image/png"
+      ? "png"
+      : file.type === "image/webp"
+        ? "webp"
+        : file.type === "image/gif"
+          ? "gif"
+          : "jpg";
+  const path = `${groupId}/cover.${extension}`;
+  const response = await fetch(
+    `${config.url}/storage/v1/object/group-covers/${path}`,
+    {
+      method: "POST",
+      headers: headers({
+        "content-type": file.type,
+        "x-upsert": "true",
+      }),
+      body: file,
+    },
+  );
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.message || "No se pudo subir la imagen del grupo.");
+  }
+  return `${config.url}/storage/v1/object/public/group-covers/${path}?v=${Date.now()}`;
+}
 async function updateProfile(displayName) {
   const clean = cleanDisplayName(displayName);
   if (!session?.user?.id) throw new Error("No hay una identidad activa.");
@@ -317,12 +392,63 @@ function mapLibraryEntry(row) {
     recommendedBy: row.recommended_by,
     recommendedByName: row.recommended_by_name || "Lector",
     recommendation: row.recommendation || "",
+    categoryIds: Array.isArray(row.category_ids) ? row.category_ids : [],
     progress: Array.isArray(row.progress) ? row.progress : [],
     createdAt: Date.parse(row.created_at) || Date.now(),
     updatedAt: Date.parse(row.updated_at) || Date.now(),
     remote: true,
     syncState: "synced",
   };
+}
+async function listGroupCategories(groupId) {
+  const rows = await jsonRequest(
+    "/rest/v1/rpc/list_group_library_categories",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ target_group: groupId }),
+    },
+  );
+  return (rows || []).map((row) => ({
+    id: row.id,
+    groupId: row.group_id,
+    name: row.name,
+    position: Number(row.position) || 0,
+    entryIds: Array.isArray(row.entry_ids) ? row.entry_ids : [],
+  }));
+}
+async function manageGroupCategory(groupId, action, categoryId, name) {
+  return jsonRequest("/rest/v1/rpc/manage_group_library_category", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      target_group: groupId,
+      category_action: action,
+      target_category: categoryId || null,
+      category_name: name || null,
+    }),
+  });
+}
+async function setEntryCategories(groupId, entryId, categoryIds) {
+  return jsonRequest("/rest/v1/rpc/set_group_library_entry_categories", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      target_group: groupId,
+      target_entry: entryId,
+      target_categories: categoryIds || [],
+    }),
+  });
+}
+async function deleteGroupEntry(groupId, entryId) {
+  return jsonRequest("/rest/v1/rpc/delete_group_library_entry", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      target_group: groupId,
+      target_entry: entryId,
+    }),
+  });
 }
 async function listGroupLibrary(groupId) {
   const rows = await jsonRequest("/rest/v1/rpc/list_group_library", {
@@ -554,11 +680,19 @@ window.HanamiSocialSync = {
   updateProfile,
   listGroups,
   createGroup,
+  updateGroup,
+  leaveGroup,
+  manageMember,
+  uploadGroupCover,
   redeemInvite,
   createInvite,
   listInvites,
   revokeInvite,
   listGroupLibrary,
+  listGroupCategories,
+  manageGroupCategory,
+  setEntryCategories,
+  deleteGroupEntry,
   recommendManga,
   saveGroupProgress,
   sync,

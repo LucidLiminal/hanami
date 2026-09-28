@@ -185,8 +185,11 @@ function detail(group, restoring = false) {
   window.HanamiNavigation?.setChild?.(true);
   setActive(group.id);
   const socialUser = window.HanamiSocialSync?.state?.().user;
-  const canInvite = group.remote && socialUser?.id === group.ownerId;
-  root().innerHTML = `<section class="reading-group-detail"><header><button data-group-back aria-label="Atrás">←</button><div><small>PRIVATE ROOM // V121</small><h2>${esc(group.name)}</h2></div><button data-group-more>•••</button></header><div class="reading-group-banner"><img src="${esc(group.cover)}" alt=""><div><span>${group.remote ? "SALA SINCRONIZADA" : "SALA LOCAL"}</span><blockquote>“${esc(group.quote)}”</blockquote></div></div><div class="reading-group-columns"><section><div class="reading-groups-heading"><div><small>PRESENCE</small><h3>Miembros</h3></div>${canInvite ? '<button class="btn" data-group-invites>Crear invitación</button>' : ""}</div><div class="reading-member-list">${(group.members || []).map((member) => `<article><i>${esc(member.initials || initials(member.name))}</i><div><b>${esc(member.name)}</b><small>${member.id === group.ownerId ? "ADMINISTRA LA SALA" : "MIEMBRO"}</small></div><span>${member.id === socialUser?.id ? "este dispositivo" : "miembro"}</span></article>`).join("")}</div></section><aside><small>SYNC QUEUE</small><strong>${window.HanamiReaderComments?.pendingCount?.() ?? 0}</strong><p>${group.remote ? "Cambios preparados para Supabase." : "Sala local disponible sin conexión."}</p>${group.remote ? '<button class="btn acid" data-social-sync>Sincronizar ahora</button>' : '<button class="btn acid" data-group-export>Exportar ahora</button>'}<button class="btn" data-group-rename>Editar sala</button></aside></div></section>`;
+  const owner = socialUser?.id
+    ? socialUser.id === group.ownerId
+    : profile().id === group.ownerId;
+  const canInvite = group.remote && owner;
+  root().innerHTML = `<section class="reading-group-detail"><header><button data-group-back aria-label="Atrás">←</button><div><small>PRIVATE ROOM // V123</small><h2>${esc(group.name)}</h2></div><button data-group-more>•••</button></header><div class="reading-group-banner"><img src="${esc(group.cover)}" alt=""><div><span>${group.remote ? "SALA SINCRONIZADA" : "SALA LOCAL"}</span><blockquote>“${esc(group.quote)}”</blockquote></div></div><div class="reading-group-columns"><section><div class="reading-groups-heading"><div><small>PRESENCE</small><h3>Miembros</h3></div>${canInvite ? '<button class="btn" data-group-invites>Crear invitación</button>' : ""}</div><div class="reading-member-list">${(group.members || []).map((member) => `<article class="${member.state === "muted" ? "muted" : ""}"><i>${esc(member.initials || initials(member.name))}</i><div><b>${esc(member.name)}</b><small>${member.id === group.ownerId ? "ADMINISTRA LA SALA" : member.role === "moderator" ? "MODERA LA SALA" : member.state === "muted" ? "SILENCIADO" : "MIEMBRO"}</small></div><span>${member.id === socialUser?.id ? "este dispositivo" : member.state === "muted" ? "sin publicar" : "miembro"}</span>${owner && member.id !== group.ownerId ? `<button class="reading-member-manage" data-group-member-manage="${esc(member.id)}" aria-label="Administrar a ${esc(member.name)}">•••</button>` : ""}</article>`).join("")}</div></section><aside><small>SYNC QUEUE</small><strong>${window.HanamiReaderComments?.pendingCount?.() ?? 0}</strong><p>${group.remote ? "Cambios preparados para Supabase." : "Sala local disponible sin conexión."}</p>${group.remote ? '<button class="btn acid" data-social-sync>Sincronizar ahora</button>' : '<button class="btn acid" data-group-export>Exportar ahora</button>'}${owner ? '<button class="btn" data-group-rename>Editar sala</button><button class="btn" data-group-library-admin>Administrar biblioteca</button>' : group.remote ? '<button class="btn danger" data-group-leave>Salir del grupo</button>' : ""}</aside></div></section>`;
   window.HanamiGroupLibrary?.ensure?.(group.id);
   if (!restoring && window.HanamiScreens)
     window.HanamiScreens.push(
@@ -194,6 +197,43 @@ function detail(group, restoring = false) {
       { id: group.id },
       { restore: () => detail(groups().find((item) => item.id === group.id), true) },
     );
+}
+function editGroupDialog(group = active()) {
+  if (!group) return;
+  const modal = document.querySelector("#modal");
+  const body = document.querySelector("#modalBody");
+  body.innerHTML = `<form class="dialog-section reading-group-edit-dialog" data-group-edit-form="${esc(group.id)}"><small class="eyebrow">ADMINISTRAR SALA</small><h3>Editar grupo</h3><label>Nombre<input name="name" required minlength="1" maxlength="80" value="${esc(group.name)}"></label><label>Cita<textarea name="quote" maxlength="240">${esc(group.quote || "")}</textarea></label><label>Imagen del grupo<input name="coverFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif"><small>JPG, PNG, WebP o GIF · máximo 4 MB.</small></label><label>URL alternativa<input name="cover" type="url" value="${esc(group.cover || "")}" placeholder="https://…"></label><img class="reading-group-cover-preview" src="${esc(group.cover || coverFor(0))}" alt="Vista previa"><button class="btn acid" type="submit">Guardar cambios</button></form>`;
+  if (!modal.open) modal.showModal();
+}
+function memberManageDialog(group, member) {
+  if (!group || !member) return;
+  const modal = document.querySelector("#modal");
+  const body = document.querySelector("#modalBody");
+  body.innerHTML = `<section class="dialog-section reading-member-dialog"><small class="eyebrow">ADMINISTRAR MIEMBRO</small><h3>${esc(member.name)}</h3><p>${member.state === "muted" ? "Este miembro no puede comentar ni recomendar." : "El miembro puede participar normalmente."}</p><div><button class="btn" data-group-member-action="${member.state === "muted" ? "unmute" : "mute"}" data-member-id="${esc(member.id)}">${member.state === "muted" ? "Permitir publicar" : "Silenciar"}</button><button class="btn" data-group-member-action="${member.role === "moderator" ? "member" : "moderator"}" data-member-id="${esc(member.id)}">${member.role === "moderator" ? "Quitar moderación" : "Hacer moderador"}</button><button class="btn danger" data-group-member-action="ban" data-member-id="${esc(member.id)}">Banear y expulsar</button></div></section>`;
+  if (!modal.open) modal.showModal();
+}
+function removeLocalGroup(groupId) {
+  saveGroups(groups().filter((group) => group.id !== groupId));
+  window.HanamiLibraryGroups?.activate?.("personal", false);
+  localStorage.setItem(ACTIVE_KEY, "local-room");
+}
+async function leaveActiveGroup() {
+  const group = active();
+  const userId =
+    window.HanamiSocialSync?.state?.().user?.id || profile().id;
+  if (!group || group.ownerId === userId)
+    throw new Error("La persona propietaria no puede abandonar su propia sala.");
+  if (!confirm(`¿Salir de «${group.name}»? Perderás el acceso a su biblioteca y comentarios.`))
+    return false;
+  if (group.remote) await window.HanamiSocialSync.leaveGroup(group.id);
+  removeLocalGroup(group.id);
+  const current = window.HanamiScreens?.current?.();
+  if (current) {
+    window.HanamiScreens.markClosed(current.id);
+    window.HanamiScreens.back();
+  }
+  window.HanamiLibrary?.render?.();
+  return true;
 }
 function inviteStatus(invite) {
   if (invite.revoked_at) return "revocada";
@@ -456,6 +496,46 @@ document.addEventListener("click", async (event) => {
     window.HanamiScreens?.back();
   if (button.hasAttribute("data-group-invites"))
     await invitesScreen(active());
+  if (button.hasAttribute("data-group-leave")) {
+    try {
+      if (await leaveActiveGroup())
+        window.HanamiSnackbar?.show?.("Has salido del grupo", {
+          kind: "success",
+        });
+    } catch (error) {
+      window.HanamiSnackbar?.show?.(error.message, { kind: "error" });
+    }
+  }
+  if (button.hasAttribute("data-group-library-admin"))
+    window.HanamiGroupLibrary?.categoryDialog?.(activeId());
+  if (button.dataset.groupMemberManage) {
+    const group = active();
+    memberManageDialog(
+      group,
+      group?.members?.find(
+        (member) => member.id === button.dataset.groupMemberManage,
+      ),
+    );
+  }
+  if (button.dataset.groupMemberAction) {
+    const group = active();
+    const updated = await socialAction(
+      () =>
+        window.HanamiSocialSync.manageMember(
+          group.id,
+          button.dataset.memberId,
+          button.dataset.groupMemberAction,
+        ),
+      button.dataset.groupMemberAction === "ban"
+        ? "Miembro expulsado"
+        : "Permisos actualizados",
+    );
+    if (updated) {
+      mergeRemoteGroups([updated], false);
+      document.querySelector("#modal")?.close();
+      detail(groups().find((item) => item.id === group.id), true);
+    }
+  }
   if (button.hasAttribute("data-invite-create")) {
     const created = await socialAction(
       () => window.HanamiSocialSync.createInvite(activeId(), 168, 1),
@@ -481,20 +561,67 @@ document.addEventListener("click", async (event) => {
     }
   }
   if (button.hasAttribute("data-group-rename")) {
-    const group = active();
-    const name = prompt("Nombre de la sala", group.name)?.trim();
-    const quote = name && prompt("Frase de la sala", group.quote)?.trim();
-    if (name && quote) {
-      saveGroups(
-        groups().map((item) =>
-          item.id === group.id ? { ...item, name, quote, updatedAt: Date.now() } : item,
-        ),
-      );
-      detail(active(), true);
-    }
+    editGroupDialog(active());
   }
 });
 document.addEventListener("submit", async (event) => {
+  const editForm = event.target.closest("[data-group-edit-form]");
+  if (editForm) {
+    event.preventDefault();
+    const group = groups().find(
+      (item) => item.id === editForm.dataset.groupEditForm,
+    );
+    if (!group) return;
+    const submit = editForm.querySelector('[type="submit"]');
+    const values = new FormData(editForm);
+    const name = String(values.get("name") || "").trim();
+    const quote = String(values.get("quote") || "").trim();
+    const file = values.get("coverFile");
+    let cover = String(values.get("cover") || "").trim() || group.cover;
+    submit.disabled = true;
+    try {
+      if (file?.size) {
+        if (group.remote)
+          cover = await window.HanamiSocialSync.uploadGroupCover(group.id, file);
+        else
+          cover = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(new Error("No se pudo leer la imagen."));
+            reader.readAsDataURL(file);
+          });
+      }
+      let updated;
+      if (group.remote)
+        updated = await window.HanamiSocialSync.updateGroup(group.id, {
+          name,
+          quote,
+          cover,
+        });
+      else
+        updated = {
+          ...group,
+          name,
+          quote,
+          cover,
+          updatedAt: Date.now(),
+        };
+      if (group.remote) mergeRemoteGroups([updated], false);
+      else
+        saveGroups(
+          groups().map((item) => (item.id === group.id ? updated : item)),
+        );
+      document.querySelector("#modal")?.close();
+      detail(groups().find((item) => item.id === group.id), true);
+      window.HanamiSnackbar?.show?.("Datos del grupo actualizados", {
+        kind: "success",
+      });
+    } catch (error) {
+      submit.disabled = false;
+      window.HanamiSnackbar?.show?.(error.message, { kind: "error" });
+    }
+    return;
+  }
   const form = event.target.closest("[data-access-form]");
   if (!form) return;
   event.preventDefault();
@@ -545,6 +672,15 @@ document.addEventListener("input", (event) => {
   event.target.value = raw.match(/.{1,4}/g)?.join("-") || "";
 });
 document.addEventListener("change", async (event) => {
+  if (
+    event.target.name === "coverFile" &&
+    event.target.files?.[0] &&
+    root()?.querySelector(".reading-group-cover-preview")
+  ) {
+    const preview = document.querySelector(".reading-group-cover-preview");
+    preview.src = URL.createObjectURL(event.target.files[0]);
+    return;
+  }
   if (!event.target.matches("[data-group-import-file]") || !event.target.files?.[0])
     return;
   try {
