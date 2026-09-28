@@ -58,11 +58,11 @@ assert(app.includes("const root=$('#libraryRoot')"));
 assert(deep.includes("['/groups','library']"));
 assert(sw.includes("'/library-groups.css'"));
 assert(sw.includes("'/library-groups.js'"));
-assert(sw.includes("hanami-group-library-parity-v125"));
-assert.equal(pkg.version, "5.8.58");
+assert(sw.includes("hanami-reader-comment-position-v126"));
+assert.equal(pkg.version, "5.8.59");
 assert(
   pkg.scripts.test.startsWith(
-    "node tests/group-library-parity-v125.test.mjs",
+    "node tests/reader-comment-position-v126.test.mjs",
   ),
 );
 
