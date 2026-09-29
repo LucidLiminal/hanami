@@ -18,8 +18,8 @@ assert(
   !reader.includes("restore:()=>open(o,true)"),
   "reader must not reopen from the stale initial resume point",
 );
-assert.equal(pkg.version, "5.8.61");
-assert(sw.includes("hanami-reader-music-v128"));
+assert.equal(pkg.version, "5.8.62");
+assert(sw.includes("hanami-reader-music-v129"));
 
 console.log(
   "PASS: returning from a comment preserves the live reader position",

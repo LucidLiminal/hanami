@@ -82,17 +82,35 @@ Vercel no ejecuta las APK originales. Este proyecto contiene una reimplementaci�
 
 ## Música durante la lectura
 
-El visor incluye un reproductor inspirado en la arquitectura musical de TSuki.
-Pulsa **Música** en la barra inferior del capítulo para:
+El visor incluye un reproductor y servicios musicales adaptados de la
+arquitectura de TSuki. Pulsa **Música** en la barra inferior del capítulo para:
 
-- importar MP3, M4A, AAC, WAV, OGG, Opus o FLAC desde el dispositivo;
-- importar playlists M3U/M3U8 con URLs de audio directas;
-- guardar la biblioteca local sin conexión mediante IndexedDB;
-- crear y editar una cola, buscar pistas y usar aleatorio o repetición;
-- controlar posición, volumen, crossfade y temporizador de apagado;
-- conservar canción, cola y posición al cambiar de capítulo o recargar;
-- usar controles multimedia del sistema cuando Media Session esté disponible.
+- buscar canciones y artistas con una interfaz tipo YouTube Music, sin pegar
+  URLs;
+- añadir y reproducir resultados mediante InnerTube; Hanami renueva en segundo
+  plano las URLs temporales cuando caducan;
+- reconocer música ambiental con el micrófono y una firma compatible con
+  Shazam;
+- obtener letras de LRCLIB, Unison, Paxsenix y BetterLyrics, con seguimiento
+  automático cuando están sincronizadas;
+- usar un ecualizador Web Audio de 10 bandas, refuerzo de graves, amplitud
+  estéreo, ganancia y preajustes;
+- importar MP3, M4A, AAC, WAV, OGG, Opus, FLAC o playlists M3U/M3U8 como
+  alternativa local;
+- conservar biblioteca, cola, posición, preferencias, letras y efectos entre
+  capítulos y recargas.
 
-Las URLs deben apuntar directamente a audio reproducible por el navegador. No
-se incluyen extractores de YouTube ni mecanismos para evadir anuncios o DRM.
-Consulta `THIRD_PARTY_NOTICES.md` para la atribución y licencia de TSuki.
+La URL manual queda disponible sólo como opción avanzada. InnerTube acepta
+únicamente formatos de audio directos entregados por YouTube: Hanami no
+implementa descifrado de firmas, descarga de contenido protegido, evasión de
+DRM ni bloqueo de anuncios. Shazam y algunos proveedores de letras son
+endpoints externos no oficiales y pueden cambiar o limitar solicitudes. El
+micrófono sólo se activa tras una acción explícita del usuario.
+
+Si YouTube aplica una comprobación anti-bot a la IP del servidor, el despliegue
+puede conectar su propio adaptador NewPipe/yt-dlp mediante
+`HANAMI_YOUTUBE_RESOLVER_URL` y, opcionalmente,
+`HANAMI_YOUTUBE_RESOLVER_TOKEN`. Las credenciales permanecen en el servidor.
+
+Consulta `READER_MUSIC_SERVICES_V129.md` y `THIRD_PARTY_NOTICES.md` para la
+arquitectura, límites, atribución y licencia de TSuki.

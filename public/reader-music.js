@@ -62,6 +62,7 @@ let fade = null;
 let fadeFrame = 0;
 let sleepInterval = 0;
 let loadToken = 0;
+let externalServices = null;
 const objectUrls = new WeakMap();
 const shuffleHistory = [];
 
@@ -333,7 +334,10 @@ async function addRemoteTrack(url, metadata = {}) {
   if (!/^https?:$/.test(parsed.protocol))
     throw new Error("Usa una URL directa http o https.");
   const inferred = titleFromFile(decodeURIComponent(parsed.pathname.split("/").pop() || parsed.hostname));
-  const id = `stream-${btoa(unescape(encodeURIComponent(parsed.href))).replace(/[^a-z0-9]/gi, "").slice(-40)}`;
+  const id =
+    metadata.provider === "youtube" && /^[A-Za-z0-9_-]{11}$/.test(metadata.videoId || "")
+      ? `youtube-${metadata.videoId}`
+      : `stream-${btoa(unescape(encodeURIComponent(parsed.href))).replace(/[^a-z0-9]/gi, "").slice(-40)}`;
   const previous = trackById(id);
   const record = {
     id,
@@ -343,6 +347,11 @@ async function addRemoteTrack(url, metadata = {}) {
     duration: Number(metadata.duration) || 0,
     type: "stream",
     url: parsed.href,
+    provider: metadata.provider || previous?.provider || "",
+    videoId: metadata.videoId || previous?.videoId || "",
+    artwork: metadata.artwork || previous?.artwork || "",
+    mimeType: metadata.mimeType || previous?.mimeType || "",
+    expiresAt: Number(metadata.expiresAt) || previous?.expiresAt || 0,
     addedAt: previous?.addedAt || Date.now(),
     updatedAt: Date.now(),
   };
@@ -410,6 +419,9 @@ function waitMetadata(audio) {
 async function loadAudio(audio, track, position = 0, autoplay = false) {
   audio.pause();
   audio.preload = "auto";
+  const crossOrigin = externalServices?.audioCrossOrigin?.(track);
+  if (crossOrigin) audio.crossOrigin = crossOrigin;
+  else audio.removeAttribute("crossorigin");
   audio.src = sourceFor(track, audio);
   audio.load();
   // Start inside the originating click task. Waiting for loadedmetadata first
@@ -474,6 +486,11 @@ async function selectIndex(index, { autoplay = true, position = 0 } = {}) {
   persist();
   emit("loading");
   try {
+    const refreshed = await externalServices?.beforeLoad?.(track);
+    if (refreshed && typeof refreshed === "object") {
+      Object.assign(track, refreshed, { updatedAt: Date.now() });
+      await putTrack(track);
+    }
     await loadAudio(active, track, position, autoplay);
     if (token !== loadToken) return false;
     if (autoplay) {
@@ -753,7 +770,7 @@ function panelHtml() {
   return `<div class="reader-music" data-music-root>
     <header><div><small>TSUKI × HANAMI</small><h3>Música para leer</h3></div><button data-music-close aria-label="Cerrar música">×</button></header>
     <section class="reader-music-now ${track ? "" : "empty"}">
-      <div class="reader-music-art" aria-hidden="true">${track ? "♫" : "♪"}</div>
+      <div class="reader-music-art" aria-hidden="true">${/^https:\/\//i.test(track?.artwork || "") ? `<img src="${esc(track.artwork)}" alt="" referrerpolicy="no-referrer">` : track ? "♫" : "♪"}</div>
       <div class="reader-music-meta"><small>AHORA SUENA</small><b data-music-title>${esc(track?.title || "Sin canción seleccionada")}</b><span data-music-artist>${esc(track?.artist || "Añade audio desde tu dispositivo")}</span></div>
       <div class="reader-music-progress"><input data-music-seek type="range" min="0" max="${Math.max(1, duration)}" step="0.1" value="${clamp(position, 0, Math.max(1, duration))}" ${track ? "" : "disabled"} aria-label="Posición"><small><span data-music-position>${formatTime(position)}</span><span data-music-duration>${formatTime(duration)}</span></small></div>
       <nav class="reader-music-controls" aria-label="Controles de música">
@@ -771,11 +788,12 @@ function panelHtml() {
       <label class="${state.crossfade ? "" : "muted"}"><span>Duración · <b data-music-crossfade-label>${state.crossfadeSeconds.toFixed(1)} s</b></span><input data-music-crossfade-seconds type="range" min="0.5" max="12" step="0.5" value="${state.crossfadeSeconds}" ${state.crossfade ? "" : "disabled"}></label>
       <label><span>Temporizador</span><select data-music-sleep aria-label="Temporizador de apagado">${state.sleepAt ? `<option value="active" selected disabled>${esc(sleepLabel())}</option>` : ""}<option value="off" ${!state.sleepAt && !state.sleepEnd ? "selected" : ""}>Desactivado</option><option value="15">15 minutos</option><option value="30">30 minutos</option><option value="60">60 minutos</option><option value="end" ${state.sleepEnd ? "selected" : ""}>Al terminar la canción</option></select><small data-music-sleep-label>${esc(sleepLabel())}</small></label>
     </section>
+    ${externalServices?.panelHtml?.({ track, position, duration }) || ""}
     <section class="reader-music-library">
-      <header><div><small>BIBLIOTECA LOCAL</small><b>${tracks.length} canción${tracks.length === 1 ? "" : "es"}</b></div><label class="reader-music-import"><input data-music-files type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus,.flac,.m3u,.m3u8" multiple><span>＋ Añadir canciones</span></label></header>
-      <div class="reader-music-url"><input data-music-url type="url" inputmode="url" placeholder="URL directa de audio o stream"><button data-music-add-url>Añadir URL</button></div>
-      <input class="reader-music-search" data-music-search type="search" value="${esc(search)}" placeholder="Buscar por canción, artista o álbum" aria-label="Buscar música">
-      <div class="reader-music-list">${visible.length ? visible.map(trackRow).join("") : `<div class="reader-music-empty"><b>${tracks.length ? "Sin coincidencias" : "Tu biblioteca está vacía"}</b><span>${tracks.length ? "Prueba con otra búsqueda." : "Elige archivos de audio o añade una URL directa. Las canciones locales se guardan sin conexión en este navegador."}</span></div>`}</div>
+      <header><div><small>BIBLIOTECA</small><b>${tracks.length} canción${tracks.length === 1 ? "" : "es"}</b></div><label class="reader-music-import"><input data-music-files type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus,.flac,.m3u,.m3u8" multiple><span>＋ Archivos locales</span></label></header>
+      <input class="reader-music-search" data-music-search type="search" value="${esc(search)}" placeholder="Filtrar tu biblioteca" aria-label="Filtrar biblioteca de música">
+      <div class="reader-music-list">${visible.length ? visible.map(trackRow).join("") : `<div class="reader-music-empty"><b>${tracks.length ? "Sin coincidencias" : "Tu biblioteca está vacía"}</b><span>${tracks.length ? "Prueba con otro filtro." : "Usa el buscador de YouTube Music de arriba o añade archivos locales. No necesitas copiar URLs."}</span></div>`}</div>
+      <details class="reader-music-manual"><summary>Fuente manual (opcional)</summary><div class="reader-music-url"><input data-music-url type="url" inputmode="url" placeholder="URL directa de audio o stream"><button data-music-add-url>Añadir URL</button></div></details>
     </section>
     <details class="reader-music-queue" ${state.queue.length ? "open" : ""}><summary>Cola · ${state.queue.length}</summary><div>${state.queue.length ? state.queue.map(queueRow).join("") : '<p class="reader-music-empty">Selecciona una canción para crear la cola.</p>'}</div><footer><button data-music-shuffle-queue ${state.queue.length < 2 ? "disabled" : ""}>Mezclar cola</button><button data-music-clear-queue ${state.queue.length ? "" : "disabled"}>Vaciar cola</button></footer></details>
   </div>`;
@@ -849,6 +867,7 @@ function syncUi() {
   if (status) status.textContent = statusMessage;
   const sleep = document.querySelector("[data-music-sleep-label]");
   if (sleep) sleep.textContent = sleepLabel();
+  externalServices?.syncUi?.({ track, position, duration, playing });
 }
 function openPanel(restoring = false) {
   attach();
@@ -885,6 +904,12 @@ function closePanel(fromHistory = false) {
 }
 function emit(reason) {
   attach();
+  externalServices?.onPlayerChange?.({
+    reason,
+    track: currentTrack(),
+    playing,
+    position: Number(active.currentTime) || Number(state.position) || 0,
+  });
   syncUi();
   dispatchEvent(
     new CustomEvent("hanami-reader-music-change", {
@@ -906,6 +931,9 @@ function updateMediaSession() {
       title: track.title,
       artist: track.artist,
       album: track.album || "Hanami · Música para leer",
+      artwork: /^https:\/\//i.test(track.artwork || "")
+        ? [{ src: track.artwork, sizes: "512x512" }]
+        : [],
     });
   }
   navigator.mediaSession.playbackState = playing ? "playing" : "paused";
@@ -1154,6 +1182,38 @@ document.addEventListener(
 addEventListener("pagehide", persist);
 addEventListener("beforeunload", persist);
 
+async function reloadCurrentForEffects() {
+  const track = currentTrack();
+  if (!track || !active.src) return false;
+  const position = Number(active.currentTime) || 0;
+  const autoplay = !active.paused;
+  await loadAudio(active, track, position, autoplay);
+  playing = autoplay;
+  emit("effects");
+  return true;
+}
+
+function registerExternalServices(services) {
+  externalServices = services || null;
+  externalServices?.connect?.({
+    getCurrentTrack: currentTrack,
+    getPosition: () => Number(active.currentTime) || Number(state.position) || 0,
+    getDuration: () => Number(active.duration) || currentTrack()?.duration || 0,
+    getAudioElements: () => [active, standby],
+    addRemoteTrack,
+    playTrack,
+    reloadCurrent: reloadCurrentForEffects,
+    render: renderPanel,
+    sync: syncUi,
+    setStatus: (message) => {
+      statusMessage = String(message || "");
+      syncUi();
+    },
+  });
+  renderPanel();
+  return !!externalServices;
+}
+
 const ready = (async () => {
   try {
     tracks = await allTracks();
@@ -1191,6 +1251,7 @@ window.HanamiReaderMusic = {
   previous,
   seek,
   remove: deleteTrack,
+  registerExternalServices,
   snapshot: () => ({
     tracks: tracks.map(({ blob, ...track }) => ({ ...track, hasBlob: !!blob })),
     queue: [...state.queue],
@@ -1206,5 +1267,6 @@ window.HanamiReaderMusic = {
     crossfadeSeconds: state.crossfadeSeconds,
     sleepAt: state.sleepAt,
     sleepEnd: state.sleepEnd,
+    external: externalServices?.snapshot?.() || null,
   }),
 };

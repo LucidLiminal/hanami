@@ -1,5 +1,9 @@
 # Reader Music · v128
 
+> Historical baseline. External search, InnerTube resolution, recognition,
+> lyrics and audio effects were added in v129; see
+> `READER_MUSIC_SERVICES_V129.md`.
+
 Hanami now includes a browser-native music player inside the chapter Reader.
 Its architecture and interaction model are informed by the GPL-3.0 TSuki
 project, adapted from Android/Media3 to Web APIs.

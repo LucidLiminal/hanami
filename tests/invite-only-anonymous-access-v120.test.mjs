@@ -58,8 +58,8 @@ assert(css.includes("@media(max-width:600px)"));
 assert(gitignore.includes("node_modules/"));
 assert(gitignore.includes(".env.*"));
 assert(gitignore.includes(".vercel/"));
-assert(sw.includes("hanami-reader-music-v128"));
-assert.equal(pkg.version, "5.8.61");
+assert(sw.includes("hanami-reader-music-v129"));
+assert.equal(pkg.version, "5.8.62");
 assert(
   pkg.scripts.test.includes(
     "node tests/invite-only-anonymous-access-v120.test.mjs",

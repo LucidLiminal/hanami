@@ -39,8 +39,8 @@ assert.equal(
   "app.js debe proteger la ficha de grupo y la de explorar",
 );
 
-assert(sw.includes("hanami-reader-music-v128"));
-assert.equal(pkg.version, "5.8.61");
+assert(sw.includes("hanami-reader-music-v129"));
+assert.equal(pkg.version, "5.8.62");
 assert(
   pkg.scripts.test.includes(
     "node tests/reader-music-v128.test.mjs",
