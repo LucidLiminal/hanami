@@ -421,14 +421,14 @@ assert(equalizerSource.includes("createChannelSplitter"));
 assert(html.includes('src="/reader-music-services.js"'));
 for (const file of ["reader-music-services.js", "music-recognition.js", "music-equalizer.js"])
   assert(sw.includes(`'/${file}'`), file);
-assert(sw.includes("hanami-googlevideo-retry-v132"));
+assert(sw.includes("hanami-crimson-knot-v133"));
 assert(css.includes("Reader Music External Services v129"));
 assert(readme.includes("sin pegar"));
 assert(readme.includes("InnerTube"));
 assert(notices.includes("ShazamSignatureGenerator.kt"));
 assert(notices.includes("does not implement signature deciphering"));
 const pkg = JSON.parse(packageText);
-assert.equal(pkg.version, "5.8.65");
+assert.equal(pkg.version, "5.8.66");
 assert(pkg.scripts.test.includes("node tests/music-services-v129.test.mjs"));
 
 console.log(

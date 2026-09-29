@@ -1,8 +1,8 @@
-.library-bottom-overflow{position:fixed;z-index:75;display:grid;padding:6px 0;border:1px solid var(--purple);border-radius:8px;background:#18131c;color:var(--paper);box-shadow:6px 10px 30px #000d;transform-origin:bottom right;animation:overflow-enter .14s ease-out}
+.library-bottom-overflow{position:fixed;z-index:75;display:grid;padding:6px 0;border:1px solid var(--purple);border-radius:8px;background:#291012;color:var(--paper);box-shadow:6px 10px 30px #0a0506dd;transform-origin:bottom right;animation:overflow-enter .14s ease-out}
 .library-bottom-overflow.hidden{display:none}
 .library-bottom-overflow button{min-height:48px;width:100%;padding:0 16px;border:0;background:none;color:inherit;text-align:left;font:600 14px Arial}
-.library-bottom-overflow button:hover,.library-bottom-overflow button:focus-visible{background:#9a49d826;outline:0}
-.library-bottom-overflow button:active{background:#9a49d842}
+.library-bottom-overflow button:hover,.library-bottom-overflow button:focus-visible{background:#9a3f3f26;outline:0}
+.library-bottom-overflow button:active{background:#9a3f3f42}
 .library-bottom-overflow button.danger{color:var(--red)}
 @keyframes overflow-enter{from{opacity:0;transform:translateY(6px) scale(.97)}}
 @media(max-width:500px){.library-bottom-overflow{border-radius:6px}.library-bottom-overflow button{min-height:50px}}

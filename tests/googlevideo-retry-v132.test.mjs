@@ -80,9 +80,9 @@ for (const token of [
 ])
   assert(music.includes(token), token);
 assert(docs.includes("Retry path"));
-assert(sw.includes("hanami-googlevideo-retry-v132"));
+assert(sw.includes("hanami-crimson-knot-v133"));
 const pkg = JSON.parse(packageText);
-assert.equal(pkg.version, "5.8.65");
+assert.equal(pkg.version, "5.8.66");
 assert(pkg.scripts.test.startsWith("node tests/googlevideo-retry-v132.test.mjs"));
 
 console.log(

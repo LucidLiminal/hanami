@@ -10,11 +10,11 @@ const pkg = JSON.parse(pkgText);
 
 assert(!/\.md-chapter\.read\s*\{[^}]*opacity\s*:/s.test(css));
 assert(!/\.md-chapter\.selected\.read[^}]*\{[^}]*opacity\s*:/s.test(css));
-assert(css.includes('.md-chapter-swipe .md-chapter.read{background:#09080b;color:#5f5a63}'));
-assert(css.includes('.md-chapter-swipe:nth-child(2n) .md-chapter.read{background:#0c0910}'));
-assert(css.includes('.md-chapter.read b{color:#706a74'));
-assert(sw.includes('hanami-googlevideo-retry-v132'));
-assert.equal(pkg.version, '5.8.65');
+assert(css.includes('.md-chapter-swipe .md-chapter.read{background:#170b0d;color:#7c7464}'));
+assert(css.includes('.md-chapter-swipe:nth-child(2n) .md-chapter.read{background:#200e10}'));
+assert(css.includes('.md-chapter.read b{color:#8a8370'));
+assert(sw.includes('hanami-crimson-knot-v133'));
+assert.equal(pkg.version, '5.8.66');
 assert(pkg.scripts.test.includes('node tests/read-chapter-swipe-visibility-v114.test.mjs'));
 
 console.log('PASS: read chapters use opaque dark colors so swipe actions stay hidden until the row moves');

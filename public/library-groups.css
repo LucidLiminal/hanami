@@ -1,7 +1,7 @@
 .library-room-switcher {
   padding: 6px 12px 10px;
   border-bottom: 1px solid var(--line);
-  background: linear-gradient(115deg, #9a49d812, transparent 58%);
+  background: linear-gradient(115deg, #9a3f3f12, transparent 58%);
 }
 
 .library-room-switcher > nav {
@@ -10,7 +10,7 @@
   overflow-x: auto;
   padding: 8px;
   scrollbar-width: thin;
-  scrollbar-color: #9a49d866 transparent;
+  scrollbar-color: #9a3f3f66 transparent;
   scroll-snap-type: x proximity;
   align-content: center;
   flex-direction: row;
@@ -38,10 +38,10 @@
   display: grid;
   place-items: center;
   overflow: hidden;
-  border: 2px solid #ffffff2d;
+  border: 2px solid #fbf9d12d;
   border-radius: 50%;
-  background: linear-gradient(145deg, #9a49d8, #4e226b);
-  color: #09080b;
+  background: linear-gradient(145deg, #9a3f3f, #4f1e20);
+  color: #170b0d;
   font: 900 16px var(--mono);
   transition:
     transform 0.18s,
@@ -58,15 +58,15 @@
 .library-room.active > span {
   border-color: var(--acid);
   box-shadow:
-    0 0 0 3px #9a49d866,
-    0 0 18px #9a49d877;
+    0 0 0 3px #9a3f3f66,
+    0 0 18px #9a3f3f77;
   transform: scale(1.04);
 }
 
 .library-room.add > span {
   border-style: dashed;
   border-color: var(--acid);
-  background: #b8ec960c;
+  background: #e6cfa90c;
   color: var(--acid);
   font: 300 30px Arial;
 }
@@ -90,8 +90,8 @@
   gap: 20px;
   min-height: 74px;
   padding: 12px 14px;
-  border: 1px solid #9a49d844;
-  background: #09080b99;
+  border: 1px solid #9a3f3f44;
+  background: #170b0d99;
 }
 
 .library-group-shelf > header > aside > div:first-child {
@@ -163,7 +163,7 @@
   display: -webkit-box;
   overflow: hidden;
   margin: 8px 0;
-  color: #c9c0c8;
+  color: #cfcbab;
   font: italic 13px/1.35 Georgia, serif;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -176,7 +176,7 @@
   top: 7px;
   padding: 4px 6px;
   background: var(--acid);
-  color: #09080b;
+  color: #170b0d;
   font: 7px var(--mono);
 }
 
@@ -197,8 +197,8 @@
   aspect-ratio: 3 / 4;
   border: 1px dashed var(--acid);
   background:
-    linear-gradient(145deg, #9a49d824, #b8ec960b),
-    #09080b;
+    linear-gradient(145deg, #9a3f3f24, #e6cfa90b),
+    #170b0d;
 }
 
 .library-group-add-item .lib-cover i {
@@ -233,7 +233,7 @@
   place-items: center;
   border-radius: 50%;
   background: var(--purple);
-  color: #09080b;
+  color: #170b0d;
   font: 700 7px var(--mono);
   font-style: normal;
 }
@@ -273,11 +273,11 @@
 .library-room-add-dialog .btn.acid {
   border-color: var(--acid);
   background: var(--acid);
-  color: #111;
+  color: #302522;
 }
 
 .library-room-add-dialog .btn.acid:hover {
-  background: #c9f6aa;
+  background: #e6cfa9;
 }
 
 @media (max-width: 600px) {

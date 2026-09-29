@@ -12,6 +12,6 @@ assert.match(reader,/pageData\?\.pdfUrl/);
 assert.match(downloads,/String\(sourceId\)==='hanami\.local'/);
 assert.ok(html.indexOf('/local-source.js')<html.indexOf('/download-manager.js'));
 assert.match(html,/local-source\.css/);
-assert.match(sw,/hanami-googlevideo-retry-v132/);
+assert.match(sw,/hanami-crimson-knot-v133/);
 assert.match(sw,/local-source\.js/);
 console.log('PASS: Local source imports ZIP/CBZ series into IndexedDB and Reader supports one PDF per chapter');

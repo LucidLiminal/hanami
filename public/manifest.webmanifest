@@ -12,8 +12,8 @@
     "minimal-ui"
   ],
   "orientation": "any",
-  "background_color": "#09080b",
-  "theme_color": "#09080b",
+  "background_color": "#170b0d",
+  "theme_color": "#170b0d",
   "lang": "es",
   "categories": [
     "books",

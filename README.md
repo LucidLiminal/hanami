@@ -125,3 +125,7 @@ puede conectar su propio adaptador NewPipe/yt-dlp mediante
 Consulta `READER_MUSIC_SERVICES_V129.md`, `YOUTUBE_AUDIO_PROXY_V131.md`,
 `GOOGLEVIDEO_RETRY_V132.md` y `THIRD_PARTY_NOTICES.md` para la arquitectura,
 límites, atribución y licencia de TSuki.
+
+## Identidad visual v133
+
+La piel **Crimson Knot** incorpora el logo de nudo y agujas, una paleta cálida carmesí y recursos PWA renovados. Consulta [BRANDING_V133.md](BRANDING_V133.md).
