@@ -1,5 +1,8 @@
 # External music services · v129
 
+> Historical service baseline. YouTube playback moved to a same-origin,
+> range-aware audio proxy in v131; see `YOUTUBE_AUDIO_PROXY_V131.md`.
+
 Hanami v129 adds a search-first music workflow to the chapter reader. Readers
 can find a song in a YouTube Music-style search, press **Reproducir**, and keep
 reading; no URL entry is required.

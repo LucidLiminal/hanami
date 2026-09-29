@@ -96,8 +96,9 @@ arquitectura de TSuki. Pulsa **Música** en la barra inferior del capítulo para
 
 - buscar canciones y artistas con una interfaz tipo YouTube Music, sin pegar
   URLs;
-- añadir y reproducir resultados mediante InnerTube; Hanami renueva en segundo
-  plano las URLs temporales cuando caducan;
+- añadir y reproducir resultados mediante InnerTube; Hanami conserva las URLs
+  firmadas en el servidor, transmite el audio por una ruta same-origin y las
+  renueva cuando caducan;
 - reconocer música ambiental con el micrófono y una firma compatible con
   Shazam;
 - obtener letras de LRCLIB, Unison, Paxsenix y BetterLyrics, con seguimiento
@@ -121,5 +122,6 @@ puede conectar su propio adaptador NewPipe/yt-dlp mediante
 `HANAMI_YOUTUBE_RESOLVER_URL` y, opcionalmente,
 `HANAMI_YOUTUBE_RESOLVER_TOKEN`. Las credenciales permanecen en el servidor.
 
-Consulta `READER_MUSIC_SERVICES_V129.md` y `THIRD_PARTY_NOTICES.md` para la
-arquitectura, límites, atribución y licencia de TSuki.
+Consulta `READER_MUSIC_SERVICES_V129.md`, `YOUTUBE_AUDIO_PROXY_V131.md`,
+`GOOGLEVIDEO_RETRY_V132.md` y `THIRD_PARTY_NOTICES.md` para la arquitectura,
+límites, atribución y licencia de TSuki.

@@ -58,8 +58,8 @@ assert(css.includes("@media(max-width:600px)"));
 assert(gitignore.includes("node_modules/"));
 assert(gitignore.includes(".env.*"));
 assert(gitignore.includes(".vercel/"));
-assert(sw.includes("hanami-runtime-fixes-v130"));
-assert.equal(pkg.version, "5.8.63");
+assert(sw.includes("hanami-googlevideo-retry-v132"));
+assert.equal(pkg.version, "5.8.65");
 assert(
   pkg.scripts.test.includes(
     "node tests/invite-only-anonymous-access-v120.test.mjs",

@@ -4,8 +4,10 @@ import {
   chooseAudioStream,
   fetchExternalLyrics,
   musicCapabilities,
+  openYouTubeAudio,
   parseShazamResponse,
   parseYouTubeMusicSearch,
+  publicYouTubeResolution,
   recognizeShazam,
   resolveYouTubeAudio,
   searchYouTubeMusic,
@@ -15,6 +17,7 @@ import { signatureFromPcm } from "../public/music-recognition.js";
 
 const videoId = "AbCdEfGhI_1";
 const searchFixture = {
+  responseContext: { visitorData: "visitor-v129-test" },
   contents: {
     tabbedSearchResultsRenderer: {
       tabs: [
@@ -110,7 +113,10 @@ const searchFetch = async (url, options) => {
   searchRequest = { url: String(url), options, body: JSON.parse(options.body) };
   return new Response(JSON.stringify(searchFixture), {
     status: 200,
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      "set-cookie": "VISITOR_INFO1_LIVE=visitor-cookie-v129; Path=/; Secure",
+    },
   });
 };
 const searched = await searchYouTubeMusic("Night Drive Akari v129", { fetchImpl: searchFetch });
@@ -160,6 +166,41 @@ assert.equal(resolved.videoId, videoId);
 assert(resolved.expiresAt > Date.now());
 assert.equal(playerRequest.body.videoId, videoId);
 assert.equal(playerRequest.body.context.client.clientName, "ANDROID");
+assert.equal(playerRequest.body.context.client.visitorData, "visitor-v129-test");
+assert.equal(playerRequest.headers["x-goog-visitor-id"], "visitor-v129-test");
+assert.match(playerRequest.headers.cookie, /VISITOR_INFO1_LIVE=visitor-cookie-v129/);
+let webFirstRequest;
+await resolveYouTubeAudio("WeBrEmIx131", {
+  preferWeb: true,
+  fetchImpl: async (_url, options) => {
+    webFirstRequest = JSON.parse(options.body);
+    return new Response(JSON.stringify(playerFixture), { status: 200 });
+  },
+});
+assert.equal(webFirstRequest.context.client.clientName, "WEB_REMIX");
+const publicResolution = publicYouTubeResolution(resolved);
+assert.equal(publicResolution.stream.url, `/api/music/youtube/audio/${videoId}`);
+assert.equal(publicResolution.proxied, true);
+assert(!publicResolution.stream.url.includes("googlevideo.com"));
+let audioRequest;
+const opened = await openYouTubeAudio(videoId, {
+  range: "bytes=0-1023",
+  fetchImpl: async (url, options) => {
+    audioRequest = { url: String(url), options };
+    return new Response(new Uint8Array(1024), {
+      status: 206,
+      headers: {
+        "content-type": "audio/mp4",
+        "content-length": "1024",
+        "content-range": "bytes 0-1023/3619915",
+        "accept-ranges": "bytes",
+      },
+    });
+  },
+});
+assert.equal(opened.response.status, 206);
+assert(audioRequest.url.includes("googlevideo.com"));
+assert.equal(audioRequest.options.headers.range, "bytes=0-1023");
 
 let adapterRequest;
 process.env.HANAMI_YOUTUBE_RESOLVER_URL = "https://extractor.hanami.test/resolve";
@@ -308,6 +349,7 @@ assert.deepEqual(lrc.lines.map((line) => line.time), [1, 2, 3.5]);
 
 const capabilities = musicCapabilities();
 assert.equal(capabilities.youtube.directAudioOnly, true);
+assert.equal(capabilities.youtube.proxiedPlayback, true);
 assert.equal(capabilities.youtube.signatureDecipher, false);
 assert.equal(capabilities.youtube.drmBypass, false);
 assert.equal(capabilities.equalizer.bands, 10);
@@ -379,14 +421,14 @@ assert(equalizerSource.includes("createChannelSplitter"));
 assert(html.includes('src="/reader-music-services.js"'));
 for (const file of ["reader-music-services.js", "music-recognition.js", "music-equalizer.js"])
   assert(sw.includes(`'/${file}'`), file);
-assert(sw.includes("hanami-runtime-fixes-v130"));
+assert(sw.includes("hanami-googlevideo-retry-v132"));
 assert(css.includes("Reader Music External Services v129"));
 assert(readme.includes("sin pegar"));
 assert(readme.includes("InnerTube"));
 assert(notices.includes("ShazamSignatureGenerator.kt"));
 assert(notices.includes("does not implement signature deciphering"));
 const pkg = JSON.parse(packageText);
-assert.equal(pkg.version, "5.8.63");
+assert.equal(pkg.version, "5.8.65");
 assert(pkg.scripts.test.includes("node tests/music-services-v129.test.mjs"));
 
 console.log(

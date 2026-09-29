@@ -12,6 +12,6 @@ for(const token of [
 assert(a.includes("b.dataset.tab==='explore'&&window.HanamiNavigation?.isActive?.('explore')"));
 assert(o.includes("'.browse-item-overflow'"));
 assert(i.includes('/browse-tab.css')&&i.includes('/browse-tab.js'));
-assert(s.includes('hanami-runtime-fixes-v130')&&s.includes("'/browse-tab.css'")&&s.includes("'/browse-tab.js'"));
-const pkg=JSON.parse(p);assert.equal(pkg.version,'5.8.63');assert(pkg.scripts.test.includes('browse-tab-port-v83.test.mjs'));
+assert(s.includes('hanami-googlevideo-retry-v132')&&s.includes("'/browse-tab.css'")&&s.includes("'/browse-tab.js'"));
+const pkg=JSON.parse(p);assert.equal(pkg.version,'5.8.65');assert(pkg.scripts.test.includes('browse-tab-port-v83.test.mjs'));
 console.log('PASS: BrowseTab ports pager gestures, GlobalSearchScreen, source toolbar itemOverflow, display modes and centralized navigation');

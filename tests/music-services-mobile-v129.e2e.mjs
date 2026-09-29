@@ -42,7 +42,12 @@ const context = await browser.newContext({
 });
 const page = await context.newPage();
 const errors = [];
+const directGooglevideoRequests = [];
 page.on("pageerror", (error) => errors.push(error.message));
+page.on("request", (request) => {
+  if (/\.googlevideo\.com\//i.test(request.url()))
+    directGooglevideoRequests.push(request.url());
+});
 
 await page.route("**/api/music/youtube/search?**", async (route) => {
   await route.fulfill({
@@ -75,7 +80,7 @@ await page.route("**/api/music/youtube/resolve", async (route) => {
       videoId,
       expiresAt: Date.now() + 60 * 60_000,
       stream: {
-        url: "https://audio.hanami.test/night-drive.wav",
+        url: `/api/music/youtube/audio/${videoId}`,
         mimeType: 'audio/wav; codecs="1"',
         bitrate: 256000,
       },
@@ -89,7 +94,7 @@ await page.route("**/api/music/youtube/resolve", async (route) => {
     }),
   });
 });
-await page.route("https://audio.hanami.test/**", async (route) => {
+await page.route("**/api/music/youtube/audio/*", async (route) => {
   await route.fulfill({
     status: 200,
     contentType: "audio/wav",
@@ -187,6 +192,7 @@ const overflow = await page.locator(".reader-music").evaluate((node) => ({
 assert(overflow.left >= -1, JSON.stringify(overflow));
 assert(overflow.right <= overflow.viewport + 1, JSON.stringify(overflow));
 assert.deepEqual(errors, []);
+assert.deepEqual(directGooglevideoRequests, []);
 await page.screenshot({ path: "/data/hanami-v129-music-services-mobile.png", fullPage: true });
 await browser.close();
 console.log(

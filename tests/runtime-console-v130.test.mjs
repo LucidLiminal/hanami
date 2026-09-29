@@ -19,7 +19,7 @@ assert(html.includes('<link rel="icon" href="/favicon.ico" sizes="any">'));
 assert.equal(favicon.readUInt16LE(0), 0);
 assert.equal(favicon.readUInt16LE(2), 1, "valid ICO header");
 assert(favicon.length > 1000);
-assert(sw.includes("hanami-runtime-fixes-v130"));
+assert(sw.includes("hanami-googlevideo-retry-v132"));
 assert(sw.includes("'/favicon.ico'"));
 assert(dev.includes("url.pathname.startsWith('/api/')"));
 assert(dev.includes("req.query.path = url.pathname.replace"));
@@ -69,8 +69,8 @@ assert.equal(payload.youtube.search, true);
 assert.equal(payload.equalizer.bands, 10);
 
 const pkg = JSON.parse(packageText);
-assert.equal(pkg.version, "5.8.63");
-assert(pkg.scripts.test.startsWith("node tests/runtime-console-v130.test.mjs"));
+assert.equal(pkg.version, "5.8.65");
+assert(pkg.scripts.test.includes("node tests/runtime-console-v130.test.mjs"));
 assert(pkg.scripts.test.includes("node tests/music-services-v129.test.mjs"));
 
 console.log(

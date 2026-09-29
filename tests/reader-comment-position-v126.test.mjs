@@ -18,8 +18,8 @@ assert(
   !reader.includes("restore:()=>open(o,true)"),
   "reader must not reopen from the stale initial resume point",
 );
-assert.equal(pkg.version, "5.8.63");
-assert(sw.includes("hanami-runtime-fixes-v130"));
+assert.equal(pkg.version, "5.8.65");
+assert(sw.includes("hanami-googlevideo-retry-v132"));
 
 console.log(
   "PASS: returning from a comment preserves the live reader position",

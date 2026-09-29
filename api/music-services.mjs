@@ -1,4 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
+import { setDefaultResultOrder } from "node:dns";
+
+// Googlevideo URLs can be bound to the source IP that resolved them. Prefer the
+// same IPv4 path for InnerTube and subsequent media requests on dual-stack hosts.
+try {
+  setDefaultResultOrder("ipv4first");
+} catch {}
 
 const YTM_ORIGIN = "https://music.youtube.com";
 const YT_ORIGIN = "https://www.youtube.com";
@@ -12,6 +19,8 @@ const DESKTOP_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0";
 const SHAZAM_URL = "https://amp.shazam.com/discovery/v5/en/US/android/-/tag";
 const CACHE_LIMIT = 160;
+let latestInnerTubeVisitorData = "";
+let latestInnerTubeCookie = "";
 
 export class MusicServiceError extends Error {
   constructor(message, statusCode = 502, kind = "music_service") {
@@ -26,6 +35,20 @@ const cache = new Map();
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const compact = (value) => String(value ?? "").replace(/\s+/g, " ").trim();
 const hash = (value) => createHash("sha256").update(String(value)).digest("hex");
+
+function rememberInnerTubeSession(response, data) {
+  const visitorData = compact(data?.responseContext?.visitorData);
+  if (visitorData && visitorData.length <= 512) latestInnerTubeVisitorData = visitorData;
+  const rawCookies =
+    response?.headers?.getSetCookie?.() ||
+    (response?.headers?.get?.("set-cookie") ? [response.headers.get("set-cookie")] : []);
+  const allowed = /^(?:VISITOR_INFO1_LIVE|YSC|PREF|CONSENT|SOCS|__Secure-YNID)=/;
+  const values = rawCookies
+    .map((value) => String(value || "").split(";")[0].trim())
+    .filter((value) => allowed.test(value))
+    .slice(-6);
+  if (values.length) latestInnerTubeCookie = values.join("; ");
+}
 
 function cacheGet(key) {
   const entry = cache.get(key);
@@ -233,7 +256,7 @@ export async function searchYouTubeMusic(
     query: q,
     params: SEARCH_SONGS_PARAMS,
   };
-  const { data } = await requestJson(YTM_SEARCH_URL, {
+  const { data, response } = await requestJson(YTM_SEARCH_URL, {
     fetchImpl,
     method: "POST",
     headers: {
@@ -250,6 +273,7 @@ export async function searchYouTubeMusic(
     json: payload,
     timeout: 10_000,
   });
+  rememberInnerTubeSession(response, data);
   const value = {
     provider: "youtube-innertube",
     query: q,
@@ -389,7 +413,7 @@ async function resolveWithConfiguredExtractor(videoId, fetchImpl) {
     headers: {
       "content-type": "application/json",
       accept: "application/json",
-      "user-agent": "Hanami/5.8.63",
+      "user-agent": "Hanami/5.8.65",
       ...(token ? { authorization: `Bearer ${token}` } : {}),
     },
     json: { videoId },
@@ -429,14 +453,18 @@ const PLAYER_CLIENTS = [
   },
 ];
 
-export async function resolveYouTubeAudio(videoId, { fetchImpl = fetch } = {}) {
+export async function resolveYouTubeAudio(
+  videoId,
+  { fetchImpl = fetch, forceRefresh = false, preferWeb = false } = {},
+) {
   const id = compact(videoId);
   if (!/^[A-Za-z0-9_-]{11}$/.test(id))
     throw new MusicServiceError("El identificador de YouTube no es válido", 400, "validation");
   const configuredResolver = compact(process.env.HANAMI_YOUTUBE_RESOLVER_URL);
   const cacheKey = `yt-resolve:${configuredResolver ? hash(configuredResolver).slice(0, 10) : "innertube"}:${id}`;
   const cached = cacheGet(cacheKey);
-  if (cached && cached.expiresAt > Date.now() + 90_000) return { ...cached, cached: true };
+  if (!forceRefresh && cached && cached.expiresAt > Date.now() + 90_000)
+    return { ...cached, cached: true };
   let lastReason = "No hay un stream de audio directo disponible";
   let signatureOnly = false;
   if (configuredResolver) {
@@ -455,9 +483,12 @@ export async function resolveYouTubeAudio(videoId, { fetchImpl = fetch } = {}) {
       lastReason = error?.message || lastReason;
     }
   }
-  for (const descriptor of PLAYER_CLIENTS) {
+  const playerClients = preferWeb
+    ? [...PLAYER_CLIENTS].sort((a, b) => Number(b.id === WEB_REMIX_ID) - Number(a.id === WEB_REMIX_ID))
+    : PLAYER_CLIENTS;
+  for (const descriptor of playerClients) {
     try {
-      const { data } = await requestJson(descriptor.endpoint, {
+      const { data, response } = await requestJson(descriptor.endpoint, {
         fetchImpl,
         method: "POST",
         headers: {
@@ -471,15 +502,27 @@ export async function resolveYouTubeAudio(videoId, { fetchImpl = fetch } = {}) {
             : `${YT_ORIGIN}/`,
           "x-youtube-client-name": descriptor.id,
           "x-youtube-client-version": descriptor.version,
+          ...(latestInnerTubeVisitorData
+            ? { "x-goog-visitor-id": latestInnerTubeVisitorData }
+            : {}),
+          ...(latestInnerTubeCookie ? { cookie: latestInnerTubeCookie } : {}),
         },
         json: {
-          context: { client: descriptor.client },
+          context: {
+            client: {
+              ...descriptor.client,
+              ...(latestInnerTubeVisitorData
+                ? { visitorData: latestInnerTubeVisitorData }
+                : {}),
+            },
+          },
           videoId: id,
           contentCheckOk: true,
           racyCheckOk: true,
         },
         timeout: 10_000,
       });
+      rememberInnerTubeSession(response, data);
       const status = data?.playabilityStatus?.status;
       if (status && status !== "OK") {
         lastReason = compact(data?.playabilityStatus?.reason) || `YouTube indicó ${status}`;
@@ -500,6 +543,15 @@ export async function resolveYouTubeAudio(videoId, { fetchImpl = fetch } = {}) {
         videoId: id,
         stream,
         expiresAt,
+        proxyHeaders: {
+          "user-agent": descriptor.userAgent,
+          "x-youtube-client-name": descriptor.id,
+          "x-youtube-client-version": descriptor.version,
+          ...(compact(data?.responseContext?.visitorData)
+            ? { "x-goog-visitor-id": compact(data.responseContext.visitorData) }
+            : {}),
+          ...(latestInnerTubeCookie ? { cookie: latestInnerTubeCookie } : {}),
+        },
         track: {
           videoId: id,
           title: compact(details.title),
@@ -531,6 +583,114 @@ export async function resolveYouTubeAudio(videoId, { fetchImpl = fetch } = {}) {
       "youtube_bot_check",
     );
   throw new MusicServiceError(lastReason, 422, "stream_unavailable");
+}
+
+export function publicYouTubeResolution(resolution) {
+  const videoId = compact(resolution?.videoId);
+  if (!/^[A-Za-z0-9_-]{11}$/.test(videoId))
+    throw new MusicServiceError("La resolución de YouTube no es válida", 502);
+  return {
+    provider: resolution.provider,
+    videoId,
+    expiresAt: resolution.expiresAt,
+    stream: {
+      ...resolution.stream,
+      url: `/api/music/youtube/audio/${videoId}`,
+    },
+    track: resolution.track,
+    proxied: true,
+  };
+}
+
+export async function openYouTubeAudio(
+  videoId,
+  { range = "", fetchImpl = fetch } = {},
+) {
+  const requestedRange = String(range).trim();
+  if (requestedRange && !/^bytes=\d*-\d*$/.test(requestedRange))
+    throw new MusicServiceError("El rango de audio no es válido", 416, "validation");
+  const fetchStream = async (resolution) => {
+    const remoteUrl = safeExtractedUrl(resolution?.stream?.url);
+    if (!remoteUrl)
+      throw new MusicServiceError("El stream resuelto no es una URL HTTPS válida", 502);
+    const baseHeaders = {
+      accept: "*/*",
+      "accept-encoding": "identity",
+      ...(requestedRange ? { range: requestedRange } : {}),
+    };
+    const storedHeaders = resolution?.proxyHeaders || {};
+    const strategies = [
+      {
+        ...baseHeaders,
+        "user-agent": "com.google.android.youtube/20.10.38 (Linux; U; Android 15) gzip",
+        ...storedHeaders,
+      },
+      {
+        ...baseHeaders,
+        "user-agent": DESKTOP_UA,
+        referer: `${YT_ORIGIN}/`,
+        origin: YT_ORIGIN,
+      },
+      {
+        ...baseHeaders,
+        "user-agent": "com.google.android.youtube/20.10.38 (Linux; U; Android 15) gzip",
+        referer: `${YT_ORIGIN}/`,
+        origin: YT_ORIGIN,
+        ...storedHeaders,
+      },
+    ];
+    let lastResponse = null;
+    for (const headers of strategies) {
+      let response;
+      try {
+        response = await fetchImpl(remoteUrl, {
+          method: "GET",
+          headers,
+          redirect: "error",
+          signal: AbortSignal.timeout(25_000),
+        });
+      } catch (error) {
+        if (error?.name === "TimeoutError" || error?.name === "AbortError")
+          throw new MusicServiceError("El proxy de audio agotó el tiempo de espera", 504);
+        throw new MusicServiceError("No se pudo abrir el audio resuelto", 502);
+      }
+      if (response.ok && response.body) return { response, resolution };
+      lastResponse = response;
+      try {
+        await response.body?.cancel?.();
+      } catch {}
+      if (response.status !== 403) break;
+    }
+    return { response: lastResponse, resolution };
+  };
+
+  let attempt = await fetchStream(await resolveYouTubeAudio(videoId, { fetchImpl }));
+  if (!attempt.response?.ok) {
+    // A signed URL can be revoked early or bound to a stale connection. Resolve
+    // once more before surfacing an error to the reader.
+    try {
+      attempt = await fetchStream(
+        await resolveYouTubeAudio(videoId, {
+          fetchImpl,
+          forceRefresh: true,
+          preferWeb: true,
+        }),
+      );
+    } catch {
+      attempt = await fetchStream(
+        await resolveYouTubeAudio(videoId, { fetchImpl, forceRefresh: true }),
+      );
+    }
+  }
+  if (!attempt.response?.ok || !attempt.response.body)
+    throw new MusicServiceError(
+      attempt.response?.status === 403
+        ? "Googlevideo rechazó el stream firmado incluso después de renovarlo"
+        : `El host de audio respondió HTTP ${attempt.response?.status || 502}`,
+      attempt.response?.status === 403 ? 502 : attempt.response?.status || 502,
+      "audio_proxy",
+    );
+  return attempt;
 }
 
 function validateShazamSignature(signature) {
@@ -704,7 +864,7 @@ function lyricsResult(provider, lyrics) {
 }
 
 async function lrclibLyrics(title, artist, duration, fetchImpl) {
-  const baseHeaders = { accept: "application/json", "user-agent": "Hanami/5.8.63" };
+  const baseHeaders = { accept: "application/json", "user-agent": "Hanami/5.8.65" };
   if (title && artist) {
     const url = new URL("https://lrclib.net/api/get");
     url.searchParams.set("track_name", title);
@@ -750,7 +910,7 @@ function nestedLyrics(data) {
 }
 
 async function unisonLyrics(videoId, title, artist, duration, fetchImpl) {
-  const headers = { accept: "application/json", "user-agent": "Hanami/5.8.63" };
+  const headers = { accept: "application/json", "user-agent": "Hanami/5.8.65" };
   if (/^[A-Za-z0-9_-]{11}$/.test(videoId || "")) {
     const url = new URL("https://unison.boidu.dev/lyrics");
     url.searchParams.set("v", videoId);
@@ -785,7 +945,7 @@ async function paxsenixLyrics(title, artist, duration, fetchImpl) {
   if (duration > 0) url.searchParams.set("duration", String(Math.round(duration)));
   const { data } = await requestJson(url, {
     fetchImpl,
-    headers: { accept: "application/json", "user-agent": "Hanami/5.8.63" },
+    headers: { accept: "application/json", "user-agent": "Hanami/5.8.65" },
     timeout: 7_000,
     maxBytes: 1_000_000,
     allowStatuses: [404],
@@ -802,7 +962,7 @@ async function betterLyrics(title, artist, duration, fetchImpl) {
     try {
       const { data } = await requestJson(url, {
         fetchImpl,
-        headers: { accept: "application/json", "user-agent": "Hanami/5.8.63" },
+        headers: { accept: "application/json", "user-agent": "Hanami/5.8.65" },
         timeout: 7_000,
         maxBytes: 1_000_000,
         allowStatuses: [404],
@@ -854,6 +1014,7 @@ export function musicCapabilities() {
     youtube: {
       search: true,
       directAudioOnly: true,
+      proxiedPlayback: true,
       signatureDecipher: false,
       drmBypass: false,
       configuredExtractor: !!compact(process.env.HANAMI_YOUTUBE_RESOLVER_URL),

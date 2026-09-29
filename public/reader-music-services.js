@@ -385,10 +385,17 @@ function connect(nextAdapter) {
 async function beforeLoad(track) {
   if (equalizer.state.enabled) await equalizer.resume();
   if (track?.provider !== "youtube" || !track.videoId) return null;
-  if (track.url && Number(track.expiresAt) > Date.now() + 90_000) return null;
+  const proxyUrl = new URL(
+    `/api/music/youtube/audio/${encodeURIComponent(track.videoId)}`,
+    location.href,
+  ).href;
+  if (Number(track.expiresAt) > Date.now() + 90_000) {
+    // Migrates v129/v130 records that persisted a signed Googlevideo URL.
+    return track.url === proxyUrl ? null : { url: proxyUrl };
+  }
   const resolved = await resolveYouTube(track.videoId);
   return {
-    url: resolved.stream.url,
+    url: new URL(resolved.stream.url, location.href).href,
     expiresAt: resolved.expiresAt,
     mimeType: resolved.stream.mimeType,
     duration: track.duration || resolved.track?.duration || 0,

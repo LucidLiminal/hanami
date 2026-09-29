@@ -5,7 +5,7 @@ const local=read('../public/local-source.js'),app=read('../public/app.js'),css=r
 for(const token of ['data-local-create','data-local-edit','data-local-chapter','data-local-chapters','data-local-save-series','data-local-save-chapter','data-local-tracker-search','/api/tracker/anilist/search','data-local-tracker-result','data-local-delete-chapter-confirm','coverFromUrl','remoteCoverUrl'])assert(local.includes(token),token);
 for(const token of ['local-editor','local-tracker-result','local-chapter-manager','local-fields'])assert(css.includes(token),token);
 assert(app.includes('data-local-create'));
-assert(sw.includes('hanami-runtime-fixes-v130'));
-assert.equal(pkg.version,'5.8.63');
+assert(sw.includes('hanami-googlevideo-retry-v132'));
+assert.equal(pkg.version,'5.8.65');
 assert(pkg.scripts.test.includes('local-manual-tracker-v96.test.mjs'));
 console.log('PASS: Local series can be created and edited manually, populated from AniList, and receive image, ZIP/CBZ or PDF chapters');
