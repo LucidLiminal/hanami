@@ -389,7 +389,7 @@ async function resolveWithConfiguredExtractor(videoId, fetchImpl) {
     headers: {
       "content-type": "application/json",
       accept: "application/json",
-      "user-agent": "Hanami/5.8.62",
+      "user-agent": "Hanami/5.8.63",
       ...(token ? { authorization: `Bearer ${token}` } : {}),
     },
     json: { videoId },
@@ -704,7 +704,7 @@ function lyricsResult(provider, lyrics) {
 }
 
 async function lrclibLyrics(title, artist, duration, fetchImpl) {
-  const baseHeaders = { accept: "application/json", "user-agent": "Hanami/5.8.62" };
+  const baseHeaders = { accept: "application/json", "user-agent": "Hanami/5.8.63" };
   if (title && artist) {
     const url = new URL("https://lrclib.net/api/get");
     url.searchParams.set("track_name", title);
@@ -750,7 +750,7 @@ function nestedLyrics(data) {
 }
 
 async function unisonLyrics(videoId, title, artist, duration, fetchImpl) {
-  const headers = { accept: "application/json", "user-agent": "Hanami/5.8.62" };
+  const headers = { accept: "application/json", "user-agent": "Hanami/5.8.63" };
   if (/^[A-Za-z0-9_-]{11}$/.test(videoId || "")) {
     const url = new URL("https://unison.boidu.dev/lyrics");
     url.searchParams.set("v", videoId);
@@ -785,7 +785,7 @@ async function paxsenixLyrics(title, artist, duration, fetchImpl) {
   if (duration > 0) url.searchParams.set("duration", String(Math.round(duration)));
   const { data } = await requestJson(url, {
     fetchImpl,
-    headers: { accept: "application/json", "user-agent": "Hanami/5.8.62" },
+    headers: { accept: "application/json", "user-agent": "Hanami/5.8.63" },
     timeout: 7_000,
     maxBytes: 1_000_000,
     allowStatuses: [404],
@@ -802,7 +802,7 @@ async function betterLyrics(title, artist, duration, fetchImpl) {
     try {
       const { data } = await requestJson(url, {
         fetchImpl,
-        headers: { accept: "application/json", "user-agent": "Hanami/5.8.62" },
+        headers: { accept: "application/json", "user-agent": "Hanami/5.8.63" },
         timeout: 7_000,
         maxBytes: 1_000_000,
         allowStatuses: [404],

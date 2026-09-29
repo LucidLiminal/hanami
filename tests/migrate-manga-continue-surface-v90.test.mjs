@@ -16,6 +16,6 @@ assert.match(migration, /function renderConfig\(\)\{showMigrationSurface\(\)/);
 assert.match(migration, /function open\(mangaIds,restoring=false\).*?HanamiScreens\?\.push\('migration-config'/s);
 assert.match(app, /if\(b\.hasAttribute\('data-migrate-continue'\)\)\{const ids=\$\$\('\[data-migrate-item\]:checked'\).*?HanamiMigrationConfig\?\.open\(ids\)\}/s);
 assert.match(app, /showBrowseChild\('migrate-manga'.*?\(\)=>renderMigrationItems\(true\)/s);
-assert.equal(JSON.parse(pkg).version, '5.8.62');
-assert(sw.includes('hanami-reader-music-v129'));
+assert.equal(JSON.parse(pkg).version, '5.8.63');
+assert(sw.includes('hanami-runtime-fixes-v130'));
 console.log('PASS: Continuar abre MigrationConfig sobre la superficie visible y Atrás restaura MigrateManga');

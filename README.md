@@ -59,6 +59,15 @@ npm run dev
 
 Abre `http://127.0.0.1:4173`. Este comando usa el servidor local incluido y evita la invocación recursiva de Vercel.
 
+No abras `public/` con `python -m http.server`, `serve`, Live Server ni un
+preview exclusivamente estático: esos servidores muestran la interfaz, pero
+devuelven 404 para `/api/music/*` y para el resto de funciones serverless. Se
+puede comprobar el runtime correcto con:
+
+```bash
+curl http://127.0.0.1:4173/api/music/capabilities
+```
+
 Para emular expresamente el entorno de Vercel, ejecuta `npm run dev:vercel` desde una terminal normal. En los ajustes del proyecto de Vercel, deja **Development Command** en automático o usa `node dev.mjs`; no lo configures como `vercel dev`.
 
 También puede desplegarse con Vercel CLI:

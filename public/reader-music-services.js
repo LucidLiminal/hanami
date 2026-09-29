@@ -99,6 +99,10 @@ export function parseLrc(rawLyrics) {
 async function apiJson(url, options) {
   const response = await fetch(url, options);
   const data = await response.json().catch(() => ({}));
+  if (response.status === 404 && String(url).startsWith("/api/music/"))
+    throw new Error(
+      "La API musical no está activa. Reinicia esta versión con «npm run dev» o despliega en Vercel; un servidor estático no ejecuta /api.",
+    );
   if (!response.ok) throw new Error(data.error || `El servicio respondió HTTP ${response.status}`);
   return data;
 }

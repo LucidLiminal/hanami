@@ -54,8 +54,8 @@ assert(!css.includes(".group-library-categories button"));
 assert(social.includes("reorderGroupCategories"));
 assert(sql.includes("reorder_group_library_categories"));
 
-assert(sw.includes("hanami-reader-music-v129"));
-assert.equal(pkg.version, "5.8.62");
+assert(sw.includes("hanami-runtime-fixes-v130"));
+assert.equal(pkg.version, "5.8.63");
 assert(
   pkg.scripts.test.includes(
     "node tests/reader-music-v128.test.mjs",

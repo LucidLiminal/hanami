@@ -379,15 +379,15 @@ assert(equalizerSource.includes("createChannelSplitter"));
 assert(html.includes('src="/reader-music-services.js"'));
 for (const file of ["reader-music-services.js", "music-recognition.js", "music-equalizer.js"])
   assert(sw.includes(`'/${file}'`), file);
-assert(sw.includes("hanami-reader-music-v129"));
+assert(sw.includes("hanami-runtime-fixes-v130"));
 assert(css.includes("Reader Music External Services v129"));
 assert(readme.includes("sin pegar"));
 assert(readme.includes("InnerTube"));
 assert(notices.includes("ShazamSignatureGenerator.kt"));
 assert(notices.includes("does not implement signature deciphering"));
 const pkg = JSON.parse(packageText);
-assert.equal(pkg.version, "5.8.62");
-assert(pkg.scripts.test.startsWith("node tests/music-services-v129.test.mjs"));
+assert.equal(pkg.version, "5.8.63");
+assert(pkg.scripts.test.includes("node tests/music-services-v129.test.mjs"));
 
 console.log(
   "PASS: v129 ports search-first InnerTube playback, Shazam-compatible recognition, resilient external lyrics and a persistent 10-band Web Audio effects chain",
