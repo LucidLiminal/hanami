@@ -79,3 +79,20 @@ El contrato completo está probado con fixtures realistas. La fuente se marca **
 ## Límites
 
 Vercel no ejecuta las APK originales. Este proyecto contiene una reimplementación JavaScript mantenida por Hanami. No elude CAPTCHA, autenticación ni controles de acceso. Respeta los términos de la fuente y los derechos sobre el contenido.
+
+## Música durante la lectura
+
+El visor incluye un reproductor inspirado en la arquitectura musical de TSuki.
+Pulsa **Música** en la barra inferior del capítulo para:
+
+- importar MP3, M4A, AAC, WAV, OGG, Opus o FLAC desde el dispositivo;
+- importar playlists M3U/M3U8 con URLs de audio directas;
+- guardar la biblioteca local sin conexión mediante IndexedDB;
+- crear y editar una cola, buscar pistas y usar aleatorio o repetición;
+- controlar posición, volumen, crossfade y temporizador de apagado;
+- conservar canción, cola y posición al cambiar de capítulo o recargar;
+- usar controles multimedia del sistema cuando Media Session esté disponible.
+
+Las URLs deben apuntar directamente a audio reproducible por el navegador. No
+se incluyen extractores de YouTube ni mecanismos para evadir anuncios o DRM.
+Consulta `THIRD_PARTY_NOTICES.md` para la atribución y licencia de TSuki.

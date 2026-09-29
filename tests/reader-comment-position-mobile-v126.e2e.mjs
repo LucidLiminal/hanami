@@ -33,9 +33,16 @@ await page.evaluate(() => {
 });
 
 const target = page.locator('#readerViewport figure[data-page="2"] img');
-await target.scrollIntoViewIfNeeded();
+await page.evaluate(() => {
+  const slider = document.querySelector("#readerSlider");
+  slider.value = 3;
+  slider.dispatchEvent(new Event("change", { bubbles: true }));
+});
 await target.waitFor({ state: "visible" });
-await page.waitForTimeout(400);
+await page.waitForFunction(() =>
+  document.querySelector("#readerCount")?.textContent?.startsWith("3 / 3"),
+);
+await page.waitForTimeout(250);
 const before = await page.evaluate(() => ({
   scrollTop: document.querySelector("#readerViewport").scrollTop,
   count: document.querySelector("#readerCount").textContent,

@@ -51,11 +51,11 @@ assert(library.includes("data-lib-toolbar-more"));
 assert(library.includes("data-lib-refresh-global"));
 assert(library.includes("HanamiGroupLibrary?.refresh?.(g.id,false)"));
 
-assert(sw.includes("hanami-group-progress-resume-v127"));
-assert.equal(pkg.version, "5.8.60");
+assert(sw.includes("hanami-reader-music-v128"));
+assert.equal(pkg.version, "5.8.61");
 assert(
   pkg.scripts.test.startsWith(
-    "node tests/group-progress-resume-v127.test.mjs",
+    "node tests/reader-music-v128.test.mjs",
   ),
 );
 
