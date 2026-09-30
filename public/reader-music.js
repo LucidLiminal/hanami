@@ -352,6 +352,12 @@ async function addRemoteTrack(url, metadata = {}) {
     artwork: metadata.artwork || previous?.artwork || "",
     mimeType: metadata.mimeType || previous?.mimeType || "",
     expiresAt: Number(metadata.expiresAt) || previous?.expiresAt || 0,
+    playbackProvider: Object.prototype.hasOwnProperty.call(metadata, "playbackProvider")
+      ? metadata.playbackProvider
+      : previous?.playbackProvider || "",
+    invidiousOrigin: Object.prototype.hasOwnProperty.call(metadata, "invidiousOrigin")
+      ? metadata.invidiousOrigin
+      : previous?.invidiousOrigin || "",
     addedAt: previous?.addedAt || Date.now(),
     updatedAt: Date.now(),
   };
@@ -426,11 +432,19 @@ async function loadAudio(audio, track, position = 0, autoplay = false) {
   audio.load();
   // Start inside the originating click task. Waiting for loadedmetadata first
   // loses transient user activation in Safari/iOS and some installed PWAs.
-  const playPromise = autoplay ? audio.play() : null;
+  let playError = null;
+  const playPromise = autoplay
+    ? audio.play().catch((error) => {
+        playError = error;
+      })
+    : null;
   await waitMetadata(audio);
   if (Number.isFinite(position) && position > 0 && Number.isFinite(audio.duration))
     audio.currentTime = clamp(position, 0, Math.max(0, audio.duration - 0.15));
-  if (playPromise) await playPromise;
+  if (playPromise) {
+    await playPromise;
+    if (playError) throw playError;
+  }
 }
 function cancelFade({ keepActive = true } = {}) {
   cancelAnimationFrame(fadeFrame);
@@ -491,7 +505,15 @@ async function selectIndex(index, { autoplay = true, position = 0 } = {}) {
       Object.assign(track, refreshed, { updatedAt: Date.now() });
       await putTrack(track);
     }
-    await loadAudio(active, track, position, autoplay);
+    try {
+      await loadAudio(active, track, position, autoplay);
+    } catch (loadError) {
+      const recovered = await externalServices?.recoverLoadError?.(track, loadError);
+      if (!recovered || typeof recovered !== "object") throw loadError;
+      Object.assign(track, recovered, { updatedAt: Date.now() });
+      await putTrack(track);
+      await loadAudio(active, track, position, autoplay);
+    }
     if (token !== loadToken) return false;
     if (autoplay) {
       playing = true;
@@ -507,9 +529,10 @@ async function selectIndex(index, { autoplay = true, position = 0 } = {}) {
   } catch (error) {
     playing = false;
     statusMessage =
-      track.type === "stream"
+      error?.message ||
+      (track.type === "stream"
         ? "No se pudo reproducir esta URL directa."
-        : "No se pudo reproducir el archivo.";
+        : "No se pudo reproducir el archivo.");
     emit("error");
     return false;
   }

@@ -99,6 +99,9 @@ arquitectura de TSuki. Pulsa **Música** en la barra inferior del capítulo para
 - añadir y reproducir resultados mediante InnerTube; Hanami conserva las URLs
   firmadas en el servidor, transmite el audio por una ruta same-origin y las
   renueva cuando caducan;
+- configurar una instancia Invidious de confianza como segundo intento:
+  únicamente se consulta después de que falle Hanami y el navegador reproduce
+  desde su proxy `local=true`, sin transportar ese audio por Vercel;
 - reconocer música ambiental con el micrófono y una firma compatible con
   Shazam;
 - obtener letras de LRCLIB, Unison, Paxsenix y BetterLyrics, con seguimiento
@@ -121,10 +124,22 @@ Si YouTube aplica una comprobación anti-bot a la IP del servidor, el despliegue
 puede conectar su propio adaptador NewPipe/yt-dlp mediante
 `HANAMI_YOUTUBE_RESOLVER_URL` y, opcionalmente,
 `HANAMI_YOUTUBE_RESOLVER_TOKEN`. Las credenciales permanecen en el servidor.
+Como alternativa sin sidecar, cada navegador puede guardar explícitamente una
+instancia Invidious HTTPS. Hanami no incluye una instancia predeterminada, no
+rota servidores públicos y rechaza cualquier formato que no vuelva por el
+proxy local de ese mismo origen.
 
 Consulta `READER_MUSIC_SERVICES_V129.md`, `YOUTUBE_AUDIO_PROXY_V131.md`,
-`GOOGLEVIDEO_RETRY_V132.md` y `THIRD_PARTY_NOTICES.md` para la arquitectura,
-límites, atribución y licencia de TSuki.
+`GOOGLEVIDEO_RETRY_V132.md`, `INVIDIOUS_FALLBACK_V134.md` y
+`THIRD_PARTY_NOTICES.md` para la arquitectura, límites, atribución y licencia
+de TSuki.
+
+## Fallback Invidious v134
+
+La v134 añade un segundo intento opcional y elegido por el usuario para el
+audio de YouTube. La instancia ve la IP y el vídeo solicitado, puede limitar su
+API y no constituye una garantía de reproducción. Consulta
+[INVIDIOUS_FALLBACK_V134.md](INVIDIOUS_FALLBACK_V134.md).
 
 ## Identidad visual v133
 

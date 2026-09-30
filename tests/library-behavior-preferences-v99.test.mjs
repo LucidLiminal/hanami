@@ -10,5 +10,5 @@ for(const token of ['mergeFetchedChapterMetadata','markExistingDuplicates','matc
 for(const token of ['hanami-hide-missing-chapters','missingTotal','chapterGap','md-missing-chapters','capítulo${count===1'])assert(detail.includes(token),token);
 for(const token of ['function duplicateReadSettings(','hanami-mark-duplicate-read','data-mt-duplicate-read','Al obtener capítulos nuevos','Al terminar de leer un capítulo','hanami-hide-missing-chapters'])assert(more.includes(token),token);
 assert(css.includes('.md-missing-chapters{')&&css.includes('.mt-multi-setting{'));
-assert(sw.includes('hanami-crimson-knot-v133'));assert.equal(pkg.version,'5.8.66');assert(pkg.scripts.test.includes('library-behavior-preferences-v99.test.mjs'));
+assert(sw.includes('hanami-crimson-knot-v134'));assert.equal(pkg.version,'5.8.67');assert(pkg.scripts.test.includes('library-behavior-preferences-v99.test.mjs'));
 console.log('PASS: Library behavior preferences apply missing indicators and duplicate-read rules for new and completed chapters');

@@ -413,7 +413,7 @@ async function resolveWithConfiguredExtractor(videoId, fetchImpl) {
     headers: {
       "content-type": "application/json",
       accept: "application/json",
-      "user-agent": "Hanami/5.8.65",
+      "user-agent": "Hanami/5.8.67",
       ...(token ? { authorization: `Bearer ${token}` } : {}),
     },
     json: { videoId },

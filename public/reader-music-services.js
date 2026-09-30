@@ -2,6 +2,8 @@ import { equalizer, EQ_FREQUENCIES, EQ_PRESETS } from "./music-equalizer.js";
 import { recognizeAmbient } from "./music-recognition.js";
 
 const LYRICS_CACHE_KEY = "hanami-reader-lyrics-cache-v1";
+const INVIDIOUS_STORAGE_KEY = "hanami-reader-invidious-v1";
+const INVIDIOUS_TIMEOUT_MS = 8_000;
 const esc = (value) =>
   String(value ?? "").replace(
     /[&<>"']/g,
@@ -13,7 +15,62 @@ const esc = (value) =>
 const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, Number(value) || 0));
 const compact = (value) => String(value ?? "").replace(/\s+/g, " ").trim();
 
+function localDevelopmentPage() {
+  const protocol = globalThis.location?.protocol;
+  const hostname = globalThis.location?.hostname;
+  return (
+    protocol === "http:" &&
+    ["localhost", "127.0.0.1", "::1"].includes(String(hostname || "").toLowerCase())
+  );
+}
+
+export function normalizeInvidiousUrl(value, { allowInsecureLocal = localDevelopmentPage() } = {}) {
+  const raw = compact(value);
+  if (!raw) return "";
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new Error("Introduce la dirección completa de una instancia Invidious.");
+  }
+  if (parsed.username || parsed.password)
+    throw new Error("La dirección Invidious no puede incluir credenciales.");
+  const localHost = ["localhost", "127.0.0.1", "::1"].includes(
+    parsed.hostname.toLowerCase(),
+  );
+  const secure = parsed.protocol === "https:";
+  const localHttp = parsed.protocol === "http:" && localHost && allowInsecureLocal;
+  if (!secure && !localHttp)
+    throw new Error("La instancia Invidious debe usar HTTPS.");
+  if (parsed.search || parsed.hash || (parsed.pathname && parsed.pathname !== "/"))
+    throw new Error("Usa solo el origen de la instancia, por ejemplo https://invidious.example.");
+  return parsed.origin;
+}
+
+function readInvidiousUrl() {
+  if (typeof localStorage === "undefined") return "";
+  try {
+    const saved = JSON.parse(localStorage.getItem(INVIDIOUS_STORAGE_KEY) || "{}");
+    return normalizeInvidiousUrl(saved?.url || "");
+  } catch {
+    return "";
+  }
+}
+
+function persistInvidiousUrl(value) {
+  if (typeof localStorage === "undefined") return;
+  if (!value) {
+    localStorage.removeItem(INVIDIOUS_STORAGE_KEY);
+    return;
+  }
+  localStorage.setItem(
+    INVIDIOUS_STORAGE_KEY,
+    JSON.stringify({ url: value, savedAt: Date.now() }),
+  );
+}
+
 let adapter = null;
+const savedInvidiousUrl = readInvidiousUrl();
 const ui = {
   tab: "youtube",
   query: "",
@@ -30,6 +87,12 @@ const ui = {
   lyricsStatus: "",
   activeLyric: -1,
   eqStatus: "",
+  invidiousUrl: savedInvidiousUrl,
+  invidiousDraft: savedInvidiousUrl,
+  invidiousOpen: false,
+  invidiousStatus: savedInvidiousUrl
+    ? "Configurada. Solo se consultará si falla el resolvedor de Hanami."
+    : "Desactivado. Hanami no selecciona ni rota instancias públicas automáticamente.",
 };
 
 function readLyricsCache() {
@@ -103,8 +166,183 @@ async function apiJson(url, options) {
     throw new Error(
       "La API musical no está activa. Reinicia esta versión con «npm run dev» o despliega en Vercel; un servidor estático no ejecuta /api.",
     );
-  if (!response.ok) throw new Error(data.error || `El servicio respondió HTTP ${response.status}`);
+  if (!response.ok) {
+    const error = new Error(data.error || `El servicio respondió HTTP ${response.status}`);
+    error.status = response.status;
+    error.kind = data.kind || "";
+    throw error;
+  }
   return data;
+}
+
+async function timedFetch(fetchImpl, url, options = {}, timeout = INVIDIOUS_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+  try {
+    return await fetchImpl(url, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error?.name === "AbortError")
+      throw new Error("La instancia Invidious agotó el tiempo de espera.");
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function safeInvidiousMediaUrl(value, instanceUrl) {
+  try {
+    const base = new URL(normalizeInvidiousUrl(instanceUrl, { allowInsecureLocal: true }));
+    const media = new URL(value, base);
+    if (media.origin !== base.origin || media.username || media.password) return null;
+    if (
+      !(
+        media.pathname === "/videoplayback" ||
+        media.pathname.startsWith("/companion/") ||
+        media.pathname.startsWith("/api/manifest/")
+      )
+    )
+      return null;
+    return media;
+  } catch {
+    return null;
+  }
+}
+
+function invidiousExpiry(url) {
+  const seconds = Number(url.searchParams.get("expire"));
+  const timestamp = seconds > 0 ? seconds * 1000 : 0;
+  return timestamp > Date.now() + 30_000 ? timestamp : Date.now() + 5 * 60_000;
+}
+
+function invidiousArtwork(data) {
+  const thumbnails = Array.isArray(data?.videoThumbnails) ? data.videoThumbnails : [];
+  return (
+    thumbnails
+      .filter((thumbnail) => /^https:\/\//i.test(thumbnail?.url || ""))
+      .sort(
+        (a, b) =>
+          Number(b?.width || 0) * Number(b?.height || 0) -
+          Number(a?.width || 0) * Number(a?.height || 0),
+      )[0]?.url || ""
+  );
+}
+
+export function chooseInvidiousAudio(data, instanceUrl) {
+  const formats = Array.isArray(data?.adaptiveFormats) ? data.adaptiveFormats : [];
+  const candidates = formats
+    .map((format) => {
+      const mimeType = compact(format?.type || format?.mimeType);
+      if (!/^audio\//i.test(mimeType)) return null;
+      const mediaUrl = safeInvidiousMediaUrl(format?.url, instanceUrl);
+      if (!mediaUrl) return null;
+      return {
+        url: mediaUrl.href,
+        mimeType,
+        bitrate: Number(format?.bitrate) || 0,
+        averageBitrate: Number(format?.averageBitrate) || Number(format?.bitrate) || 0,
+        audioQuality: compact(format?.audioQuality),
+        audioSampleRate: Number(format?.audioSampleRate) || 0,
+        audioChannels: Number(format?.audioChannels) || 0,
+        contentLength: Number(format?.clen || format?.contentLength) || 0,
+        expiresAt: invidiousExpiry(mediaUrl),
+      };
+    })
+    .filter(Boolean);
+  candidates.sort((a, b) => {
+    const formatA = /audio\/mp4/i.test(a.mimeType) ? 2 : /audio\/webm/i.test(a.mimeType) ? 1 : 0;
+    const formatB = /audio\/mp4/i.test(b.mimeType) ? 2 : /audio\/webm/i.test(b.mimeType) ? 1 : 0;
+    return formatB - formatA || b.averageBitrate - a.averageBitrate || b.bitrate - a.bitrate;
+  });
+  return candidates[0] || null;
+}
+
+export async function resolveInvidiousAudio(
+  videoId,
+  { instanceUrl, fetchImpl = fetch, timeout = INVIDIOUS_TIMEOUT_MS } = {},
+) {
+  const id = compact(videoId);
+  if (!/^[A-Za-z0-9_-]{11}$/.test(id))
+    throw new Error("El identificador de YouTube no es válido.");
+  const base = normalizeInvidiousUrl(instanceUrl);
+  if (!base) throw new Error("Configura primero una instancia Invidious.");
+  const endpoint = new URL(`/api/v1/videos/${encodeURIComponent(id)}`, base);
+  endpoint.searchParams.set("local", "true");
+  let response;
+  try {
+    response = await timedFetch(
+      fetchImpl,
+      endpoint,
+      {
+        method: "GET",
+        headers: { accept: "application/json" },
+        credentials: "omit",
+        referrerPolicy: "no-referrer",
+      },
+      timeout,
+    );
+  } catch (error) {
+    if (/tiempo de espera/i.test(error?.message || "")) throw error;
+    throw new Error("No se pudo conectar con la instancia Invidious.");
+  }
+  const declaredSize = Number(response.headers.get("content-length")) || 0;
+  if (declaredSize > 2_000_000)
+    throw new Error("La respuesta Invidious superó el tamaño permitido.");
+  const data = await response.json().catch(() => null);
+  if (!response.ok || !data) {
+    if (response.status === 403)
+      throw new Error("La instancia desactivó o bloqueó su API de vídeo.");
+    throw new Error(
+      compact(data?.error) || `La instancia Invidious respondió HTTP ${response.status}.`,
+    );
+  }
+  const stream = chooseInvidiousAudio(data, base);
+  if (!stream)
+    throw new Error(
+      "La instancia no devolvió un stream de audio local y compatible con CORS.",
+    );
+  return {
+    provider: "youtube-invidious",
+    videoId: id,
+    expiresAt: stream.expiresAt,
+    invidiousOrigin: base,
+    stream: {
+      url: stream.url,
+      mimeType: stream.mimeType,
+      bitrate: stream.bitrate,
+      averageBitrate: stream.averageBitrate,
+      audioQuality: stream.audioQuality,
+      audioSampleRate: stream.audioSampleRate,
+      audioChannels: stream.audioChannels,
+      contentLength: stream.contentLength,
+    },
+    track: {
+      videoId: id,
+      title: compact(data?.title),
+      artist: compact(data?.author) || "YouTube Music",
+      duration: Number(data?.lengthSeconds) || 0,
+      artwork: invidiousArtwork(data),
+    },
+    proxied: true,
+    browserDirect: true,
+  };
+}
+
+async function testInvidiousInstance(instanceUrl, fetchImpl = fetch) {
+  const base = normalizeInvidiousUrl(instanceUrl);
+  const endpoint = new URL("/api/v1/stats", base);
+  const response = await timedFetch(fetchImpl, endpoint, {
+    method: "GET",
+    headers: { accept: "application/json" },
+    credentials: "omit",
+    referrerPolicy: "no-referrer",
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok || !data)
+    throw new Error(`La comprobación de Invidious respondió HTTP ${response.status}.`);
+  return {
+    origin: base,
+    version: compact(data?.software?.version),
+  };
 }
 
 function currentTrack() {
@@ -151,6 +389,29 @@ function recognizedHtml() {
   </article>`;
 }
 
+function invidiousConfigHtml() {
+  const configured = !!ui.invidiousUrl;
+  let host = "";
+  try {
+    host = new URL(ui.invidiousUrl).hostname;
+  } catch {}
+  return `<details class="reader-music-invidious" ${ui.invidiousOpen ? "open" : ""}>
+    <summary>
+      <span><b>Fallback Invidious</b><small>Solo después de que falle el best effort de Hanami</small></span>
+      <em class="${configured ? "active" : ""}">${configured ? esc(host || "ACTIVO") : "DESACTIVADO"}</em>
+    </summary>
+    <div>
+      <p>La reproducción irá directamente desde la instancia elegida; Vercel no transportará el audio. La instancia verá tu IP y el ID del vídeo. Hanami no rota servidores públicos.</p>
+      <label>
+        <span>Origen HTTPS de confianza</span>
+        <input data-music-invidious-url type="url" value="${esc(ui.invidiousDraft)}" placeholder="https://invidious.example" autocomplete="off" autocapitalize="none" spellcheck="false">
+      </label>
+      <button data-music-invidious-save>Guardar y comprobar</button>
+      <small data-music-invidious-status aria-live="polite">${esc(ui.invidiousStatus)}</small>
+    </div>
+  </details>`;
+}
+
 function youtubePanelHtml() {
   return `<div class="reader-music-service-panel ${ui.tab === "youtube" ? "active" : ""}" data-music-service-panel="youtube">
     <div class="reader-music-online-search">
@@ -160,6 +421,7 @@ function youtubePanelHtml() {
     <button class="reader-music-recognize" data-music-recognize ${ui.recognizing ? "disabled" : ""}>${ui.recognizing ? "◎ Escuchando…" : "◎ Reconocer lo que está sonando"}</button>
     ${recognizedHtml()}
     <p class="reader-music-service-status" data-music-search-status aria-live="polite">${esc(ui.recognitionStatus || ui.searchStatus)}</p>
+    ${invidiousConfigHtml()}
     <div class="reader-music-online-results">${
       ui.results.length
         ? ui.results.map(youtubeResultHtml).join("")
@@ -215,7 +477,7 @@ function equalizerPanelHtml() {
 
 function panelHtml({ track } = {}) {
   return `<section class="reader-music-services" data-music-services>
-    <header><span><small>SERVICIOS EXTERNOS</small><b>Buscar, reconocer y ajustar</b></span><em>TSUKI PORT · v129</em></header>
+    <header><span><small>SERVICIOS EXTERNOS</small><b>Buscar, reconocer y ajustar</b></span><em>HANAMI · v134</em></header>
     <nav aria-label="Servicios de música">
       <button data-music-service-tab="youtube" class="${ui.tab === "youtube" ? "active" : ""}">Buscar</button>
       <button data-music-service-tab="lyrics" class="${ui.tab === "lyrics" ? "active" : ""}">Letras</button>
@@ -263,13 +525,86 @@ async function resolveYouTube(videoId) {
   });
 }
 
+async function resolveYouTubeWithFallback(videoId, { onFallback } = {}) {
+  let primaryError;
+  try {
+    return await resolveYouTube(videoId);
+  } catch (error) {
+    primaryError = error;
+  }
+  if (primaryError?.status === 400 || primaryError?.kind === "validation")
+    throw primaryError;
+  if (!ui.invidiousUrl) throw primaryError;
+  onFallback?.(ui.invidiousUrl, primaryError);
+  try {
+    return await resolveInvidiousAudio(videoId, { instanceUrl: ui.invidiousUrl });
+  } catch (fallbackError) {
+    let host = "Invidious";
+    try {
+      host = new URL(ui.invidiousUrl).hostname;
+    } catch {}
+    const error = new Error(
+      `El resolvedor de Hanami falló y ${host} tampoco pudo entregar el audio: ${fallbackError?.message || "error desconocido"}`,
+    );
+    error.kind = "invidious_fallback";
+    error.primaryError = primaryError;
+    error.fallbackError = fallbackError;
+    throw error;
+  }
+}
+
+async function saveInvidiousFallback() {
+  const input = document.querySelector("[data-music-invidious-url]");
+  const raw = compact(input?.value ?? ui.invidiousDraft);
+  ui.invidiousDraft = raw;
+  if (!raw) {
+    ui.invidiousUrl = "";
+    ui.invidiousOpen = true;
+    persistInvidiousUrl("");
+    ui.invidiousStatus =
+      "Fallback desactivado. Hanami no consultará ninguna instancia Invidious.";
+    render();
+    return;
+  }
+  let normalized;
+  try {
+    normalized = normalizeInvidiousUrl(raw);
+  } catch (error) {
+    ui.invidiousStatus = error?.message || "La dirección Invidious no es válida.";
+    render();
+    return;
+  }
+  ui.invidiousUrl = normalized;
+  ui.invidiousDraft = normalized;
+  ui.invidiousOpen = true;
+  persistInvidiousUrl(normalized);
+  ui.invidiousStatus = "Instancia guardada. Comprobando CORS y disponibilidad…";
+  render();
+  try {
+    const result = await testInvidiousInstance(normalized);
+    ui.invidiousStatus = `Instancia accesible${result.version ? ` · ${result.version}` : ""}. El proxy de audio se validará al reproducir.`;
+  } catch (error) {
+    ui.invidiousStatus = `Guardada, pero la comprobación falló: ${error?.message || "sin respuesta"}`;
+  }
+  render();
+}
+
 async function addYouTubeResult(result) {
   if (!result?.videoId || ui.adding) return;
   ui.adding = result.videoId;
   ui.searchStatus = `Resolviendo ${result.title || "la canción"}…`;
   render();
   try {
-    const resolved = await resolveYouTube(result.videoId);
+    const resolved = await resolveYouTubeWithFallback(result.videoId, {
+      onFallback(instanceUrl) {
+        let host = "la instancia configurada";
+        try {
+          host = new URL(instanceUrl).hostname;
+        } catch {}
+        ui.searchStatus = `El best effort de Hanami falló. Probando ${host}…`;
+        render();
+      },
+    });
     const remote = await adapter.addRemoteTrack(resolved.stream.url, {
       title: result.title || resolved.track?.title || "YouTube Music",
       artist: result.artist || resolved.track?.artist || "YouTube Music",
@@ -280,9 +615,15 @@ async function addYouTubeResult(result) {
       videoId: result.videoId,
       expiresAt: resolved.expiresAt,
       mimeType: resolved.stream.mimeType,
+      playbackProvider: resolved.provider || "",
+      invidiousOrigin: resolved.invidiousOrigin || "",
     });
-    ui.searchStatus = `${remote.title} añadida y lista para reproducir.`;
-    adapter.setStatus?.(`${remote.title} añadida desde YouTube Music.`);
+    const via =
+      resolved.provider === "youtube-invidious"
+        ? ` vía ${new URL(resolved.invidiousOrigin).hostname}`
+        : "";
+    ui.searchStatus = `${remote.title} añadida y lista para reproducir${via}.`;
+    adapter.setStatus?.(`${remote.title} añadida desde YouTube Music${via}.`);
     await adapter.playTrack(remote.id);
   } catch (error) {
     ui.searchStatus = error?.message || "No se pudo resolver el audio de esta canción.";
@@ -382,6 +723,18 @@ function connect(nextAdapter) {
   hydrateLyrics();
 }
 
+function trackPatchFromResolution(resolved, track = {}) {
+  return {
+    url: new URL(resolved.stream.url, location.href).href,
+    expiresAt: resolved.expiresAt,
+    mimeType: resolved.stream.mimeType,
+    duration: track.duration || resolved.track?.duration || 0,
+    artwork: track.artwork || resolved.track?.artwork || "",
+    playbackProvider: resolved.provider || "",
+    invidiousOrigin: resolved.invidiousOrigin || "",
+  };
+}
+
 async function beforeLoad(track) {
   if (equalizer.state.enabled) await equalizer.resume();
   if (track?.provider !== "youtube" || !track.videoId) return null;
@@ -390,17 +743,51 @@ async function beforeLoad(track) {
     location.href,
   ).href;
   if (Number(track.expiresAt) > Date.now() + 90_000) {
+    if (
+      track.playbackProvider === "youtube-invidious" &&
+      safeInvidiousMediaUrl(track.url, track.invidiousOrigin)
+    )
+      return null;
     // Migrates v129/v130 records that persisted a signed Googlevideo URL.
-    return track.url === proxyUrl ? null : { url: proxyUrl };
+    if (track.playbackProvider !== "youtube-invidious")
+      return track.url === proxyUrl
+        ? null
+        : {
+            url: proxyUrl,
+            playbackProvider: track.playbackProvider || "youtube-innertube",
+            invidiousOrigin: "",
+          };
   }
-  const resolved = await resolveYouTube(track.videoId);
-  return {
-    url: new URL(resolved.stream.url, location.href).href,
-    expiresAt: resolved.expiresAt,
-    mimeType: resolved.stream.mimeType,
-    duration: track.duration || resolved.track?.duration || 0,
-    artwork: track.artwork || resolved.track?.artwork || "",
-  };
+  const resolved = await resolveYouTubeWithFallback(track.videoId, {
+    onFallback(instanceUrl) {
+      let host = "Invidious";
+      try {
+        host = new URL(instanceUrl).hostname;
+      } catch {}
+      adapter?.setStatus?.(`Hanami no pudo renovar el audio. Probando ${host}…`);
+    },
+  });
+  return trackPatchFromResolution(resolved, track);
+}
+
+async function recoverLoadError(track, error) {
+  if (
+    track?.provider !== "youtube" ||
+    !track.videoId ||
+    !ui.invidiousUrl ||
+    track.playbackProvider === "youtube-invidious" ||
+    ["AbortError", "NotAllowedError"].includes(error?.name)
+  )
+    return null;
+  let host = "Invidious";
+  try {
+    host = new URL(ui.invidiousUrl).hostname;
+  } catch {}
+  adapter?.setStatus?.(`El proxy de Hanami rechazó el audio. Probando ${host}…`);
+  const resolved = await resolveInvidiousAudio(track.videoId, {
+    instanceUrl: ui.invidiousUrl,
+  });
+  return trackPatchFromResolution(resolved, track);
 }
 
 function audioCrossOrigin(track) {
@@ -446,6 +833,11 @@ function snapshot() {
     recognized: ui.recognized?.track || null,
     lyricsProvider: ui.lyrics?.provider || null,
     lyricsSynced: !!ui.lyrics?.synced,
+    invidious: {
+      configured: !!ui.invidiousUrl,
+      origin: ui.invidiousUrl,
+      status: ui.invidiousStatus,
+    },
     equalizer: equalizer.snapshot(),
   };
 }
@@ -454,6 +846,7 @@ const service = {
   connect,
   panelHtml,
   beforeLoad,
+  recoverLoadError,
   audioCrossOrigin,
   onPlayerChange,
   syncUi,
@@ -461,9 +854,19 @@ const service = {
 };
 
 if (typeof document !== "undefined") {
+  document.addEventListener(
+    "toggle",
+    (event) => {
+      if (event.target.matches?.(".reader-music-invidious"))
+        ui.invidiousOpen = event.target.open;
+    },
+    true,
+  );
+
   document.addEventListener("input", (event) => {
     const target = event.target;
     if (target.matches("[data-music-youtube-query]")) ui.query = target.value;
+    if (target.matches("[data-music-invidious-url]")) ui.invidiousDraft = target.value;
     if (target.matches("[data-music-eq-band]")) {
       const index = Number(target.dataset.musicEqBand);
       equalizer.setBand(index, target.value);
@@ -513,6 +916,10 @@ if (typeof document !== "undefined") {
     }
     if (button.hasAttribute("data-music-youtube-search")) {
       await searchYouTube(document.querySelector("[data-music-youtube-query]")?.value || ui.query);
+      return;
+    }
+    if (button.hasAttribute("data-music-invidious-save")) {
+      await saveInvidiousFallback();
       return;
     }
     if (button.dataset.musicYoutubeAdd) {

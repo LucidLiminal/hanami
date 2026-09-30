@@ -80,10 +80,10 @@ for (const token of [
 ])
   assert(music.includes(token), token);
 assert(docs.includes("Retry path"));
-assert(sw.includes("hanami-crimson-knot-v133"));
+assert(sw.includes("hanami-crimson-knot-v134"));
 const pkg = JSON.parse(packageText);
-assert.equal(pkg.version, "5.8.66");
-assert(pkg.scripts.test.startsWith("node tests/googlevideo-retry-v132.test.mjs"));
+assert.equal(pkg.version, "5.8.67");
+assert(pkg.scripts.test.includes("node tests/googlevideo-retry-v132.test.mjs"));
 
 console.log(
   "PASS: v132 keeps the anonymous InnerTube session server-side, uses IPv4-first media retrieval and refreshes with Web Remix after Googlevideo 403 responses",

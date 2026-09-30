@@ -51,8 +51,8 @@ assert(library.includes("data-lib-toolbar-more"));
 assert(library.includes("data-lib-refresh-global"));
 assert(library.includes("HanamiGroupLibrary?.refresh?.(g.id,false)"));
 
-assert(sw.includes("hanami-crimson-knot-v133"));
-assert.equal(pkg.version, "5.8.66");
+assert(sw.includes("hanami-crimson-knot-v134"));
+assert.equal(pkg.version, "5.8.67");
 assert(
   pkg.scripts.test.includes(
     "node tests/reader-music-v128.test.mjs",

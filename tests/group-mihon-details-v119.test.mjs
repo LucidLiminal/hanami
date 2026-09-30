@@ -21,8 +21,8 @@ assert(app.includes("mangaUrl:screen.entry.mangaUrl"));
 assert(app.includes("HanamiReader.open"));
 assert(app.includes("HanamiScreens?.registerType?.('group-manga-detail'"));
 assert(groups.includes("HanamiNavigation?.setChild?.(false)"));
-assert(sw.includes("hanami-crimson-knot-v133"));
-assert.equal(pkg.version, "5.8.66");
+assert(sw.includes("hanami-crimson-knot-v134"));
+assert.equal(pkg.version, "5.8.67");
 assert(
   pkg.scripts.test.includes(
     "node tests/group-mihon-details-v119.test.mjs",
