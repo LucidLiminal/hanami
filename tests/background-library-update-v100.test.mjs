@@ -7,5 +7,5 @@ for(const token of ["self.addEventListener('sync'","self.addEventListener('perio
 for(const token of ['function background()','Actualización en segundo plano','data-mt-bg-interval','data-mt-bg-restriction','data-mt-bg-categories','data-mt-bg-notifications','data-mt-bg-smart','data-mt-bg-smart-toggle','refreshMetadata','showBadge','mt-bg-overflow','Resultado detallado','Periodic Sync'])assert(more.includes(token),token);
 assert(bg.includes('recordUpdates')&&badges.includes('setAppBadge'));
 assert(html.includes('/background-updates.js'));assert(sw.includes("'/background-updates.js'"));assert(css.includes('.mt-background{')&&css.includes('.mt-bg-status'));
-assert(sw.includes('hanami-crimson-knot-v135'));assert.equal(pkg.version,'5.9.0');assert(pkg.scripts.test.includes('background-library-update-v100.test.mjs'));
+assert(sw.includes('hanami-crimson-knot-v1352'));assert.equal(pkg.version,'5.9.2');assert(pkg.scripts.test.includes('background-library-update-v100.test.mjs'));
 console.log('PASS: web background updates use persistent IDB state, Sync/Periodic Sync, constraints, notifications, status UI and foreground fallbacks');

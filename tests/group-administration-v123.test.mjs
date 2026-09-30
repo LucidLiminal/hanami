@@ -76,8 +76,8 @@ for (const token of [
 ])
   assert(sql.includes(token), token);
 
-assert(sw.includes("hanami-crimson-knot-v135"));
-assert.equal(pkg.version, "5.9.0");
+assert(sw.includes("hanami-crimson-knot-v1352"));
+assert.equal(pkg.version, "5.9.2");
 assert(
   pkg.scripts.test.includes(
     "node tests/reader-music-v128.test.mjs",

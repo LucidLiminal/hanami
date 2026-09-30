@@ -206,6 +206,19 @@ for (const source of [backend, services]) {
 assert(apiIndex.includes("music/soundcloud/search"));
 assert(apiIndex.includes("music/soundcloud/resolve"));
 assert(services.includes("https://w.soundcloud.com/player/api.js"));
+assert(!services.includes("script.crossOrigin"));
+assert(services.includes("if (existing) existing.remove();"));
+assert(services.includes('frame.allow = "autoplay; encrypted-media"'));
+assert(services.includes("armWidgetPlayProbe"));
+assert(
+  services.includes(
+    "SoundCloud no entregó audio para esta pista. Prueba otra versión o ábrela en SoundCloud.",
+  ),
+);
+assert(
+  services.indexOf("host.replaceChildren(frame);") <
+    services.indexOf("globalThis.SC.Widget(frame)"),
+);
 assert(services.includes("events.PLAY_PROGRESS"));
 assert(services.includes("data-music-soundcloud-query"));
 assert(services.includes("data-music-soundcloud-add"));
@@ -215,10 +228,10 @@ assert(player.includes("updateExternalPlayback"));
 assert(player.includes('metadata.provider === "soundcloud"'));
 assert(styles.includes(".hanami-soundcloud-engine"));
 assert(styles.includes(".reader-music-soundcloud-source"));
-assert(sw.includes("hanami-crimson-knot-v135"));
+assert(sw.includes("hanami-crimson-knot-v1352"));
 const pkg = JSON.parse(packageText);
-assert.equal(pkg.version, "5.9.0");
+assert.equal(pkg.version, "5.9.2");
 
 console.log(
-  "PASS: v135 searches SoundCloud through its current API, resolves pasted links with oEmbed and delegates playback to the official SC.Widget without proxying audio.",
+  "PASS: v135.2 loads the official Widget API without forcing CORS, grants encrypted-media and detects tracks whose Widget stream stalls without proxying audio.",
 );

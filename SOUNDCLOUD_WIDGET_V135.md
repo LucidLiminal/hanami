@@ -3,6 +3,26 @@
 Hanami v135 replaces extractors and public relay instances with SoundCloud's
 documented web integration.
 
+## v135.1 loader correction
+
+The classic `https://w.soundcloud.com/player/api.js` script is loaded without a
+`crossorigin` attribute. SoundCloud does not return an
+`Access-Control-Allow-Origin` header for this classic script, so forcing a CORS
+request prevents the browser from executing it. Failed or timed-out script
+elements are now removed, allowing the next playback attempt to start cleanly.
+The iframe is also attached to the document before `SC.Widget` is initialized.
+
+## v135.2 unavailable-stream handling
+
+The iframe now grants both `autoplay` and `encrypted-media`, matching
+SoundCloud's oEmbed output for licensed tracks. Some tracks are still advertised
+as embeddable while the transcoding selected by the official Widget returns
+`404`. Because `SC.Widget` does not expose transcoding selection and may only
+emit `PLAY` followed by `PAUSE`, Hanami watches for playback attempts that
+produce no progress. After eight seconds it reports a useful error and keeps
+the public SoundCloud link available so the reader can open the original or
+choose a different upload.
+
 ## Playback
 
 The browser loads `https://w.soundcloud.com/player/api.js` and creates one

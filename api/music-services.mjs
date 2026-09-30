@@ -142,7 +142,7 @@ async function exchangeSoundCloudToken(
         accept: "application/json; charset=utf-8",
         "content-type": "application/x-www-form-urlencoded",
         authorization: `Basic ${authorization}`,
-        "user-agent": "Hanami/5.9.0",
+        "user-agent": "Hanami/5.9.2",
       },
       body: params.toString(),
       timeout: 10_000,
@@ -201,7 +201,7 @@ async function soundCloudApiJson(url, { fetchImpl = fetch } = {}) {
         headers: {
           accept: "application/json; charset=utf-8",
           authorization: `OAuth ${token}`,
-          "user-agent": "Hanami/5.9.0",
+          "user-agent": "Hanami/5.9.2",
         },
         timeout: 10_000,
         maxBytes: 4_000_000,
@@ -393,7 +393,7 @@ export async function resolveSoundCloudUrl(
       fetchImpl,
       headers: {
         accept: "application/json",
-        "user-agent": "Hanami/5.9.0",
+        "user-agent": "Hanami/5.9.2",
       },
       timeout: 10_000,
       maxBytes: 1_000_000,
@@ -623,7 +623,7 @@ function lyricsResult(provider, lyrics) {
 }
 
 async function lrclibLyrics(title, artist, duration, fetchImpl) {
-  const baseHeaders = { accept: "application/json", "user-agent": "Hanami/5.9.0" };
+  const baseHeaders = { accept: "application/json", "user-agent": "Hanami/5.9.2" };
   if (title && artist) {
     const url = new URL("https://lrclib.net/api/get");
     url.searchParams.set("track_name", title);
@@ -677,7 +677,7 @@ async function unisonLyrics(title, artist, duration, fetchImpl) {
   if (duration > 0) url.searchParams.set("duration", String(Math.round(duration)));
   const { data } = await requestJson(url, {
     fetchImpl,
-    headers: { accept: "application/json", "user-agent": "Hanami/5.9.0" },
+    headers: { accept: "application/json", "user-agent": "Hanami/5.9.2" },
     timeout: 7_000,
     maxBytes: 1_000_000,
     allowStatuses: [404],
@@ -692,7 +692,7 @@ async function paxsenixLyrics(title, artist, duration, fetchImpl) {
   if (duration > 0) url.searchParams.set("duration", String(Math.round(duration)));
   const { data } = await requestJson(url, {
     fetchImpl,
-    headers: { accept: "application/json", "user-agent": "Hanami/5.9.0" },
+    headers: { accept: "application/json", "user-agent": "Hanami/5.9.2" },
     timeout: 7_000,
     maxBytes: 1_000_000,
     allowStatuses: [404],
@@ -709,7 +709,7 @@ async function betterLyrics(title, artist, duration, fetchImpl) {
     try {
       const { data } = await requestJson(url, {
         fetchImpl,
-        headers: { accept: "application/json", "user-agent": "Hanami/5.9.0" },
+        headers: { accept: "application/json", "user-agent": "Hanami/5.9.2" },
         timeout: 7_000,
         maxBytes: 1_000_000,
         allowStatuses: [404],

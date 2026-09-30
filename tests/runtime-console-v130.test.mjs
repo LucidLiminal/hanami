@@ -19,7 +19,7 @@ assert(html.includes('<link rel="icon" href="/favicon.ico" sizes="any">'));
 assert.equal(favicon.readUInt16LE(0), 0);
 assert.equal(favicon.readUInt16LE(2), 1, "valid ICO header");
 assert(favicon.length > 1000);
-assert(sw.includes("hanami-crimson-knot-v135"));
+assert(sw.includes("hanami-crimson-knot-v1352"));
 assert(sw.includes("'/favicon.ico'"));
 assert(dev.includes("url.pathname.startsWith('/api/')"));
 assert(dev.includes("req.query.path = url.pathname.replace"));
@@ -70,7 +70,7 @@ assert.equal(payload.soundcloud.proxiedPlayback, false);
 assert.equal(payload.equalizer.bands, 10);
 
 const pkg = JSON.parse(packageText);
-assert.equal(pkg.version, "5.9.0");
+assert.equal(pkg.version, "5.9.2");
 assert(pkg.scripts.test.includes("node tests/runtime-console-v130.test.mjs"));
 assert(pkg.scripts.test.includes("node tests/soundcloud-widget-v135.test.mjs"));
 

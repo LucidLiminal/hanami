@@ -5,7 +5,7 @@ const detail=read('../public/manga-detail.js'),more=read('../public/more-tab.js'
 for(const token of ["hanami-chapter-swipe-left","hanami-chapter-swipe-right","swipePreferences.left","swipePreferences.right","function swipeInfo(","async function chapterSwipe(","Math.abs(swipe.dx)>=56","setPointerCapture","data-md-swipe-row","md-swipe-action","state==='downloaded'","HanamiDownloads?.cancel","HanamiDownloads?.remove"])assert(detail.includes(token),token);
 for(const token of ['function chapterSwipeSetting(','data-mt-chapter-swipe','Al deslizar a la izquierda','Al deslizar a la derecha',"['disabled','Desactivado']",'Acción al superar 56 px'])assert(more.includes(token),token);
 for(const token of ['.md-chapter-swipe{','.md-swipe-action{','data-swipe-direction="right"','.mt-list-setting{','@media(prefers-reduced-motion:reduce)'])assert(css.includes(token),token);
-assert(sw.includes('hanami-crimson-knot-v135'));
-assert.equal(pkg.version,'5.9.0');
+assert(sw.includes('hanami-crimson-knot-v1352'));
+assert.equal(pkg.version,'5.9.2');
 assert(pkg.scripts.test.includes('chapter-swipe-config-v98.test.mjs'));
 console.log('PASS: configurable chapter swipe ports Mihon actions, threshold, visual feedback, settings and download state toggles');

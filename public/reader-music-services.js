@@ -50,6 +50,10 @@ const widgetState = {
   permalinkUrl: "",
   token: 0,
   pending: null,
+  playProbeTimer: 0,
+  playProbeToken: 0,
+  playProbeProgress: false,
+  pauseRequested: false,
 };
 
 function readLyricsCache() {
@@ -172,29 +176,48 @@ function loadSoundCloudWidgetApi() {
     const existing = document.querySelector(
       `script[src="${SOUNDCLOUD_WIDGET_API}"]`,
     );
-    const script = existing || document.createElement("script");
-    const timer = setTimeout(
-      () => reject(new Error("SoundCloud tardó demasiado en cargar su reproductor.")),
-      15_000,
-    );
-    const ready = () => {
-      if (!globalThis.SC?.Widget) return;
+    if (existing) existing.remove();
+    const script = document.createElement("script");
+    let settled = false;
+    const cleanup = () => {
       clearTimeout(timer);
+      script.removeEventListener("load", ready);
+      script.removeEventListener("error", failed);
+    };
+    const fail = (message) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      script.remove();
+      widgetState.apiPromise = null;
+      reject(new Error(message));
+    };
+    const ready = () => {
+      if (!globalThis.SC?.Widget) {
+        fail("SoundCloud respondió, pero su reproductor no estaba disponible.");
+        return;
+      }
+      if (settled) return;
+      settled = true;
+      cleanup();
       resolve(globalThis.SC.Widget);
     };
-    const failed = () => {
-      clearTimeout(timer);
-      widgetState.apiPromise = null;
-      reject(new Error("No se pudo cargar el reproductor oficial de SoundCloud."));
-    };
+    const failed = () =>
+      fail(
+        "No se pudo cargar el reproductor oficial de SoundCloud. Comprueba que el navegador no esté bloqueando w.soundcloud.com.",
+      );
+    const timer = setTimeout(
+      () =>
+        fail(
+          "SoundCloud no respondió al cargar su reproductor. Puedes volver a intentarlo.",
+        ),
+      12_000,
+    );
     script.addEventListener("load", ready, { once: true });
     script.addEventListener("error", failed, { once: true });
-    if (!existing) {
-      script.src = SOUNDCLOUD_WIDGET_API;
-      script.async = true;
-      script.crossOrigin = "anonymous";
-      document.head.append(script);
-    } else ready();
+    script.src = SOUNDCLOUD_WIDGET_API;
+    script.async = true;
+    document.head.append(script);
   });
   return widgetState.apiPromise;
 }
@@ -217,6 +240,53 @@ function widgetUpdate(update) {
   });
 }
 
+function clearWidgetPlayProbe() {
+  clearTimeout(widgetState.playProbeTimer);
+  widgetState.playProbeTimer = 0;
+  widgetState.playProbeProgress = false;
+}
+
+function armWidgetPlayProbe() {
+  clearWidgetPlayProbe();
+  const token = ++widgetState.playProbeToken;
+  const initialPosition = widgetState.position;
+  widgetState.pauseRequested = false;
+  widgetState.playProbeTimer = setTimeout(() => {
+    if (
+      token !== widgetState.playProbeToken ||
+      widgetState.playProbeProgress ||
+      widgetState.pauseRequested
+    )
+      return;
+    widgetState.widget?.getPosition?.((milliseconds) => {
+      if (
+        token !== widgetState.playProbeToken ||
+        widgetState.playProbeProgress ||
+        widgetState.pauseRequested
+      )
+        return;
+      const position = Math.max(0, Number(milliseconds) || 0) / 1_000;
+      if (position > initialPosition + 0.2) {
+        widgetState.position = position;
+        clearWidgetPlayProbe();
+        return;
+      }
+      clearWidgetPlayProbe();
+      widgetState.paused = true;
+      const message =
+        "SoundCloud no entregó audio para esta pista. Prueba otra versión o ábrela en SoundCloud.";
+      ui.playbackError = message;
+      ui.playbackErrorKey = resultKey(currentTrack());
+      widgetUpdate({
+        reason: "error",
+        playing: false,
+        error: message,
+      });
+      render();
+    });
+  }, 8_000);
+}
+
 function bindWidgetEvents(widget) {
   const events = globalThis.SC.Widget.Events;
   widget.bind(events.READY, () => {
@@ -236,6 +306,7 @@ function bindWidgetEvents(widget) {
     }
     if (pending?.autoplay) {
       widgetState.paused = false;
+      armWidgetPlayProbe();
       widget.play();
     } else widgetState.paused = true;
     if (pending) {
@@ -254,21 +325,30 @@ function bindWidgetEvents(widget) {
   });
   widget.bind(events.PAUSE, () => {
     widgetState.paused = true;
+    if (widgetState.pauseRequested) clearWidgetPlayProbe();
     widgetUpdate({ reason: "pause", playing: false });
   });
   widget.bind(events.PLAY_PROGRESS, (progress = {}) => {
+    widgetState.playProbeProgress = true;
+    clearWidgetPlayProbe();
+    ui.playbackError = "";
+    ui.playbackErrorKey = "";
     widgetState.position = Math.max(0, Number(progress.currentPosition) || 0) / 1_000;
     widgetUpdate({ reason: "progress", playing: true });
   });
   widget.bind(events.FINISH, () => {
+    clearWidgetPlayProbe();
     widgetState.paused = true;
     widgetState.position = widgetState.duration;
     widgetUpdate({ reason: "finish", playing: false, ended: true });
   });
   widget.bind(events.ERROR, () => {
+    clearWidgetPlayProbe();
     widgetState.paused = true;
     const message =
       "SoundCloud no pudo reproducir esta pista. Puede haber sido retirada o no permitir inserción.";
+    ui.playbackError = message;
+    ui.playbackErrorKey = resultKey(currentTrack());
     const pending = widgetState.pending;
     if (pending) {
       clearTimeout(pending.timer);
@@ -276,6 +356,7 @@ function bindWidgetEvents(widget) {
       pending.reject(new Error(message));
     }
     widgetUpdate({ reason: "error", playing: false, error: message });
+    render();
   });
 }
 
@@ -291,13 +372,13 @@ function createWidget(permalinkUrl, autoplay) {
   const frame = document.createElement("iframe");
   frame.id = "hanamiSoundCloudWidget";
   frame.title = "Reproductor oficial de SoundCloud";
-  frame.allow = "autoplay";
+  frame.allow = "autoplay; encrypted-media";
   frame.tabIndex = -1;
   frame.src = buildSoundCloudWidgetUrl(permalinkUrl, { autoplay });
+  host.replaceChildren(frame);
   widgetState.frame = frame;
   widgetState.widget = globalThis.SC.Widget(frame);
   bindWidgetEvents(widgetState.widget);
-  host.replaceChildren(frame);
   return widgetState.widget;
 }
 
@@ -325,6 +406,7 @@ async function loadPlayback(
   const permalinkUrl = track.permalinkUrl || track.url;
   await loadSoundCloudWidgetApi();
   cancelWidgetPending(false);
+  clearWidgetPlayProbe();
   const token = ++widgetState.token;
   widgetState.ready = false;
   widgetState.paused = !autoplay;
@@ -373,6 +455,7 @@ async function togglePlayback(track, { position = 0, volume = 0.82 } = {}) {
   }
   if (widgetState.paused) {
     widgetState.paused = false;
+    armWidgetPlayProbe();
     widgetState.widget.play();
     return { playing: true };
   }
@@ -382,6 +465,9 @@ async function togglePlayback(track, { position = 0, volume = 0.82 } = {}) {
 }
 
 function pausePlayback() {
+  widgetState.pauseRequested = true;
+  widgetState.playProbeToken++;
+  clearWidgetPlayProbe();
   widgetState.paused = true;
   widgetState.widget?.pause?.();
 }
@@ -554,7 +640,7 @@ function equalizerPanelHtml(track) {
 
 function panelHtml({ track } = {}) {
   return `<section class="reader-music-services" data-music-services>
-    <header><span><small>SERVICIOS EXTERNOS</small><b>Buscar, reconocer y ajustar</b></span><em>HANAMI · v135</em></header>
+    <header><span><small>SERVICIOS EXTERNOS</small><b>Buscar, reconocer y ajustar</b></span><em>HANAMI · v135.2</em></header>
     <nav aria-label="Servicios de música">
       <button data-music-service-tab="soundcloud" class="${ui.tab === "soundcloud" ? "active" : ""}">Buscar</button>
       <button data-music-service-tab="lyrics" class="${ui.tab === "lyrics" ? "active" : ""}">Letras</button>
@@ -806,6 +892,7 @@ function snapshot() {
       permalinkUrl: widgetState.permalinkUrl,
       position: widgetState.position,
       duration: widgetState.duration,
+      playbackError: ui.playbackError,
     },
     equalizer: equalizer.snapshot(),
   };

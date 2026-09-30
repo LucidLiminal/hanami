@@ -239,10 +239,15 @@ assert.equal(
 );
 assert.equal(snapshot.duration, 185);
 assert.equal(snapshot.external.soundcloud.paused, false);
+assert.equal(snapshot.external.soundcloud.playbackError, "");
 assert.equal(await page.locator("#hanamiSoundCloudWidget").count(), 1);
 assert.match(
   await page.locator("#hanamiSoundCloudWidget").getAttribute("src"),
   /^https:\/\/w\.soundcloud\.com\/player\//,
+);
+assert.equal(
+  await page.locator("#hanamiSoundCloudWidget").getAttribute("allow"),
+  "autoplay; encrypted-media",
 );
 assert.equal(
   await page.locator(".reader-music-soundcloud-source").isVisible(),
