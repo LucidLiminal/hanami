@@ -63,6 +63,10 @@ let fadeFrame = 0;
 let sleepInterval = 0;
 let loadToken = 0;
 let externalServices = null;
+let resolveExternalServicesReady = null;
+const externalServicesReady = new Promise((resolve) => {
+  resolveExternalServicesReady = resolve;
+});
 const objectUrls = new WeakMap();
 const shuffleHistory = [];
 
@@ -126,9 +130,7 @@ async function removeTrackRecord(id) {
   });
 }
 function persist() {
-  const position = Number.isFinite(active.currentTime)
-    ? active.currentTime
-    : Number(state.position) || 0;
+  const position = playbackPosition();
   state.position = position;
   localStorage.setItem(
     STATE_KEY,
@@ -151,6 +153,48 @@ function trackById(id) {
 }
 function currentTrack() {
   return trackById(state.queue[state.index]);
+}
+function externalPlayback(track = currentTrack()) {
+  return !!track && !!externalServices?.handlesPlayback?.(track);
+}
+function requiresExternalPlayback(track = currentTrack()) {
+  return (
+    !!track &&
+    (track.type === "external" || track.provider === "soundcloud")
+  );
+}
+async function waitForExternalServices(timeout = 3_000) {
+  if (externalServices) return true;
+  await Promise.race([
+    externalServicesReady,
+    new Promise((resolve) => setTimeout(resolve, timeout)),
+  ]);
+  return !!externalServices;
+}
+function playbackPosition(track = currentTrack()) {
+  if (externalPlayback(track)) {
+    const value = Number(externalServices?.getPlaybackPosition?.());
+    return Number.isFinite(value) ? Math.max(0, value) : Number(state.position) || 0;
+  }
+  return Number.isFinite(active.currentTime)
+    ? Math.max(0, active.currentTime)
+    : Number(state.position) || 0;
+}
+function playbackDuration(track = currentTrack()) {
+  if (externalPlayback(track)) {
+    const value = Number(externalServices?.getPlaybackDuration?.());
+    return Number.isFinite(value) && value > 0 ? value : Number(track?.duration) || 0;
+  }
+  return Number.isFinite(active.duration) && active.duration > 0
+    ? active.duration
+    : Number(track?.duration) || 0;
+}
+function playbackPaused(track = currentTrack()) {
+  if (externalPlayback(track)) {
+    const value = externalServices?.isPlaybackPaused?.();
+    return typeof value === "boolean" ? value : !playing;
+  }
+  return active.paused;
 }
 function formatTime(seconds) {
   const value = Math.max(0, Number(seconds) || 0);
@@ -334,10 +378,16 @@ async function addRemoteTrack(url, metadata = {}) {
   if (!/^https?:$/.test(parsed.protocol))
     throw new Error("Usa una URL directa http o https.");
   const inferred = titleFromFile(decodeURIComponent(parsed.pathname.split("/").pop() || parsed.hostname));
+  const encodedUrl = btoa(unescape(encodeURIComponent(parsed.href)))
+    .replace(/[^a-z0-9]/gi, "")
+    .slice(-40);
+  const soundcloudKey = String(
+    metadata.soundcloudId || metadata.soundcloudUrn || "",
+  ).replace(/[^a-z0-9_-]/gi, "-");
   const id =
-    metadata.provider === "youtube" && /^[A-Za-z0-9_-]{11}$/.test(metadata.videoId || "")
-      ? `youtube-${metadata.videoId}`
-      : `stream-${btoa(unescape(encodeURIComponent(parsed.href))).replace(/[^a-z0-9]/gi, "").slice(-40)}`;
+    metadata.provider === "soundcloud"
+      ? `soundcloud-${soundcloudKey || encodedUrl}`
+      : `stream-${encodedUrl}`;
   const previous = trackById(id);
   const record = {
     id,
@@ -345,19 +395,15 @@ async function addRemoteTrack(url, metadata = {}) {
     artist: metadata.artist || inferred.artist || parsed.hostname,
     album: metadata.album || "",
     duration: Number(metadata.duration) || 0,
-    type: "stream",
+    type: metadata.provider === "soundcloud" ? "external" : "stream",
     url: parsed.href,
     provider: metadata.provider || previous?.provider || "",
-    videoId: metadata.videoId || previous?.videoId || "",
+    soundcloudId: metadata.soundcloudId || previous?.soundcloudId || "",
+    soundcloudUrn: metadata.soundcloudUrn || previous?.soundcloudUrn || "",
+    permalinkUrl: metadata.permalinkUrl || previous?.permalinkUrl || parsed.href,
+    userUrl: metadata.userUrl || previous?.userUrl || "",
     artwork: metadata.artwork || previous?.artwork || "",
     mimeType: metadata.mimeType || previous?.mimeType || "",
-    expiresAt: Number(metadata.expiresAt) || previous?.expiresAt || 0,
-    playbackProvider: Object.prototype.hasOwnProperty.call(metadata, "playbackProvider")
-      ? metadata.playbackProvider
-      : previous?.playbackProvider || "",
-    invidiousOrigin: Object.prototype.hasOwnProperty.call(metadata, "invidiousOrigin")
-      ? metadata.invidiousOrigin
-      : previous?.invidiousOrigin || "",
     addedAt: previous?.addedAt || Date.now(),
     updatedAt: Date.now(),
   };
@@ -493,6 +539,7 @@ async function selectIndex(index, { autoplay = true, position = 0 } = {}) {
   const token = ++loadToken;
   cancelFade();
   active.pause();
+  standby.pause();
   active.volume = state.volume;
   statusMessage = "Cargando…";
   state.index = safe;
@@ -500,19 +547,36 @@ async function selectIndex(index, { autoplay = true, position = 0 } = {}) {
   persist();
   emit("loading");
   try {
-    const refreshed = await externalServices?.beforeLoad?.(track);
-    if (refreshed && typeof refreshed === "object") {
-      Object.assign(track, refreshed, { updatedAt: Date.now() });
-      await putTrack(track);
-    }
-    try {
-      await loadAudio(active, track, position, autoplay);
-    } catch (loadError) {
-      const recovered = await externalServices?.recoverLoadError?.(track, loadError);
-      if (!recovered || typeof recovered !== "object") throw loadError;
-      Object.assign(track, recovered, { updatedAt: Date.now() });
-      await putTrack(track);
-      await loadAudio(active, track, position, autoplay);
+    if (externalPlayback(track)) {
+      const loaded = await externalServices.loadPlayback?.(track, {
+        position,
+        autoplay,
+        volume: state.volume,
+      });
+      if (loaded === false)
+        throw new Error("SoundCloud no pudo preparar esta canción.");
+      const externalDuration = Number(loaded?.duration);
+      if (Number.isFinite(externalDuration) && externalDuration > 0) {
+        track.duration = externalDuration;
+        track.updatedAt = Date.now();
+        await putTrack(track);
+      }
+    } else {
+      externalServices?.stopPlayback?.();
+      const refreshed = await externalServices?.beforeLoad?.(track);
+      if (refreshed && typeof refreshed === "object") {
+        Object.assign(track, refreshed, { updatedAt: Date.now() });
+        await putTrack(track);
+      }
+      try {
+        await loadAudio(active, track, position, autoplay);
+      } catch (loadError) {
+        const recovered = await externalServices?.recoverLoadError?.(track, loadError);
+        if (!recovered || typeof recovered !== "object") throw loadError;
+        Object.assign(track, recovered, { updatedAt: Date.now() });
+        await putTrack(track);
+        await loadAudio(active, track, position, autoplay);
+      }
     }
     if (token !== loadToken) return false;
     if (autoplay) {
@@ -563,6 +627,30 @@ async function togglePlay() {
     await selectIndex(0, { autoplay: true });
     return;
   }
+  if (externalPlayback()) {
+    try {
+      const result = await externalServices.togglePlayback?.(currentTrack(), {
+        playing,
+        position: playbackPosition(),
+        volume: state.volume,
+      });
+      playing =
+        typeof result?.playing === "boolean"
+          ? result.playing
+          : typeof result === "boolean"
+            ? result
+            : !playing;
+      statusMessage = "";
+    } catch (error) {
+      playing = false;
+      statusMessage =
+        error?.message || "SoundCloud no permitió iniciar la reproducción.";
+    }
+    updateMediaSession();
+    persist();
+    emit("playback");
+    return;
+  }
   if (!active.src) {
     await selectIndex(state.index, {
       autoplay: true,
@@ -589,7 +677,8 @@ async function togglePlay() {
 async function next({ ended = false } = {}) {
   if (state.sleepEnd && ended) {
     state.sleepEnd = false;
-    active.pause();
+    if (externalPlayback()) externalServices?.pausePlayback?.();
+    else active.pause();
     playing = false;
     persist();
     emit("sleep");
@@ -598,8 +687,13 @@ async function next({ ended = false } = {}) {
   const target = queueNextIndex({ ended });
   if (target < 0) {
     playing = false;
-    active.pause();
-    active.currentTime = 0;
+    if (externalPlayback()) {
+      externalServices?.pausePlayback?.();
+      externalServices?.seekPlayback?.(0);
+    } else {
+      active.pause();
+      active.currentTime = 0;
+    }
     state.position = 0;
     persist();
     emit("ended");
@@ -610,8 +704,9 @@ async function next({ ended = false } = {}) {
   await selectIndex(target, { autoplay: true });
 }
 async function previous() {
-  if (active.currentTime > 5) {
-    active.currentTime = 0;
+  if (playbackPosition() > 5) {
+    if (externalPlayback()) externalServices?.seekPlayback?.(0);
+    else active.currentTime = 0;
     state.position = 0;
     persist();
     syncUi();
@@ -622,9 +717,12 @@ async function previous() {
 }
 function seek(seconds) {
   cancelFade();
-  if (!Number.isFinite(active.duration)) return;
-  active.currentTime = clamp(Number(seconds) || 0, 0, active.duration);
-  state.position = active.currentTime;
+  const duration = playbackDuration();
+  if (!Number.isFinite(duration) || duration <= 0) return;
+  const target = clamp(Number(seconds) || 0, 0, duration);
+  if (externalPlayback()) externalServices?.seekPlayback?.(target);
+  else active.currentTime = target;
+  state.position = target;
   persist();
   syncUi();
 }
@@ -632,6 +730,7 @@ function setVolume(value) {
   state.volume = clamp(Number(value) || 0, 0, 1);
   active.volume = state.volume;
   if (!fade) standby.volume = state.volume;
+  externalServices?.setPlaybackVolume?.(state.volume);
   persist();
   syncUi();
 }
@@ -647,11 +746,18 @@ function toggleShuffle() {
   emit("preference");
 }
 async function beginCrossfade() {
-  if (fade || !state.crossfade || active.paused || !Number.isFinite(active.duration)) return;
+  if (
+    externalPlayback() ||
+    fade ||
+    !state.crossfade ||
+    active.paused ||
+    !Number.isFinite(active.duration)
+  )
+    return;
   const target = queueNextIndex({ ended: true, forCrossfade: true });
   if (target < 0 || target === state.index) return;
   const track = trackById(state.queue[target]);
-  if (!track) return;
+  if (!track || externalPlayback(track)) return;
   const from = active;
   const to = standby;
   try {
@@ -695,6 +801,7 @@ async function beginCrossfade() {
 }
 function maybeCrossfade() {
   if (
+    externalPlayback() ||
     !state.crossfade ||
     state.repeat === "one" ||
     fade ||
@@ -787,8 +894,9 @@ function sleepLabel() {
 }
 function panelHtml() {
   const track = currentTrack();
-  const duration = Number.isFinite(active.duration) ? active.duration : track?.duration || 0;
-  const position = Number.isFinite(active.currentTime) ? active.currentTime : state.position || 0;
+  const duration = playbackDuration(track);
+  const position = playbackPosition(track);
+  const delegated = externalPlayback(track);
   const visible = filteredTracks();
   return `<div class="reader-music" data-music-root>
     <header><div><small>TSUKI × HANAMI</small><h3>Música para leer</h3></div><button data-music-close aria-label="Cerrar música">×</button></header>
@@ -807,15 +915,15 @@ function panelHtml() {
     </section>
     <section class="reader-music-options">
       <label><span>Volumen</span><input data-music-volume type="range" min="0" max="1" step="0.01" value="${state.volume}"></label>
-      <label><span>Crossfade</span><input data-music-crossfade type="checkbox" ${state.crossfade ? "checked" : ""}></label>
-      <label class="${state.crossfade ? "" : "muted"}"><span>Duración · <b data-music-crossfade-label>${state.crossfadeSeconds.toFixed(1)} s</b></span><input data-music-crossfade-seconds type="range" min="0.5" max="12" step="0.5" value="${state.crossfadeSeconds}" ${state.crossfade ? "" : "disabled"}></label>
+      <label class="${delegated ? "muted" : ""}"><span>Crossfade${delegated ? " · no disponible en SoundCloud" : ""}</span><input data-music-crossfade type="checkbox" ${state.crossfade ? "checked" : ""} ${delegated ? "disabled" : ""}></label>
+      <label class="${state.crossfade && !delegated ? "" : "muted"}"><span>Duración · <b data-music-crossfade-label>${state.crossfadeSeconds.toFixed(1)} s</b></span><input data-music-crossfade-seconds type="range" min="0.5" max="12" step="0.5" value="${state.crossfadeSeconds}" ${state.crossfade && !delegated ? "" : "disabled"}></label>
       <label><span>Temporizador</span><select data-music-sleep aria-label="Temporizador de apagado">${state.sleepAt ? `<option value="active" selected disabled>${esc(sleepLabel())}</option>` : ""}<option value="off" ${!state.sleepAt && !state.sleepEnd ? "selected" : ""}>Desactivado</option><option value="15">15 minutos</option><option value="30">30 minutos</option><option value="60">60 minutos</option><option value="end" ${state.sleepEnd ? "selected" : ""}>Al terminar la canción</option></select><small data-music-sleep-label>${esc(sleepLabel())}</small></label>
     </section>
     ${externalServices?.panelHtml?.({ track, position, duration }) || ""}
     <section class="reader-music-library">
       <header><div><small>BIBLIOTECA</small><b>${tracks.length} canción${tracks.length === 1 ? "" : "es"}</b></div><label class="reader-music-import"><input data-music-files type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus,.flac,.m3u,.m3u8" multiple><span>＋ Archivos locales</span></label></header>
       <input class="reader-music-search" data-music-search type="search" value="${esc(search)}" placeholder="Filtrar tu biblioteca" aria-label="Filtrar biblioteca de música">
-      <div class="reader-music-list">${visible.length ? visible.map(trackRow).join("") : `<div class="reader-music-empty"><b>${tracks.length ? "Sin coincidencias" : "Tu biblioteca está vacía"}</b><span>${tracks.length ? "Prueba con otro filtro." : "Usa el buscador de YouTube Music de arriba o añade archivos locales. No necesitas copiar URLs."}</span></div>`}</div>
+      <div class="reader-music-list">${visible.length ? visible.map(trackRow).join("") : `<div class="reader-music-empty"><b>${tracks.length ? "Sin coincidencias" : "Tu biblioteca está vacía"}</b><span>${tracks.length ? "Prueba con otro filtro." : "Busca en SoundCloud, pega un enlace o añade archivos locales."}</span></div>`}</div>
       <details class="reader-music-manual"><summary>Fuente manual (opcional)</summary><div class="reader-music-url"><input data-music-url type="url" inputmode="url" placeholder="URL directa de audio o stream"><button data-music-add-url>Añadir URL</button></div></details>
     </section>
     <details class="reader-music-queue" ${state.queue.length ? "open" : ""}><summary>Cola · ${state.queue.length}</summary><div>${state.queue.length ? state.queue.map(queueRow).join("") : '<p class="reader-music-empty">Selecciona una canción para crear la cola.</p>'}</div><footer><button data-music-shuffle-queue ${state.queue.length < 2 ? "disabled" : ""}>Mezclar cola</button><button data-music-clear-queue ${state.queue.length ? "" : "disabled"}>Vaciar cola</button></footer></details>
@@ -845,8 +953,8 @@ function attach() {
 }
 function syncUi() {
   const track = currentTrack();
-  const duration = Number.isFinite(active.duration) ? active.duration : track?.duration || 0;
-  const position = Number.isFinite(active.currentTime) ? active.currentTime : state.position || 0;
+  const duration = playbackDuration(track);
+  const position = playbackPosition(track);
   document.querySelectorAll("[data-music-title]").forEach((node) => {
     node.textContent = track?.title || "Sin canción seleccionada";
   });
@@ -931,7 +1039,7 @@ function emit(reason) {
     reason,
     track: currentTrack(),
     playing,
-    position: Number(active.currentTime) || Number(state.position) || 0,
+    position: playbackPosition(),
   });
   syncUi();
   dispatchEvent(
@@ -964,29 +1072,30 @@ function updateMediaSession() {
 }
 function updatePositionState() {
   if (!("mediaSession" in navigator) || !navigator.mediaSession.setPositionState) return;
-  const duration = active.duration;
+  const duration = playbackDuration();
   if (!Number.isFinite(duration) || duration <= 0) return;
   try {
     navigator.mediaSession.setPositionState({
       duration,
-      playbackRate: active.playbackRate || 1,
-      position: clamp(active.currentTime || 0, 0, duration),
+      playbackRate: externalPlayback() ? 1 : active.playbackRate || 1,
+      position: clamp(playbackPosition(), 0, duration),
     });
   } catch {}
 }
 function setMediaActions() {
   if (!("mediaSession" in navigator)) return;
   const actions = {
-    play: () => active.paused && void togglePlay(),
-    pause: () => !active.paused && void togglePlay(),
+    play: () => playbackPaused() && void togglePlay(),
+    pause: () => !playbackPaused() && void togglePlay(),
     previoustrack: () => void previous(),
     nexttrack: () => void next(),
     seekto: (details) => seek(details.seekTime || 0),
-    seekbackward: (details) => seek(active.currentTime - (details.seekOffset || 10)),
-    seekforward: (details) => seek(active.currentTime + (details.seekOffset || 10)),
+    seekbackward: (details) => seek(playbackPosition() - (details.seekOffset || 10)),
+    seekforward: (details) => seek(playbackPosition() + (details.seekOffset || 10)),
     stop: () => {
       active.pause();
       standby.pause();
+      externalServices?.pausePlayback?.();
       playing = false;
       persist();
       emit("stop");
@@ -1011,6 +1120,7 @@ function checkSleepTimer() {
     state.sleepAt = null;
     active.pause();
     standby.pause();
+    externalServices?.pausePlayback?.();
     playing = false;
     statusMessage = "Temporizador finalizado.";
     persist();
@@ -1048,6 +1158,7 @@ async function removeQueueIndex(index) {
   if (!state.queue.length) {
     cancelFade();
     active.pause();
+    externalServices?.stopPlayback?.();
     revokeAudioUrl(active);
     active.removeAttribute("src");
     state.index = -1;
@@ -1080,6 +1191,7 @@ function clearQueue() {
   cancelFade();
   active.pause();
   standby.pause();
+  externalServices?.stopPlayback?.();
   revokeAudioUrl(active);
   revokeAudioUrl(standby);
   active.removeAttribute("src");
@@ -1205,8 +1317,58 @@ document.addEventListener(
 addEventListener("pagehide", persist);
 addEventListener("beforeunload", persist);
 
+function updateExternalPlayback(update = {}) {
+  const track = currentTrack();
+  if (!externalPlayback(track)) return false;
+  if (
+    update.permalinkUrl &&
+    track.permalinkUrl &&
+    update.permalinkUrl !== track.permalinkUrl
+  )
+    return false;
+  const position = Number(update.position);
+  if (Number.isFinite(position) && position >= 0) state.position = position;
+  const duration = Number(update.duration);
+  if (Number.isFinite(duration) && duration > 0 && Math.abs((track.duration || 0) - duration) > 0.25) {
+    track.duration = duration;
+    track.updatedAt = Date.now();
+    void putTrack(track).catch(() => {});
+  }
+  if (typeof update.playing === "boolean") playing = update.playing;
+  if (update.error) {
+    playing = false;
+    statusMessage = String(update.error);
+  } else if (update.reason === "play") statusMessage = "";
+  updateMediaSession();
+  if (update.ended) {
+    playing = false;
+    persist();
+    emit("ended");
+    void next({ ended: true });
+    return true;
+  }
+  if (update.reason === "progress") {
+    const now = Date.now();
+    if (now - savePositionAt > 1_800) {
+      savePositionAt = now;
+      persist();
+    }
+    updatePositionState();
+    syncUi();
+    return true;
+  }
+  persist();
+  emit(update.reason || "external");
+  return true;
+}
+
 async function reloadCurrentForEffects() {
   const track = currentTrack();
+  if (externalPlayback(track)) {
+    statusMessage = "El ecualizador no puede procesar el reproductor oficial de SoundCloud.";
+    syncUi();
+    return false;
+  }
   if (!track || !active.src) return false;
   const position = Number(active.currentTime) || 0;
   const autoplay = !active.paused;
@@ -1218,14 +1380,22 @@ async function reloadCurrentForEffects() {
 
 function registerExternalServices(services) {
   externalServices = services || null;
+  if (externalServices && resolveExternalServicesReady) {
+    resolveExternalServicesReady(true);
+    resolveExternalServicesReady = null;
+  }
   externalServices?.connect?.({
     getCurrentTrack: currentTrack,
-    getPosition: () => Number(active.currentTime) || Number(state.position) || 0,
-    getDuration: () => Number(active.duration) || currentTrack()?.duration || 0,
+    getPosition: playbackPosition,
+    getDuration: playbackDuration,
+    getVolume: () => state.volume,
+    getPlaying: () => playing,
+    getStatus: () => statusMessage,
     getAudioElements: () => [active, standby],
     addRemoteTrack,
     playTrack,
     reloadCurrent: reloadCurrentForEffects,
+    updateExternalPlayback,
     render: renderPanel,
     sync: syncUi,
     setStatus: (message) => {
@@ -1240,16 +1410,33 @@ function registerExternalServices(services) {
 const ready = (async () => {
   try {
     tracks = await allTracks();
+    const retired = tracks.filter((track) => !!track?.videoId);
+    if (retired.length) {
+      await Promise.all(retired.map((track) => removeTrackRecord(track.id)));
+      tracks = tracks.filter((track) => !retired.includes(track));
+      statusMessage = `${retired.length} pista${retired.length === 1 ? "" : "s"} de proveedores retirados eliminada${retired.length === 1 ? "" : "s"}.`;
+    }
     sortTracks();
     state.queue = state.queue.filter((id) => trackById(id));
     if (!state.queue.length) state.index = -1;
     else state.index = clamp(state.index, 0, state.queue.length - 1);
     if (state.sleepAt && state.sleepAt <= Date.now()) state.sleepAt = null;
-    if (currentTrack())
-      await selectIndex(state.index, {
-        autoplay: false,
-        position: Number(state.position) || 0,
-      });
+    const restoredTrack = currentTrack();
+    if (restoredTrack) {
+      const bridgeReady =
+        !requiresExternalPlayback(restoredTrack) ||
+        (await waitForExternalServices());
+      if (bridgeReady)
+        await selectIndex(state.index, {
+          autoplay: false,
+          position: Number(state.position) || 0,
+        });
+      else {
+        playing = false;
+        statusMessage =
+          "El reproductor externo no está disponible. Recarga Hanami para volver a intentarlo.";
+      }
+    }
     persist();
     emit("ready");
   } catch (error) {
@@ -1281,8 +1468,8 @@ window.HanamiReaderMusic = {
     index: state.index,
     current: currentTrack()?.id || null,
     playing,
-    position: Number(active.currentTime) || Number(state.position) || 0,
-    duration: Number(active.duration) || currentTrack()?.duration || 0,
+    position: playbackPosition(),
+    duration: playbackDuration(),
     volume: state.volume,
     shuffle: state.shuffle,
     repeat: state.repeat,

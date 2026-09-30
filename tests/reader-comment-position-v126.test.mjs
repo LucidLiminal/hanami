@@ -18,8 +18,8 @@ assert(
   !reader.includes("restore:()=>open(o,true)"),
   "reader must not reopen from the stale initial resume point",
 );
-assert.equal(pkg.version, "5.8.68");
-assert(sw.includes("hanami-crimson-knot-v134-1"));
+assert.equal(pkg.version, "5.9.0");
+assert(sw.includes("hanami-crimson-knot-v135"));
 
 console.log(
   "PASS: returning from a comment preserves the live reader position",

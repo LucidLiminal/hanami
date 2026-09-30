@@ -25,7 +25,10 @@ Primer port manual del catálogo TypeScript de Hanami. Funciona como un único p
 4. Build command: vacío.
 5. Output directory: `public`.
 6. Añade `SUPABASE_URL` y `SUPABASE_ANON_KEY` para los grupos compartidos.
-7. Deploy.
+7. Para buscar SoundCloud por texto, añade
+   `HANAMI_SOUNDCLOUD_CLIENT_ID` y `HANAMI_SOUNDCLOUD_CLIENT_SECRET`. Pegar
+   enlaces y reproducir con el widget oficial funciona sin estas variables.
+8. Deploy.
 
 ## Grupos compartidos
 
@@ -94,14 +97,11 @@ Vercel no ejecuta las APK originales. Este proyecto contiene una reimplementaci�
 El visor incluye un reproductor y servicios musicales adaptados de la
 arquitectura de TSuki. Pulsa **Música** en la barra inferior del capítulo para:
 
-- buscar canciones y artistas con una interfaz tipo YouTube Music, sin pegar
-  URLs;
-- añadir y reproducir resultados mediante InnerTube; Hanami conserva las URLs
-  firmadas en el servidor, transmite el audio por una ruta same-origin y las
-  renueva cuando caducan;
-- configurar una instancia Invidious de confianza como segundo intento:
-  únicamente se consulta después de que falle Hanami y el navegador reproduce
-  desde su proxy `local=true`, sin transportar ese audio por Vercel;
+- buscar pistas públicas en SoundCloud mediante su API oficial;
+- pegar un enlace de una pista y resolverlo mediante oEmbed, incluso sin
+  credenciales de API;
+- reproducir mediante el SDK oficial `SC.Widget`: el audio va directamente de
+  SoundCloud al navegador y nunca atraviesa Vercel;
 - reconocer música ambiental con el micrófono y una firma compatible con
   Shazam;
 - obtener letras de LRCLIB, Unison, Paxsenix y BetterLyrics, con seguimiento
@@ -113,39 +113,24 @@ arquitectura de TSuki. Pulsa **Música** en la barra inferior del capítulo para
 - conservar biblioteca, cola, posición, preferencias, letras y efectos entre
   capítulos y recargas.
 
-La URL manual queda disponible sólo como opción avanzada. InnerTube acepta
-únicamente formatos de audio directos entregados por YouTube: Hanami no
-implementa descifrado de firmas, descarga de contenido protegido, evasión de
-DRM ni bloqueo de anuncios. Shazam y algunos proveedores de letras son
-endpoints externos no oficiales y pueden cambiar o limitar solicitudes. El
-micrófono sólo se activa tras una acción explícita del usuario.
+La búsqueda textual usa OAuth Client Credentials. El secreto permanece en el
+backend y el token se reutiliza; nunca se incorpora al JavaScript público. Una
+pista puede aparecer como `playable`, `preview` o `blocked`, y Hanami solo
+ofrece resultados reproducibles e insertables.
 
-Si YouTube aplica una comprobación anti-bot a la IP del servidor, el despliegue
-puede conectar su propio adaptador NewPipe/yt-dlp mediante
-`HANAMI_YOUTUBE_RESOLVER_URL` y, opcionalmente,
-`HANAMI_YOUTUBE_RESOLVER_TOKEN`. Las credenciales permanecen en el servidor.
-Como alternativa sin sidecar, cada navegador puede guardar explícitamente una
-instancia Invidious HTTPS. Desde v134.1, el navegador habla solo con Hanami:
-el backend consulta la API de Invidious y retransmite el audio, evitando que
-CORS de la instancia bloquee la PWA. El fallback consume ancho de banda del
-despliegue y no garantiza que Invidious pueda resolver su propio upstream.
+El widget vive en un iframe aislado. Hanami puede controlar play, pausa,
+posición, volumen, cola, temporizador y Media Session, pero no puede aplicar
+Web Audio, crossfade ni el ecualizador al audio de SoundCloud. Esos efectos
+siguen funcionando con archivos locales y URLs directas compatibles.
 
-En producción debes permitir explícitamente las instancias con
-`HANAMI_INVIDIOUS_ALLOWED_ORIGINS`; Hanami no incluye una instancia
-predeterminada ni rota servidores públicos.
+Hanami almacena únicamente el enlace y los metadatos de SoundCloud. No descarga
+ni conserva audio para uso sin conexión. Los resultados muestran atribución y
+un enlace a la pista original. Shazam y algunos proveedores de letras son
+servicios externos y pueden cambiar o limitar solicitudes; el micrófono solo se
+activa tras una acción explícita.
 
-Consulta `READER_MUSIC_SERVICES_V129.md`, `YOUTUBE_AUDIO_PROXY_V131.md`,
-`GOOGLEVIDEO_RETRY_V132.md`, `INVIDIOUS_RELAY_V134_1.md` y
-`THIRD_PARTY_NOTICES.md` para la arquitectura, límites, atribución y licencia
-de TSuki.
-
-## Relay Invidious v134.1
-
-La v134.1 corrige el salto de CORS de v134 con la cadena
-**navegador → Hanami → Invidious**. La URL de stream temporal no llega al
-navegador; el endpoint de Hanami conserva las solicitudes `Range` y reenvía
-solo el audio. Consulta
-[INVIDIOUS_RELAY_V134_1.md](INVIDIOUS_RELAY_V134_1.md).
+Consulta `SOUNDCLOUD_WIDGET_V135.md`, `READER_MUSIC_V128.md` y
+`THIRD_PARTY_NOTICES.md` para la arquitectura, configuración y atribución.
 
 ## Identidad visual v133
 

@@ -51,10 +51,8 @@ project, adapted from Android/Media3 to Web APIs.
 
 ## Scope and legal notes
 
-The native TSuki implementations for YouTube/InnerTube extraction, NewPipe,
-lyrics providers, Shazam recognition, Android equalizer effects, widgets and
-Together sessions were not copied. They depend on native APIs or external
-services and are not required for selecting music during manga reading.
+Provider-specific native extractors, Android equalizer effects and Together
+sessions were not copied. External playback uses documented web integrations;
 Hanami does not bypass advertisements, DRM or protected streaming services.
 
 See `THIRD_PARTY_NOTICES.md` and

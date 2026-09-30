@@ -16,7 +16,7 @@ npm run dev
 curl http://127.0.0.1:4173/api/music/capabilities
 ```
 
-The second command must return JSON with `youtube`, `recognition`, `lyrics` and
+The second command must return JSON with `soundcloud`, `recognition`, `lyrics` and
 `equalizer`. Vercel uses the `/api/:path*` rewrite in `vercel.json`. The client
 now turns an API 404 into an explicit instruction instead of a generic search
 failure.
