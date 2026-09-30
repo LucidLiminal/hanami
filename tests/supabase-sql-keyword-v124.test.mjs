@@ -19,8 +19,8 @@ assert(sql.includes("sort_order integer"));
 assert(sql.includes("category.position as sort_order"));
 assert(!sql.includes("position integer,"));
 assert(social.includes("row.sort_order ?? row.position"));
-assert(sw.includes("hanami-crimson-knot-v134"));
-assert.equal(pkg.version, "5.8.67");
+assert(sw.includes("hanami-crimson-knot-v134-1"));
+assert.equal(pkg.version, "5.8.68");
 assert(
   pkg.scripts.test.includes("node tests/reader-music-v128.test.mjs"),
 );

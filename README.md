@@ -125,21 +125,27 @@ puede conectar su propio adaptador NewPipe/yt-dlp mediante
 `HANAMI_YOUTUBE_RESOLVER_URL` y, opcionalmente,
 `HANAMI_YOUTUBE_RESOLVER_TOKEN`. Las credenciales permanecen en el servidor.
 Como alternativa sin sidecar, cada navegador puede guardar explícitamente una
-instancia Invidious HTTPS. Hanami no incluye una instancia predeterminada, no
-rota servidores públicos y rechaza cualquier formato que no vuelva por el
-proxy local de ese mismo origen.
+instancia Invidious HTTPS. Desde v134.1, el navegador habla solo con Hanami:
+el backend consulta la API de Invidious y retransmite el audio, evitando que
+CORS de la instancia bloquee la PWA. El fallback consume ancho de banda del
+despliegue y no garantiza que Invidious pueda resolver su propio upstream.
+
+En producción debes permitir explícitamente las instancias con
+`HANAMI_INVIDIOUS_ALLOWED_ORIGINS`; Hanami no incluye una instancia
+predeterminada ni rota servidores públicos.
 
 Consulta `READER_MUSIC_SERVICES_V129.md`, `YOUTUBE_AUDIO_PROXY_V131.md`,
-`GOOGLEVIDEO_RETRY_V132.md`, `INVIDIOUS_FALLBACK_V134.md` y
+`GOOGLEVIDEO_RETRY_V132.md`, `INVIDIOUS_RELAY_V134_1.md` y
 `THIRD_PARTY_NOTICES.md` para la arquitectura, límites, atribución y licencia
 de TSuki.
 
-## Fallback Invidious v134
+## Relay Invidious v134.1
 
-La v134 añade un segundo intento opcional y elegido por el usuario para el
-audio de YouTube. La instancia ve la IP y el vídeo solicitado, puede limitar su
-API y no constituye una garantía de reproducción. Consulta
-[INVIDIOUS_FALLBACK_V134.md](INVIDIOUS_FALLBACK_V134.md).
+La v134.1 corrige el salto de CORS de v134 con la cadena
+**navegador → Hanami → Invidious**. La URL de stream temporal no llega al
+navegador; el endpoint de Hanami conserva las solicitudes `Range` y reenvía
+solo el audio. Consulta
+[INVIDIOUS_RELAY_V134_1.md](INVIDIOUS_RELAY_V134_1.md).
 
 ## Identidad visual v133
 

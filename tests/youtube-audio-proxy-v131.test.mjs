@@ -189,9 +189,9 @@ assert(client.includes("resolved.stream.url"));
 assert(client.includes("Migrates v129/v130 records"));
 assert(client.includes("track.url === proxyUrl"));
 assert(e2e.includes("/api/music/youtube/audio/${videoId}"));
-assert(sw.includes("hanami-crimson-knot-v134"));
+assert(sw.includes("hanami-crimson-knot-v134-1"));
 const pkg = JSON.parse(packageText);
-assert.equal(pkg.version, "5.8.67");
+assert.equal(pkg.version, "5.8.68");
 assert(pkg.scripts.test.includes("node tests/youtube-audio-proxy-v131.test.mjs"));
 
 console.log(

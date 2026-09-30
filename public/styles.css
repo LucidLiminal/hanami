@@ -203,7 +203,7 @@ body{background:radial-gradient(circle at 74% 0,#531f21 0,transparent 34%),radia
 .online{color:var(--acid);text-shadow:0 0 12px #e6cfa955}.mt-logo{display:flex;align-items:center;gap:15px}.mt-logo .mt-knot-logo{width:68px;height:68px;flex:0 0 68px;object-fit:contain;border:1px solid #9a3f3f80;border-radius:18px;background:radial-gradient(circle,#6a282b 0,#2a1113 72%);box-shadow:inset 0 0 0 1px #fbf9d110,0 9px 24px #0008}.mt-logo .mt-logo-copy{min-width:0;flex:1}.mt-logo .mt-logo-copy b{margin-top:7px}@media(max-width:520px){.mt-logo .mt-knot-logo{width:58px;height:58px;flex-basis:58px;border-radius:15px}}
 @media(max-width:520px){.top{height:72px}.brand-knot .brand-mark{width:48px;height:48px;flex-basis:48px;border-radius:13px}.brand-knot .brand-mark img{width:47px;height:47px}.brand.brand-knot .brand-name{font-size:21px}.brand.brand-knot small{font-size:7px}.online{font-size:8px}}
 
-/* v134 — optional, user-selected Invidious fallback */
+/* v134.1 — same-origin Invidious relay fallback */
 .reader-music-invidious{margin:0 0 10px;border:1px solid #e6cfa922;border-radius:13px;background:#0d07086b;overflow:hidden}
 .reader-music-invidious>summary{display:flex;align-items:center;gap:10px;min-height:46px;padding:8px 11px;cursor:pointer;list-style:none}
 .reader-music-invidious>summary::-webkit-details-marker{display:none}

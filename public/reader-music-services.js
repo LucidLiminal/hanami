@@ -3,7 +3,6 @@ import { recognizeAmbient } from "./music-recognition.js";
 
 const LYRICS_CACHE_KEY = "hanami-reader-lyrics-cache-v1";
 const INVIDIOUS_STORAGE_KEY = "hanami-reader-invidious-v1";
-const INVIDIOUS_TIMEOUT_MS = 8_000;
 const esc = (value) =>
   String(value ?? "").replace(
     /[&<>"']/g,
@@ -91,7 +90,7 @@ const ui = {
   invidiousDraft: savedInvidiousUrl,
   invidiousOpen: false,
   invidiousStatus: savedInvidiousUrl
-    ? "Configurada. Solo se consultará si falla el resolvedor de Hanami."
+    ? "Configurada. Hanami la consultará y retransmitirá el audio solo si falla el resolvedor principal."
     : "Desactivado. Hanami no selecciona ni rota instancias públicas automáticamente.",
 };
 
@@ -159,8 +158,8 @@ export function parseLrc(rawLyrics) {
   return { synced, lines };
 }
 
-async function apiJson(url, options) {
-  const response = await fetch(url, options);
+async function apiJsonWith(fetchImpl, url, options) {
+  const response = await fetchImpl(url, options);
   const data = await response.json().catch(() => ({}));
   if (response.status === 404 && String(url).startsWith("/api/music/"))
     throw new Error(
@@ -175,174 +174,24 @@ async function apiJson(url, options) {
   return data;
 }
 
-async function timedFetch(fetchImpl, url, options = {}, timeout = INVIDIOUS_TIMEOUT_MS) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeout);
-  try {
-    return await fetchImpl(url, { ...options, signal: controller.signal });
-  } catch (error) {
-    if (error?.name === "AbortError")
-      throw new Error("La instancia Invidious agotó el tiempo de espera.");
-    throw error;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-function safeInvidiousMediaUrl(value, instanceUrl) {
-  try {
-    const base = new URL(normalizeInvidiousUrl(instanceUrl, { allowInsecureLocal: true }));
-    const media = new URL(value, base);
-    if (media.origin !== base.origin || media.username || media.password) return null;
-    if (
-      !(
-        media.pathname === "/videoplayback" ||
-        media.pathname.startsWith("/companion/") ||
-        media.pathname.startsWith("/api/manifest/")
-      )
-    )
-      return null;
-    return media;
-  } catch {
-    return null;
-  }
-}
-
-function invidiousExpiry(url) {
-  const seconds = Number(url.searchParams.get("expire"));
-  const timestamp = seconds > 0 ? seconds * 1000 : 0;
-  return timestamp > Date.now() + 30_000 ? timestamp : Date.now() + 5 * 60_000;
-}
-
-function invidiousArtwork(data) {
-  const thumbnails = Array.isArray(data?.videoThumbnails) ? data.videoThumbnails : [];
-  return (
-    thumbnails
-      .filter((thumbnail) => /^https:\/\//i.test(thumbnail?.url || ""))
-      .sort(
-        (a, b) =>
-          Number(b?.width || 0) * Number(b?.height || 0) -
-          Number(a?.width || 0) * Number(a?.height || 0),
-      )[0]?.url || ""
-  );
-}
-
-export function chooseInvidiousAudio(data, instanceUrl) {
-  const formats = Array.isArray(data?.adaptiveFormats) ? data.adaptiveFormats : [];
-  const candidates = formats
-    .map((format) => {
-      const mimeType = compact(format?.type || format?.mimeType);
-      if (!/^audio\//i.test(mimeType)) return null;
-      const mediaUrl = safeInvidiousMediaUrl(format?.url, instanceUrl);
-      if (!mediaUrl) return null;
-      return {
-        url: mediaUrl.href,
-        mimeType,
-        bitrate: Number(format?.bitrate) || 0,
-        averageBitrate: Number(format?.averageBitrate) || Number(format?.bitrate) || 0,
-        audioQuality: compact(format?.audioQuality),
-        audioSampleRate: Number(format?.audioSampleRate) || 0,
-        audioChannels: Number(format?.audioChannels) || 0,
-        contentLength: Number(format?.clen || format?.contentLength) || 0,
-        expiresAt: invidiousExpiry(mediaUrl),
-      };
-    })
-    .filter(Boolean);
-  candidates.sort((a, b) => {
-    const formatA = /audio\/mp4/i.test(a.mimeType) ? 2 : /audio\/webm/i.test(a.mimeType) ? 1 : 0;
-    const formatB = /audio\/mp4/i.test(b.mimeType) ? 2 : /audio\/webm/i.test(b.mimeType) ? 1 : 0;
-    return formatB - formatA || b.averageBitrate - a.averageBitrate || b.bitrate - a.bitrate;
-  });
-  return candidates[0] || null;
+async function apiJson(url, options) {
+  return apiJsonWith(fetch, url, options);
 }
 
 export async function resolveInvidiousAudio(
   videoId,
-  { instanceUrl, fetchImpl = fetch, timeout = INVIDIOUS_TIMEOUT_MS } = {},
+  { instanceUrl, fetchImpl = fetch } = {},
 ) {
   const id = compact(videoId);
   if (!/^[A-Za-z0-9_-]{11}$/.test(id))
     throw new Error("El identificador de YouTube no es válido.");
   const base = normalizeInvidiousUrl(instanceUrl);
   if (!base) throw new Error("Configura primero una instancia Invidious.");
-  const endpoint = new URL(`/api/v1/videos/${encodeURIComponent(id)}`, base);
-  endpoint.searchParams.set("local", "true");
-  let response;
-  try {
-    response = await timedFetch(
-      fetchImpl,
-      endpoint,
-      {
-        method: "GET",
-        headers: { accept: "application/json" },
-        credentials: "omit",
-        referrerPolicy: "no-referrer",
-      },
-      timeout,
-    );
-  } catch (error) {
-    if (/tiempo de espera/i.test(error?.message || "")) throw error;
-    throw new Error("No se pudo conectar con la instancia Invidious.");
-  }
-  const declaredSize = Number(response.headers.get("content-length")) || 0;
-  if (declaredSize > 2_000_000)
-    throw new Error("La respuesta Invidious superó el tamaño permitido.");
-  const data = await response.json().catch(() => null);
-  if (!response.ok || !data) {
-    if (response.status === 403)
-      throw new Error("La instancia desactivó o bloqueó su API de vídeo.");
-    throw new Error(
-      compact(data?.error) || `La instancia Invidious respondió HTTP ${response.status}.`,
-    );
-  }
-  const stream = chooseInvidiousAudio(data, base);
-  if (!stream)
-    throw new Error(
-      "La instancia no devolvió un stream de audio local y compatible con CORS.",
-    );
-  return {
-    provider: "youtube-invidious",
-    videoId: id,
-    expiresAt: stream.expiresAt,
-    invidiousOrigin: base,
-    stream: {
-      url: stream.url,
-      mimeType: stream.mimeType,
-      bitrate: stream.bitrate,
-      averageBitrate: stream.averageBitrate,
-      audioQuality: stream.audioQuality,
-      audioSampleRate: stream.audioSampleRate,
-      audioChannels: stream.audioChannels,
-      contentLength: stream.contentLength,
-    },
-    track: {
-      videoId: id,
-      title: compact(data?.title),
-      artist: compact(data?.author) || "YouTube Music",
-      duration: Number(data?.lengthSeconds) || 0,
-      artwork: invidiousArtwork(data),
-    },
-    proxied: true,
-    browserDirect: true,
-  };
-}
-
-async function testInvidiousInstance(instanceUrl, fetchImpl = fetch) {
-  const base = normalizeInvidiousUrl(instanceUrl);
-  const endpoint = new URL("/api/v1/stats", base);
-  const response = await timedFetch(fetchImpl, endpoint, {
-    method: "GET",
-    headers: { accept: "application/json" },
-    credentials: "omit",
-    referrerPolicy: "no-referrer",
+  return apiJsonWith(fetchImpl, "/api/music/invidious/resolve", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ videoId: id, instanceUrl: base }),
   });
-  const data = await response.json().catch(() => null);
-  if (!response.ok || !data)
-    throw new Error(`La comprobación de Invidious respondió HTTP ${response.status}.`);
-  return {
-    origin: base,
-    version: compact(data?.software?.version),
-  };
 }
 
 function currentTrack() {
@@ -401,12 +250,12 @@ function invidiousConfigHtml() {
       <em class="${configured ? "active" : ""}">${configured ? esc(host || "ACTIVO") : "DESACTIVADO"}</em>
     </summary>
     <div>
-      <p>La reproducción irá directamente desde la instancia elegida; Vercel no transportará el audio. La instancia verá tu IP y el ID del vídeo. Hanami no rota servidores públicos.</p>
+      <p>Si se activa el fallback, Hanami consulta esta instancia y retransmite el audio al navegador. Esto evita el CORS del navegador, pero consume tráfico del despliegue. La instancia verá la IP del servidor de Hanami y el ID del vídeo.</p>
       <label>
-        <span>Origen HTTPS de confianza</span>
+        <span>Origen HTTPS autorizado</span>
         <input data-music-invidious-url type="url" value="${esc(ui.invidiousDraft)}" placeholder="https://invidious.example" autocomplete="off" autocapitalize="none" spellcheck="false">
       </label>
-      <button data-music-invidious-save>Guardar y comprobar</button>
+      <button data-music-invidious-save>Guardar fallback</button>
       <small data-music-invidious-status aria-live="polite">${esc(ui.invidiousStatus)}</small>
     </div>
   </details>`;
@@ -477,7 +326,7 @@ function equalizerPanelHtml() {
 
 function panelHtml({ track } = {}) {
   return `<section class="reader-music-services" data-music-services>
-    <header><span><small>SERVICIOS EXTERNOS</small><b>Buscar, reconocer y ajustar</b></span><em>HANAMI · v134</em></header>
+    <header><span><small>SERVICIOS EXTERNOS</small><b>Buscar, reconocer y ajustar</b></span><em>HANAMI · v134.1</em></header>
     <nav aria-label="Servicios de música">
       <button data-music-service-tab="youtube" class="${ui.tab === "youtube" ? "active" : ""}">Buscar</button>
       <button data-music-service-tab="lyrics" class="${ui.tab === "lyrics" ? "active" : ""}">Letras</button>
@@ -578,14 +427,8 @@ async function saveInvidiousFallback() {
   ui.invidiousDraft = normalized;
   ui.invidiousOpen = true;
   persistInvidiousUrl(normalized);
-  ui.invidiousStatus = "Instancia guardada. Comprobando CORS y disponibilidad…";
-  render();
-  try {
-    const result = await testInvidiousInstance(normalized);
-    ui.invidiousStatus = `Instancia accesible${result.version ? ` · ${result.version}` : ""}. El proxy de audio se validará al reproducir.`;
-  } catch (error) {
-    ui.invidiousStatus = `Guardada, pero la comprobación falló: ${error?.message || "sin respuesta"}`;
-  }
+  ui.invidiousStatus =
+    "Instancia guardada. Hanami comprobará su API y retransmitirá el audio cuando haga falta.";
   render();
 }
 
@@ -618,10 +461,12 @@ async function addYouTubeResult(result) {
       playbackProvider: resolved.provider || "",
       invidiousOrigin: resolved.invidiousOrigin || "",
     });
-    const via =
-      resolved.provider === "youtube-invidious"
-        ? ` vía ${new URL(resolved.invidiousOrigin).hostname}`
-        : "";
+    let via = "";
+    if (resolved.provider === "youtube-invidious-relay") {
+      try {
+        via = ` vía ${new URL(resolved.invidiousOrigin).hostname}`;
+      } catch {}
+    }
     ui.searchStatus = `${remote.title} añadida y lista para reproducir${via}.`;
     adapter.setStatus?.(`${remote.title} añadida desde YouTube Music${via}.`);
     await adapter.playTrack(remote.id);
@@ -735,6 +580,19 @@ function trackPatchFromResolution(resolved, track = {}) {
   };
 }
 
+function isInvidiousRelayUrl(value, videoId) {
+  try {
+    const url = new URL(value, location.href);
+    return (
+      url.origin === location.origin &&
+      url.pathname === `/api/music/invidious/audio/${encodeURIComponent(videoId)}` &&
+      !!url.searchParams.get("instance")
+    );
+  } catch {
+    return false;
+  }
+}
+
 async function beforeLoad(track) {
   if (equalizer.state.enabled) await equalizer.resume();
   if (track?.provider !== "youtube" || !track.videoId) return null;
@@ -744,12 +602,12 @@ async function beforeLoad(track) {
   ).href;
   if (Number(track.expiresAt) > Date.now() + 90_000) {
     if (
-      track.playbackProvider === "youtube-invidious" &&
-      safeInvidiousMediaUrl(track.url, track.invidiousOrigin)
+      track.playbackProvider === "youtube-invidious-relay" &&
+      isInvidiousRelayUrl(track.url, track.videoId)
     )
       return null;
-    // Migrates v129/v130 records that persisted a signed Googlevideo URL.
-    if (track.playbackProvider !== "youtube-invidious")
+    // Migrates v129/v130 records and v134 browser-direct Invidious records.
+    if (track.playbackProvider !== "youtube-invidious-relay")
       return track.url === proxyUrl
         ? null
         : {
@@ -775,7 +633,7 @@ async function recoverLoadError(track, error) {
     track?.provider !== "youtube" ||
     !track.videoId ||
     !ui.invidiousUrl ||
-    track.playbackProvider === "youtube-invidious" ||
+    track.playbackProvider === "youtube-invidious-relay" ||
     ["AbortError", "NotAllowedError"].includes(error?.name)
   )
     return null;

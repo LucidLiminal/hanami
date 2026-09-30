@@ -19,6 +19,8 @@ const DESKTOP_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0";
 const SHAZAM_URL = "https://amp.shazam.com/discovery/v5/en/US/android/-/tag";
 const CACHE_LIMIT = 160;
+const INVIDIOUS_CACHE_TTL_MS = 5 * 60_000;
+const INVIDIOUS_MAX_JSON_BYTES = 2_000_000;
 let latestInnerTubeVisitorData = "";
 let latestInnerTubeCookie = "";
 
@@ -85,6 +87,7 @@ async function requestJson(
     timeout = 8_000,
     maxBytes = 4_000_000,
     allowStatuses = [],
+    redirect = "follow",
   } = {},
 ) {
   let response;
@@ -94,6 +97,7 @@ async function requestJson(
       headers,
       body: json === undefined ? undefined : JSON.stringify(json),
       signal: AbortSignal.timeout(timeout),
+      redirect,
     });
   } catch (error) {
     if (error?.name === "TimeoutError" || error?.name === "AbortError")
@@ -340,6 +344,331 @@ function directExpiry(url) {
   return Date.now() + 60 * 60_000;
 }
 
+function publicInvidiousOrigin(value) {
+  let url;
+  try {
+    url = new URL(String(value || ""));
+  } catch {
+    throw new MusicServiceError(
+      "La instancia Invidious debe ser un origen HTTPS completo",
+      400,
+      "validation",
+    );
+  }
+  const hostname = url.hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/g, "")
+    .replace(/\.$/, "");
+  const localDevelopmentOrigin =
+    !isProductionRuntime() &&
+    url.protocol === "http:" &&
+    ["localhost", "127.0.0.1", "::1"].includes(hostname);
+  const privateOrLiteralHost =
+    !hostname ||
+    hostname === "localhost" ||
+    hostname.endsWith(".localhost") ||
+    hostname.endsWith(".local") ||
+    hostname === "0.0.0.0" ||
+    hostname.includes(":") ||
+    /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname) ||
+    /^(?:127\.|0\.|10\.|169\.254\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)/.test(
+      hostname,
+    );
+  if (
+    (url.protocol !== "https:" && !localDevelopmentOrigin) ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash ||
+    (url.pathname && url.pathname !== "/") ||
+    (privateOrLiteralHost && !localDevelopmentOrigin)
+  )
+    throw new MusicServiceError(
+      "La instancia Invidious debe ser un origen HTTPS público sin ruta ni credenciales",
+      400,
+      "validation",
+    );
+  return url.origin;
+}
+
+function configuredInvidiousOrigins() {
+  const values = String(process.env.HANAMI_INVIDIOUS_ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((value) => compact(value))
+    .filter(Boolean);
+  const origins = new Set();
+  for (const value of values) {
+    try {
+      origins.add(publicInvidiousOrigin(value));
+    } catch {
+      throw new MusicServiceError(
+        "HANAMI_INVIDIOUS_ALLOWED_ORIGINS contiene un origen HTTPS no válido",
+        500,
+        "invidious_config",
+      );
+    }
+  }
+  return origins;
+}
+
+function isProductionRuntime() {
+  return (
+    compact(process.env.NODE_ENV).toLowerCase() === "production" ||
+    compact(process.env.VERCEL_ENV).toLowerCase() === "production"
+  );
+}
+
+export function normalizeInvidiousOrigin(value) {
+  const origin = publicInvidiousOrigin(value);
+  const allowed = configuredInvidiousOrigins();
+  if (allowed.size && !allowed.has(origin))
+    throw new MusicServiceError(
+      "Esta instancia no está autorizada por HANAMI_INVIDIOUS_ALLOWED_ORIGINS",
+      403,
+      "invidious_origin_not_allowed",
+    );
+  if (!allowed.size && isProductionRuntime())
+    throw new MusicServiceError(
+      "Configura HANAMI_INVIDIOUS_ALLOWED_ORIGINS para usar el relay Invidious en producción",
+      503,
+      "invidious_config",
+    );
+  return origin;
+}
+
+function safeInvidiousMediaUrl(value, instanceOrigin) {
+  try {
+    const base = new URL(instanceOrigin);
+    const media = new URL(String(value || ""), base);
+    if (
+      media.origin !== base.origin ||
+      media.username ||
+      media.password ||
+      !(
+        media.pathname === "/videoplayback" ||
+        media.pathname.startsWith("/companion/") ||
+        media.pathname.startsWith("/api/manifest/")
+      )
+    )
+      return null;
+    return media;
+  } catch {
+    return null;
+  }
+}
+
+function invidiousExpiry(url) {
+  try {
+    const seconds = Number(url.searchParams.get("expire"));
+    if (Number.isFinite(seconds) && seconds * 1000 > Date.now() + 30_000)
+      return seconds * 1000;
+  } catch {}
+  return Date.now() + INVIDIOUS_CACHE_TTL_MS;
+}
+
+function invidiousArtwork(data) {
+  const thumbnails = Array.isArray(data?.videoThumbnails) ? data.videoThumbnails : [];
+  return (
+    thumbnails
+      .map((thumbnail) => ({
+        url: safeExtractedUrl(thumbnail?.url),
+        area: Number(thumbnail?.width || 0) * Number(thumbnail?.height || 0),
+      }))
+      .filter((thumbnail) => thumbnail.url)
+      .sort((a, b) => b.area - a.area)[0]?.url || ""
+  );
+}
+
+export function chooseInvidiousAudio(data, instanceOrigin) {
+  const formats = Array.isArray(data?.adaptiveFormats) ? data.adaptiveFormats : [];
+  const candidates = formats
+    .map((format) => {
+      const mimeType = compact(format?.type || format?.mimeType);
+      if (!/^audio\//i.test(mimeType)) return null;
+      const url = safeInvidiousMediaUrl(format?.url, instanceOrigin);
+      if (!url) return null;
+      return {
+        url: url.href,
+        mimeType,
+        bitrate: Number(format?.bitrate) || 0,
+        averageBitrate: Number(format?.averageBitrate) || Number(format?.bitrate) || 0,
+        audioQuality: compact(format?.audioQuality),
+        audioSampleRate: Number(format?.audioSampleRate) || 0,
+        audioChannels: Number(format?.audioChannels) || 0,
+        contentLength: Number(format?.clen || format?.contentLength) || 0,
+        expiresAt: invidiousExpiry(url),
+      };
+    })
+    .filter(Boolean);
+  candidates.sort((a, b) => {
+    const typeA = /audio\/mp4/i.test(a.mimeType) ? 2 : /audio\/webm/i.test(a.mimeType) ? 1 : 0;
+    const typeB = /audio\/mp4/i.test(b.mimeType) ? 2 : /audio\/webm/i.test(b.mimeType) ? 1 : 0;
+    return typeB - typeA || b.averageBitrate - a.averageBitrate || b.bitrate - a.bitrate;
+  });
+  return candidates[0] || null;
+}
+
+export async function resolveInvidiousAudio(
+  videoId,
+  { instanceUrl, fetchImpl = fetch, forceRefresh = false } = {},
+) {
+  const id = compact(videoId);
+  if (!/^[A-Za-z0-9_-]{11}$/.test(id))
+    throw new MusicServiceError("El identificador de YouTube no es válido", 400, "validation");
+  const invidiousOrigin = normalizeInvidiousOrigin(instanceUrl);
+  const cacheKey = `invidious-resolve:${hash(invidiousOrigin).slice(0, 16)}:${id}`;
+  const cached = cacheGet(cacheKey);
+  if (!forceRefresh && cached && cached.expiresAt > Date.now() + 90_000)
+    return { ...cached, cached: true };
+
+  let data;
+  try {
+    ({ data } = await requestJson(
+      new URL(`/api/v1/videos/${encodeURIComponent(id)}?local=true`, invidiousOrigin).href,
+      {
+        fetchImpl,
+        headers: {
+          accept: "application/json",
+          "user-agent": "Hanami/5.8.68 Invidious relay",
+        },
+        timeout: 12_000,
+        maxBytes: INVIDIOUS_MAX_JSON_BYTES,
+        redirect: "error",
+      },
+    ));
+  } catch (error) {
+    if (error?.remoteStatus === 403)
+      throw new MusicServiceError(
+        "La instancia Invidious desactivó o bloqueó su API de vídeo",
+        502,
+        "invidious_api",
+      );
+    if (error instanceof MusicServiceError) {
+      error.kind = error.kind === "rate_limited" ? "rate_limited" : "invidious_api";
+      throw error;
+    }
+    throw error;
+  }
+  const stream = chooseInvidiousAudio(data, invidiousOrigin);
+  if (!stream)
+    throw new MusicServiceError(
+      "La instancia Invidious no devolvió un stream de audio retransmisible",
+      502,
+      "invidious_stream",
+    );
+  const value = {
+    provider: "youtube-invidious-relay",
+    videoId: id,
+    expiresAt: stream.expiresAt,
+    invidiousOrigin,
+    stream: {
+      url: stream.url,
+      mimeType: stream.mimeType,
+      bitrate: stream.bitrate,
+      averageBitrate: stream.averageBitrate,
+      audioQuality: stream.audioQuality,
+      audioSampleRate: stream.audioSampleRate,
+      audioChannels: stream.audioChannels,
+      contentLength: stream.contentLength,
+    },
+    track: {
+      videoId: id,
+      title: compact(data?.title),
+      artist: compact(data?.author) || "YouTube Music",
+      duration: Number(data?.lengthSeconds) || 0,
+      artwork: invidiousArtwork(data),
+    },
+  };
+  return cacheSet(
+    cacheKey,
+    value,
+    Math.max(30_000, Math.min(INVIDIOUS_CACHE_TTL_MS, value.expiresAt - Date.now() - 30_000)),
+  );
+}
+
+export function publicInvidiousResolution(resolution) {
+  const videoId = compact(resolution?.videoId);
+  if (!/^[A-Za-z0-9_-]{11}$/.test(videoId))
+    throw new MusicServiceError("La resolución Invidious no es válida", 502);
+  const invidiousOrigin = normalizeInvidiousOrigin(resolution?.invidiousOrigin);
+  const query = new URLSearchParams({ instance: invidiousOrigin });
+  return {
+    provider: "youtube-invidious-relay",
+    videoId,
+    expiresAt: resolution.expiresAt,
+    invidiousOrigin,
+    stream: {
+      ...resolution.stream,
+      url: `/api/music/invidious/audio/${encodeURIComponent(videoId)}?${query}`,
+    },
+    track: resolution.track,
+    proxied: true,
+    browserDirect: false,
+  };
+}
+
+export async function openInvidiousAudio(
+  videoId,
+  instanceUrl,
+  { range = "", fetchImpl = fetch } = {},
+) {
+  const requestedRange = String(range).trim();
+  if (requestedRange && !/^bytes=\d*-\d*$/.test(requestedRange))
+    throw new MusicServiceError("El rango de audio no es válido", 416, "validation");
+  const fetchStream = async (forceRefresh = false) => {
+    const resolution = await resolveInvidiousAudio(videoId, {
+      instanceUrl,
+      fetchImpl,
+      forceRefresh,
+    });
+    const remoteUrl = safeInvidiousMediaUrl(
+      resolution?.stream?.url,
+      resolution?.invidiousOrigin,
+    );
+    if (!remoteUrl)
+      throw new MusicServiceError(
+        "El stream de Invidious no pertenece a la instancia autorizada",
+        502,
+        "invidious_stream",
+      );
+    let response;
+    try {
+      response = await fetchImpl(remoteUrl, {
+        method: "GET",
+        headers: {
+          accept: "*/*",
+          "accept-encoding": "identity",
+          "user-agent": "Hanami/5.8.68 Invidious relay",
+          ...(requestedRange ? { range: requestedRange } : {}),
+        },
+        redirect: "error",
+        signal: AbortSignal.timeout(25_000),
+      });
+    } catch (error) {
+      if (error?.name === "TimeoutError" || error?.name === "AbortError")
+        throw new MusicServiceError("El relay de audio agotó el tiempo de espera", 504);
+      throw new MusicServiceError("No se pudo abrir el stream de Invidious", 502);
+    }
+    if (response.ok && response.body) return { response, resolution };
+    try {
+      await response.body?.cancel?.();
+    } catch {}
+    return { response, resolution };
+  };
+
+  let attempt = await fetchStream();
+  if (!attempt.response?.ok || !attempt.response.body) attempt = await fetchStream(true);
+  if (!attempt.response?.ok || !attempt.response.body)
+    throw new MusicServiceError(
+      attempt.response?.status === 403
+        ? "La instancia Invidious rechazó el stream de audio"
+        : `La instancia Invidious respondió HTTP ${attempt.response?.status || 502} al abrir el audio`,
+      attempt.response?.status === 403 ? 502 : attempt.response?.status || 502,
+      "invidious_audio",
+    );
+  return attempt;
+}
+
 export function normalizeExtractorResponse(data, videoId) {
   const candidates = [];
   if (data?.stream) candidates.push(data.stream);
@@ -413,7 +742,7 @@ async function resolveWithConfiguredExtractor(videoId, fetchImpl) {
     headers: {
       "content-type": "application/json",
       accept: "application/json",
-      "user-agent": "Hanami/5.8.67",
+      "user-agent": "Hanami/5.8.68",
       ...(token ? { authorization: `Bearer ${token}` } : {}),
     },
     json: { videoId },
