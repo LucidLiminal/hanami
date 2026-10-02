@@ -106,11 +106,9 @@ arquitectura de TSuki. Pulsa **Música** en la barra inferior del capítulo para
   Shazam;
 - obtener letras de LRCLIB, Unison, Paxsenix y BetterLyrics, con seguimiento
   automático cuando están sincronizadas;
-- usar un ecualizador Web Audio de 10 bandas, refuerzo de graves, amplitud
-  estéreo, ganancia y preajustes;
 - importar MP3, M4A, AAC, WAV, OGG, Opus, FLAC o playlists M3U/M3U8 como
   alternativa local;
-- conservar biblioteca, cola, posición, preferencias, letras y efectos entre
+- conservar biblioteca, cola, posición, repetición, aleatorio y letras entre
   capítulos y recargas.
 
 La búsqueda textual usa OAuth Client Credentials. El secreto permanece en el
@@ -118,10 +116,9 @@ backend y el token se reutiliza; nunca se incorpora al JavaScript público. Una
 pista puede aparecer como `playable`, `preview` o `blocked`, y Hanami solo
 ofrece resultados reproducibles e insertables.
 
-El widget vive en un iframe aislado. Hanami puede controlar play, pausa,
-posición, volumen, cola, temporizador y Media Session, pero no puede aplicar
-Web Audio, crossfade ni el ecualizador al audio de SoundCloud. Esos efectos
-siguen funcionando con archivos locales y URLs directas compatibles.
+El widget vive en un iframe aislado. Hanami controla play, pausa, posición,
+cola y Media Session; la reproducción se mantiene siempre al volumen máximo.
+El reproductor no incluye crossfade, ecualizador ni temporizador.
 
 Hanami almacena únicamente el enlace y los metadatos de SoundCloud. No descarga
 ni conserva audio para uso sin conexión. Los resultados muestran atribución y

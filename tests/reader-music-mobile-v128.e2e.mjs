@@ -97,28 +97,33 @@ await page.waitForFunction(() => {
 });
 await page.locator("[data-music-shuffle]").click();
 await page.locator("[data-music-repeat]").click();
-await page.locator("[data-music-crossfade]").check();
-await page.locator("[data-music-crossfade-seconds]").fill("1.5");
-await page.locator("[data-music-crossfade-seconds]").dispatchEvent("change");
-await page.locator("[data-music-sleep]").selectOption("15");
+for (const selector of [
+  "[data-music-volume]",
+  "[data-music-crossfade]",
+  "[data-music-crossfade-seconds]",
+  "[data-music-sleep]",
+]) {
+  assert.equal(await page.locator(selector).count(), 0, selector);
+}
 snapshot = await page.evaluate(() => window.HanamiReaderMusic.snapshot());
 assert.equal(snapshot.shuffle, true);
 assert.equal(snapshot.repeat, "all");
-assert.equal(snapshot.crossfade, true);
-assert.equal(snapshot.crossfadeSeconds, 1.5);
-assert(snapshot.sleepAt > Date.now());
-const beforeCrossfade = snapshot.current;
+assert.equal("volume" in snapshot, false);
+assert.equal("crossfade" in snapshot, false);
+assert.equal("crossfadeSeconds" in snapshot, false);
+assert.equal("sleepAt" in snapshot, false);
+const beforeAdvance = snapshot.current;
 await page.evaluate(() => {
   const state = window.HanamiReaderMusic.snapshot();
-  window.HanamiReaderMusic.seek(Math.max(0, state.duration - 1));
+  window.HanamiReaderMusic.seek(Math.max(0, state.duration - 0.15));
 });
 await page.waitForFunction(
   (previous) => window.HanamiReaderMusic.snapshot().current !== previous,
-  beforeCrossfade,
+  beforeAdvance,
   { timeout: 6000 },
 );
 snapshot = await page.evaluate(() => window.HanamiReaderMusic.snapshot());
-assert.notEqual(snapshot.current, beforeCrossfade);
+assert.notEqual(snapshot.current, beforeAdvance);
 assert.equal(snapshot.playing, true);
 
 await page.locator("[data-music-close]").click();
@@ -143,7 +148,7 @@ assert.equal(afterShell.current, beforeShell.current);
 assert.equal(afterShell.playing, true);
 assert.equal(await page.locator("#readerMusicMini").isVisible(), true);
 
-// Reload: IndexedDB library, queue, current track and preferences survive. Playback
+// Reload: IndexedDB library, queue, current track and repeat/shuffle preferences survive. Playback
 // intentionally restores paused because browsers forbid unsolicited autoplay.
 await page.reload();
 await page.waitForFunction(() => !!window.HanamiReaderMusic);
@@ -156,8 +161,9 @@ assert(snapshot.current);
 assert.equal(snapshot.playing, false);
 assert.equal(snapshot.shuffle, true);
 assert.equal(snapshot.repeat, "all");
-assert.equal(snapshot.crossfade, true);
-assert.equal(snapshot.crossfadeSeconds, 1.5);
+assert.equal("volume" in snapshot, false);
+assert.equal("crossfade" in snapshot, false);
+assert.equal("sleepAt" in snapshot, false);
 assert.equal(await page.locator(".reader-music-track").count(), 3);
 await page.locator(".reader-music [data-music-toggle]").click();
 await page.waitForFunction(() => window.HanamiReaderMusic.snapshot().playing);
@@ -166,5 +172,5 @@ assert.deepEqual(errors, []);
 await page.screenshot({ path: "/data/hanami-v128-reader-music-mobile.png", fullPage: true });
 await browser.close();
 console.log(
-  "PASS: mobile 390x844 imports local songs, plays an editable persistent queue in Reader, keeps playback across chapter shells, and restores library/settings after reload",
+  "PASS: mobile 390x844 imports local songs, plays an editable persistent queue in Reader, keeps playback across chapter shells, and restores its simplified controls after reload",
 );

@@ -26,8 +26,7 @@ for (const token of [
   "moveQueue",
   "toggleShuffle",
   "cycleRepeat",
-  "beginCrossfade",
-  "setSleep",
+  "FIXED_VOLUME = 1",
   "navigator.mediaSession",
   "MediaMetadata",
   'window.HanamiScreens.push(\n      "reader-music"',
@@ -41,30 +40,40 @@ for (const token of [
   "data-music-url",
   "data-music-search",
   "data-music-seek",
-  "data-music-volume",
-  "data-music-crossfade",
-  "data-music-sleep",
   "data-music-shuffle-queue",
 ])
   assert(music.includes(token), token);
+
+for (const removed of [
+  "beginCrossfade",
+  "setSleep",
+  "data-music-volume",
+  "data-music-crossfade",
+  "data-music-sleep",
+  "music-equalizer.js",
+])
+  assert(!music.includes(removed), `reader-music.js retained ${removed}`);
 
 assert(reader.includes("data-r-music"));
 assert(reader.includes("HanamiReaderMusic?.attach?.()"));
 assert(reader.includes("HanamiReaderMusic?.open?.()"));
 assert(html.includes('src="/reader-music.js"'));
-assert(sw.includes("hanami-crimson-knot-v1354"));
+assert(sw.includes("hanami-crimson-knot-v1355"));
 assert(sw.includes("'/reader-music.js'"));
+assert(!sw.includes("music-equalizer.js"));
 assert(css.includes(".reader-music-mini"));
 assert(css.includes(".reader-music-controls"));
 assert(css.includes(".reader-music-queue-row"));
+assert(!css.includes(".reader-music-options"));
+assert(!css.includes(".reader-music-eq-top"));
 assert(notices.includes("TSuki music player"));
 assert(notices.includes("GNU General Public License v3.0"));
 assert(readme.includes("## Música durante la lectura"));
-assert.equal(pkg.version, "5.9.4");
+assert.equal(pkg.version, "5.9.5");
 assert(
   pkg.scripts.test.includes("node tests/reader-music-v128.test.mjs"),
 );
 
 console.log(
-  "PASS: TSuki-inspired Reader Music ports a persistent local library, editable queue, playback controls, crossfade, sleep timer and Media Session into the chapter viewer",
+  "PASS: Reader Music keeps a persistent queue, seek and Media Session while using fixed full volume without crossfade, timer or equalizer controls",
 );

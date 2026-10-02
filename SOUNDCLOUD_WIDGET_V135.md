@@ -47,6 +47,13 @@ behavior stuck.
 Shared-link parameters such as `utm_source`, `utm_medium`, `utm_campaign`,
 `si` and `ref` are removed before the iframe URL is built.
 
+## v135.5 simplified player
+
+Hanami now fixes output at 100% volume and removes the volume UI, crossfade,
+crossfade duration, equalizer and sleep timer. Track duration remains only as
+internal playback state for seeking, progress display and advancing the queue.
+The services panel has two tabs: SoundCloud search and lyrics.
+
 ## Playback
 
 The browser loads `https://w.soundcloud.com/player/api.js` and creates one
@@ -54,8 +61,8 @@ persistent `SC.Widget` iframe. Hanami maps Widget events and methods to its
 existing player:
 
 - `PLAY`, `PAUSE`, `PLAY_PROGRESS`, `FINISH` and `ERROR`;
-- play, pause, seek and volume;
-- queue navigation, sleep timer, lyrics and Media Session;
+- play, pause and seek;
+- queue navigation, lyrics and Media Session;
 - persistence of the SoundCloud permalink and public metadata.
 
 The audio is requested by the SoundCloud iframe. It is not resolved,
@@ -78,11 +85,16 @@ The secret stays server-side. The backend reuses the access token, refreshes it
 when needed and returns only public track metadata and permalinks. It filters
 out blocked, non-streamable and non-embeddable tracks.
 
+## Simplified controls
+
+- Playback volume is fixed at 100%.
+- Crossfade, its duration control, the equalizer and the sleep timer are not
+  part of Hanami's music player.
+- Playback duration remains internal state for seeking, progress and automatic
+  queue advancement.
+
 ## Intentional limits
 
-- SoundCloud playback does not pass through Web Audio because it lives in a
-  cross-origin iframe. Equalizer and crossfade remain available for local and
-  direct audio only.
 - Hanami stores no SoundCloud audio and offers no offline playback.
 - A track can disappear or become unavailable when its uploader changes access
   or embedding settings.

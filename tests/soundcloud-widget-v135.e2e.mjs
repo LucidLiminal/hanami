@@ -144,7 +144,6 @@ await page.route("**/api/music/capabilities", (route) =>
       },
       recognition: { provider: "Shazam" },
       lyrics: { providers: ["LRCLIB"] },
-      equalizer: { bands: 10, soundcloud: false },
     }),
   }),
 );
@@ -270,23 +269,23 @@ await page.evaluate(() => window.HanamiReaderMusic.seek(42));
 await page.waitForFunction(
   () => window.HanamiReaderMusic.snapshot().position >= 42,
 );
-await page.locator("[data-music-volume]").fill("0.5");
-await page.locator("[data-music-volume]").dispatchEvent("input");
-await page.locator('[data-music-service-tab="effects"]').click();
-assert.equal(
-  await page.locator("[data-music-eq-enabled]").isDisabled(),
-  true,
-);
-assert.equal(
-  await page.locator("[data-music-crossfade]").isDisabled(),
-  true,
-);
+for (const selector of [
+  "[data-music-volume]",
+  "[data-music-crossfade]",
+  "[data-music-crossfade-seconds]",
+  "[data-music-sleep]",
+  '[data-music-service-tab="effects"]',
+  "[data-music-eq-enabled]",
+]) {
+  assert.equal(await page.locator(selector).count(), 0, selector);
+}
 
 const telemetry = await page.evaluate(() => window.__SC_WIDGET_TELEMETRY__);
 assert(telemetry.plays >= 2);
 assert(telemetry.pauses >= 1);
 assert(telemetry.seeks.some((value) => value >= 42_000));
-assert(telemetry.volumes.includes(50));
+assert(telemetry.volumes.length >= 1);
+assert(telemetry.volumes.every((value) => value === 100));
 assert.equal(
   requests.some((url) => /\/api\/music\/.*\/audio\//.test(url)),
   false,

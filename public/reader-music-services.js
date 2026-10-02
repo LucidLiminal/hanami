@@ -1,4 +1,3 @@
-import { equalizer, EQ_FREQUENCIES, EQ_PRESETS } from "./music-equalizer.js";
 import { recognizeAmbient } from "./music-recognition.js";
 
 const LYRICS_CACHE_KEY = "hanami-reader-lyrics-cache-v1";
@@ -36,7 +35,6 @@ const ui = {
   lyricsBusy: false,
   lyricsStatus: "",
   activeLyric: -1,
-  eqStatus: "",
 };
 
 const widgetState = {
@@ -307,7 +305,7 @@ function completeWidgetPending({
   widgetState.ready = true;
   widgetState.paused = !playing;
   widgetState.widget?.setVolume?.(
-    Math.round(clamp(pending.volume ?? adapter?.getVolume?.() ?? 0.82, 0, 1) * 100),
+    100,
   );
   if (refreshDuration) refreshWidgetDuration();
   else widgetState.durationRefreshPending = true;
@@ -573,7 +571,7 @@ function handlesPlayback(track) {
 
 async function loadPlayback(
   track,
-  { position = 0, autoplay = false, volume = 0.82 } = {},
+  { position = 0, autoplay = false } = {},
 ) {
   if (!handlesPlayback(track))
     throw new Error("La pista no contiene un enlace válido de SoundCloud.");
@@ -598,7 +596,6 @@ async function loadPlayback(
       reject,
       position,
       autoplay,
-      volume,
       permalinkUrl,
       soundcloudId: track.soundcloudId || "",
       pollTimer: 0,
@@ -627,7 +624,7 @@ async function loadPlayback(
   return promise;
 }
 
-async function togglePlayback(track, { position = 0, volume = 0.82 } = {}) {
+async function togglePlayback(track, { position = 0 } = {}) {
   const requestedPermalink = canonicalSoundCloudUrl(
     track?.permalinkUrl || track?.url,
   );
@@ -636,7 +633,7 @@ async function togglePlayback(track, { position = 0, volume = 0.82 } = {}) {
     !widgetState.ready ||
     widgetState.permalinkUrl !== requestedPermalink
   ) {
-    await loadPlayback(track, { position, autoplay: true, volume });
+    await loadPlayback(track, { position, autoplay: true });
     return { playing: true };
   }
   if (widgetState.paused) {
@@ -671,10 +668,6 @@ function seekPlayback(seconds) {
   const target = clamp(seconds, 0, Math.max(widgetState.duration, Number(seconds) || 0));
   widgetState.position = target;
   widgetState.widget?.seekTo?.(target * 1_000);
-}
-
-function setPlaybackVolume(value) {
-  widgetState.widget?.setVolume?.(Math.round(clamp(value, 0, 1) * 100));
 }
 
 function getPlaybackPosition() {
@@ -789,54 +782,15 @@ function lyricsPanelHtml(track) {
   </div>`;
 }
 
-function frequencyLabel(value) {
-  return value >= 1_000 ? `${value / 1_000}k` : String(value);
-}
-
-function equalizerPanelHtml(track) {
-  const state = equalizer.snapshot();
-  const unavailable = handlesPlayback(track);
-  const disabled = unavailable || !state.enabled;
-  const presetOptions = Object.entries(EQ_PRESETS)
-    .map(
-      ([key, preset]) =>
-        `<option value="${key}" ${state.preset === key ? "selected" : ""}>${esc(preset.label)}</option>`,
-    )
-    .join("");
-  return `<div class="reader-music-service-panel ${ui.tab === "effects" ? "active" : ""}" data-music-service-panel="effects">
-    <div class="reader-music-eq-top">
-      <label class="${unavailable ? "muted" : ""}"><span><b>Ecualizador</b><small>${unavailable ? "No puede procesar el iframe oficial de SoundCloud" : "Cadena Web Audio de baja latencia"}</small></span><input data-music-eq-enabled type="checkbox" ${state.enabled ? "checked" : ""} ${unavailable ? "disabled" : ""}></label>
-      <label class="${unavailable ? "muted" : ""}"><span>Preajuste</span><select data-music-eq-preset ${unavailable ? "disabled" : ""}>${state.preset === "custom" ? '<option value="custom" selected disabled>Personalizado</option>' : ""}${presetOptions}</select></label>
-    </div>
-    <div class="reader-music-eq-bands" aria-label="Ecualizador de diez bandas">${EQ_FREQUENCIES.map(
-      (frequency, index) =>
-        `<label><b>${frequencyLabel(frequency)}</b><input data-music-eq-band="${index}" type="range" min="-12" max="12" step="0.5" value="${state.bands[index]}" ${disabled ? "disabled" : ""}><small data-music-eq-band-value="${index}">${Number(state.bands[index]).toFixed(1)} dB</small></label>`,
-    ).join("")}</div>
-    <div class="reader-music-eq-effects">
-      <label><span>Refuerzo de graves <b data-music-eq-bass-value>${state.bass.toFixed(1)} dB</b></span><input data-music-eq-bass type="range" min="0" max="12" step="0.5" value="${state.bass}" ${disabled ? "disabled" : ""}></label>
-      <label><span>Amplitud estéreo <b data-music-eq-width-value>${Math.round(state.width * 100)}%</b></span><input data-music-eq-width type="range" min="0" max="1" step="0.05" value="${state.width}" ${disabled ? "disabled" : ""}></label>
-      <label><span>Ganancia de salida <b data-music-eq-gain-value>${state.gain.toFixed(1)} dB</b></span><input data-music-eq-gain type="range" min="-6" max="15" step="0.5" value="${state.gain}" ${disabled ? "disabled" : ""}></label>
-    </div>
-    <p class="reader-music-service-status">${esc(
-      unavailable
-        ? "SC.Widget reproduce en un iframe aislado. Letras, cola, volumen y temporizador siguen disponibles."
-        : ui.eqStatus ||
-            "Los efectos se aplican a archivos locales y URLs directas que permitan CORS.",
-    )}</p>
-  </div>`;
-}
-
 function panelHtml({ track } = {}) {
   return `<section class="reader-music-services" data-music-services>
-    <header><span><small>SERVICIOS EXTERNOS</small><b>Buscar, reconocer y ajustar</b></span><em>HANAMI · v135.4</em></header>
+    <header><span><small>SERVICIOS EXTERNOS</small><b>Buscar y reconocer</b></span><em>HANAMI · v135.5</em></header>
     <nav aria-label="Servicios de música">
       <button data-music-service-tab="soundcloud" class="${ui.tab === "soundcloud" ? "active" : ""}">Buscar</button>
       <button data-music-service-tab="lyrics" class="${ui.tab === "lyrics" ? "active" : ""}">Letras</button>
-      <button data-music-service-tab="effects" class="${ui.tab === "effects" ? "active" : ""}">Ecualizador</button>
     </nav>
     ${soundCloudPanelHtml(track)}
     ${lyricsPanelHtml(track)}
-    ${equalizerPanelHtml(track)}
   </section>`;
 }
 
@@ -990,46 +944,12 @@ async function loadLyrics() {
   }
 }
 
-async function toggleEqualizer(enabled) {
-  if (handlesPlayback(currentTrack())) {
-    ui.eqStatus =
-      "El reproductor oficial de SoundCloud está aislado del Web Audio de Hanami.";
-    render();
-    return;
-  }
-  ui.eqStatus = enabled
-    ? "Activando cadena de efectos…"
-    : "Desactivando efectos…";
-  try {
-    await equalizer.setEnabled(enabled);
-    if (currentTrack()) await adapter.reloadCurrent?.();
-    ui.eqStatus = enabled
-      ? "Ecualizador activo. Los cambios se aplican también durante el crossfade."
-      : "Ecualizador desactivado; la cadena permanece en bypass.";
-  } catch (error) {
-    await equalizer.setEnabled(false).catch(() => {});
-    ui.eqStatus = error?.message || "No se pudo activar el ecualizador.";
-  }
-  render();
-}
-
 function connect(nextAdapter) {
   adapter = nextAdapter;
-  equalizer.connect(adapter?.getAudioElements?.() || []);
   hydrateLyrics();
-  setPlaybackVolume(adapter?.getVolume?.() ?? 0.82);
+  widgetState.widget?.setVolume?.(100);
   void loadSoundCloudWidgetApi().catch(() => {});
   void loadCapabilities();
-}
-
-async function beforeLoad(track) {
-  if (!handlesPlayback(track) && equalizer.state.enabled)
-    await equalizer.resume();
-  return null;
-}
-
-function audioCrossOrigin(track) {
-  return !handlesPlayback(track) && equalizer.attached ? "anonymous" : "";
 }
 
 function onPlayerChange({ track }) {
@@ -1082,15 +1002,12 @@ function snapshot() {
       duration: widgetState.duration,
       playbackError: ui.playbackError,
     },
-    equalizer: equalizer.snapshot(),
   };
 }
 
 const service = {
   connect,
   panelHtml,
-  beforeLoad,
-  audioCrossOrigin,
   onPlayerChange,
   syncUi,
   snapshot,
@@ -1100,7 +1017,6 @@ const service = {
   pausePlayback,
   stopPlayback,
   seekPlayback,
-  setPlaybackVolume,
   getPlaybackPosition,
   getPlaybackDuration,
   isPlaybackPaused,
@@ -1110,43 +1026,6 @@ if (typeof document !== "undefined") {
   document.addEventListener("input", (event) => {
     const target = event.target;
     if (target.matches("[data-music-soundcloud-query]")) ui.query = target.value;
-    if (target.matches("[data-music-eq-band]")) {
-      const index = Number(target.dataset.musicEqBand);
-      equalizer.setBand(index, target.value);
-      const label = document.querySelector(
-        `[data-music-eq-band-value="${index}"]`,
-      );
-      if (label) label.textContent = `${Number(target.value).toFixed(1)} dB`;
-    }
-    if (target.matches("[data-music-eq-bass]")) {
-      equalizer.setBass(target.value);
-      const label = document.querySelector("[data-music-eq-bass-value]");
-      if (label) label.textContent = `${Number(target.value).toFixed(1)} dB`;
-    }
-    if (target.matches("[data-music-eq-width]")) {
-      equalizer.setWidth(target.value);
-      const label = document.querySelector("[data-music-eq-width-value]");
-      if (label)
-        label.textContent = `${Math.round(Number(target.value) * 100)}%`;
-    }
-    if (target.matches("[data-music-eq-gain]")) {
-      equalizer.setGain(target.value);
-      const label = document.querySelector("[data-music-eq-gain-value]");
-      if (label) label.textContent = `${Number(target.value).toFixed(1)} dB`;
-    }
-  });
-
-  document.addEventListener("change", async (event) => {
-    const target = event.target;
-    if (target.matches("[data-music-eq-enabled]"))
-      await toggleEqualizer(target.checked);
-    if (
-      target.matches("[data-music-eq-preset]") &&
-      target.value !== "custom"
-    ) {
-      equalizer.setPreset(target.value);
-      render();
-    }
   });
 
   document.addEventListener("keydown", (event) => {
@@ -1190,12 +1069,6 @@ if (typeof document !== "undefined") {
       return;
     }
     if (button.hasAttribute("data-music-load-lyrics")) await loadLyrics();
-    if (
-      equalizer.state.enabled &&
-      !handlesPlayback(currentTrack()) &&
-      button.closest("[data-music-root]")
-    )
-      void equalizer.resume().catch(() => {});
   });
 }
 

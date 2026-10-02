@@ -1,8 +1,7 @@
 # Reader Music · v128
 
-> Historical baseline. External search, InnerTube resolution, recognition,
-> lyrics and audio effects were added in v129; see
-> `READER_MUSIC_SERVICES_V129.md`.
+> Historical baseline. The current SoundCloud integration is documented in
+> `SOUNDCLOUD_WIDGET_V135.md`.
 
 Hanami now includes a browser-native music player inside the chapter Reader.
 Its architecture and interaction model are informed by the GPL-3.0 TSuki
@@ -31,13 +30,11 @@ project, adapted from Android/Media3 to Web APIs.
 ## Player and queue
 
 - Play/pause, previous, next and seek.
-- Persistent volume.
+- Fixed playback volume at 100%.
 - Editable queue with move up/down and remove.
 - Queue shuffle and clear actions.
 - Shuffle playback with recent-track avoidance.
 - Repeat off, repeat all and repeat one.
-- Equal-power dual-`HTMLAudioElement` crossfade from 0.5 to 12 seconds.
-- Sleep timer for 15, 30 or 60 minutes, or at end of track.
 - Queue, current track, position and preferences survive reloads.
 - Autoplay is intentionally not resumed after a full reload; one user tap is
   required by browser media policies.
@@ -64,6 +61,6 @@ See `THIRD_PARTY_NOTICES.md` and
 - `tests/reader-music-mobile-v128.e2e.mjs`
 
 The mobile Chromium test imports three real WAV tracks at 390 × 844, verifies
-playback and queue navigation, exercises shuffle/repeat/crossfade/sleep timer,
-rebuilds the Reader shell for another chapter, reloads the application, and
-confirms that the library, queue, current track and preferences persist.
+playback and queue navigation, exercises shuffle/repeat, rebuilds the Reader
+shell for another chapter, reloads the application, and confirms that the
+library, queue, current track and preferences persist.

@@ -239,15 +239,28 @@ assert(services.includes("events.PLAY_PROGRESS"));
 assert(services.includes("data-music-soundcloud-query"));
 assert(services.includes("data-music-soundcloud-add"));
 assert(services.includes("handlesPlayback"));
+assert(services.includes("setVolume?.(\n    100,"));
+assert(!services.includes("equalizer"));
+assert(!backend.includes("equalizer"));
 assert(player.includes("externalServices.loadPlayback"));
 assert(player.includes("updateExternalPlayback"));
 assert(player.includes('metadata.provider === "soundcloud"'));
+for (const removedControl of [
+  "data-music-volume",
+  "data-music-crossfade",
+  "data-music-sleep",
+  "setSleep(",
+]) {
+  assert(!player.includes(removedControl), removedControl);
+}
 assert(styles.includes(".hanami-soundcloud-engine"));
 assert(styles.includes(".reader-music-soundcloud-source"));
-assert(sw.includes("hanami-crimson-knot-v1354"));
+assert(!styles.includes(".reader-music-options"));
+assert(!styles.includes(".reader-music-eq-top"));
+assert(sw.includes("hanami-crimson-knot-v1355"));
 const pkg = JSON.parse(packageText);
-assert.equal(pkg.version, "5.9.4");
+assert.equal(pkg.version, "5.9.5");
 
 console.log(
-  "PASS: v135.4 confirms every load through getCurrentSound, strips tracking parameters and keeps playback state synchronized even when Widget events are missing.",
+  "PASS: v135.5 confirms every load through getCurrentSound, keeps playback synchronized when Widget events are missing and exposes only the simplified SoundCloud controls.",
 );

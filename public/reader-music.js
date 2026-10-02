@@ -1,7 +1,6 @@
 /*
  * Hanami Reader Music — browser adaptation informed by TSuki's GPL-3.0
- * MediaTrack, local library, editable queue, persistent player preferences,
- * crossfade, sleep timer and compact/full player concepts.
+ * MediaTrack, local library, editable queue and compact/full player concepts.
  * Upstream attribution: THIRD_PARTY_NOTICES.md
  */
 const DB_NAME = "hanami-reader-music-v1";
@@ -9,6 +8,7 @@ const DB_VERSION = 1;
 const TRACK_STORE = "tracks";
 const STATE_KEY = "hanami-reader-music-state-v1";
 const MAX_LOCAL_FILE_BYTES = 250 * 1024 * 1024;
+const FIXED_VOLUME = 1;
 const esc = (value) =>
   String(value ?? "").replace(
     /[&<>"']/g,
@@ -22,13 +22,8 @@ const defaults = {
   queue: [],
   index: -1,
   position: 0,
-  volume: 0.82,
   shuffle: false,
   repeat: "off",
-  crossfade: false,
-  crossfadeSeconds: 5,
-  sleepAt: null,
-  sleepEnd: false,
 };
 function readState() {
   try {
@@ -40,27 +35,25 @@ function readState() {
 const state = readState();
 state.queue = Array.isArray(state.queue) ? state.queue : [];
 state.index = Number.isInteger(state.index) ? state.index : -1;
-state.volume = clamp(Number(state.volume) || defaults.volume, 0, 1);
-state.crossfadeSeconds = clamp(
-  Number(state.crossfadeSeconds) || defaults.crossfadeSeconds,
-  0.5,
-  12,
-);
 state.repeat = ["off", "all", "one"].includes(state.repeat)
   ? state.repeat
   : "off";
+for (const legacyPreference of [
+  "volume",
+  "crossfade",
+  "crossfadeSeconds",
+  "sleepAt",
+  "sleepEnd",
+])
+  delete state[legacyPreference];
 
 let tracks = [];
 let active = new Audio();
-let standby = new Audio();
 let playing = false;
 let panelOpen = false;
 let search = "";
 let statusMessage = "";
 let savePositionAt = 0;
-let fade = null;
-let fadeFrame = 0;
-let sleepInterval = 0;
 let loadToken = 0;
 let externalServices = null;
 let resolveExternalServicesReady = null;
@@ -138,13 +131,8 @@ function persist() {
       queue: state.queue,
       index: state.index,
       position,
-      volume: state.volume,
       shuffle: state.shuffle,
       repeat: state.repeat,
-      crossfade: state.crossfade,
-      crossfadeSeconds: state.crossfadeSeconds,
-      sleepAt: state.sleepAt,
-      sleepEnd: state.sleepEnd,
     }),
   );
 }
@@ -471,9 +459,7 @@ function waitMetadata(audio) {
 async function loadAudio(audio, track, position = 0, autoplay = false) {
   audio.pause();
   audio.preload = "auto";
-  const crossOrigin = externalServices?.audioCrossOrigin?.(track);
-  if (crossOrigin) audio.crossOrigin = crossOrigin;
-  else audio.removeAttribute("crossorigin");
+  audio.volume = FIXED_VOLUME;
   audio.src = sourceFor(track, audio);
   audio.load();
   // Start inside the originating click task. Waiting for loadedmetadata first
@@ -492,26 +478,9 @@ async function loadAudio(audio, track, position = 0, autoplay = false) {
     if (playError) throw playError;
   }
 }
-function cancelFade({ keepActive = true } = {}) {
-  cancelAnimationFrame(fadeFrame);
-  fadeFrame = 0;
-  if (!fade) return;
-  const { from, to } = fade;
-  if (keepActive) {
-    to.pause();
-    revokeAudioUrl(to);
-    to.removeAttribute("src");
-    from.volume = state.volume;
-  } else {
-    from.pause();
-    revokeAudioUrl(from);
-    from.removeAttribute("src");
-  }
-  fade = null;
-}
-function queueNextIndex({ ended = false, forCrossfade = false } = {}) {
+function queueNextIndex({ ended = false } = {}) {
   if (!state.queue.length || state.index < 0) return -1;
-  if (state.repeat === "one" && ended && !forCrossfade) return state.index;
+  if (state.repeat === "one" && ended) return state.index;
   if (state.shuffle && state.queue.length > 1) {
     const recent = new Set(shuffleHistory.slice(-Math.ceil(state.queue.length / 2)));
     const candidates = state.queue
@@ -537,10 +506,8 @@ async function selectIndex(index, { autoplay = true, position = 0 } = {}) {
   const track = trackById(state.queue[safe]);
   if (!track) return false;
   const token = ++loadToken;
-  cancelFade();
   active.pause();
-  standby.pause();
-  active.volume = state.volume;
+  active.volume = FIXED_VOLUME;
   statusMessage = "Cargando…";
   state.index = safe;
   state.position = position;
@@ -551,7 +518,6 @@ async function selectIndex(index, { autoplay = true, position = 0 } = {}) {
       const loaded = await externalServices.loadPlayback?.(track, {
         position,
         autoplay,
-        volume: state.volume,
       });
       if (loaded === false)
         throw new Error("SoundCloud no pudo preparar esta canción.");
@@ -563,11 +529,6 @@ async function selectIndex(index, { autoplay = true, position = 0 } = {}) {
       }
     } else {
       externalServices?.stopPlayback?.();
-      const refreshed = await externalServices?.beforeLoad?.(track);
-      if (refreshed && typeof refreshed === "object") {
-        Object.assign(track, refreshed, { updatedAt: Date.now() });
-        await putTrack(track);
-      }
       try {
         await loadAudio(active, track, position, autoplay);
       } catch (loadError) {
@@ -632,7 +593,6 @@ async function togglePlay() {
       const result = await externalServices.togglePlayback?.(currentTrack(), {
         playing,
         position: playbackPosition(),
-        volume: state.volume,
       });
       playing =
         typeof result?.playing === "boolean"
@@ -668,22 +628,12 @@ async function togglePlay() {
     }
   } else {
     active.pause();
-    standby.pause();
     playing = false;
   }
   persist();
   emit("playback");
 }
 async function next({ ended = false } = {}) {
-  if (state.sleepEnd && ended) {
-    state.sleepEnd = false;
-    if (externalPlayback()) externalServices?.pausePlayback?.();
-    else active.pause();
-    playing = false;
-    persist();
-    emit("sleep");
-    return;
-  }
   const target = queueNextIndex({ ended });
   if (target < 0) {
     playing = false;
@@ -716,21 +666,12 @@ async function previous() {
   if (target >= 0) await selectIndex(target, { autoplay: true });
 }
 function seek(seconds) {
-  cancelFade();
   const duration = playbackDuration();
   if (!Number.isFinite(duration) || duration <= 0) return;
   const target = clamp(Number(seconds) || 0, 0, duration);
   if (externalPlayback()) externalServices?.seekPlayback?.(target);
   else active.currentTime = target;
   state.position = target;
-  persist();
-  syncUi();
-}
-function setVolume(value) {
-  state.volume = clamp(Number(value) || 0, 0, 1);
-  active.volume = state.volume;
-  if (!fade) standby.volume = state.volume;
-  externalServices?.setPlaybackVolume?.(state.volume);
   persist();
   syncUi();
 }
@@ -745,77 +686,9 @@ function toggleShuffle() {
   persist();
   emit("preference");
 }
-async function beginCrossfade() {
-  if (
-    externalPlayback() ||
-    fade ||
-    !state.crossfade ||
-    active.paused ||
-    !Number.isFinite(active.duration)
-  )
-    return;
-  const target = queueNextIndex({ ended: true, forCrossfade: true });
-  if (target < 0 || target === state.index) return;
-  const track = trackById(state.queue[target]);
-  if (!track || externalPlayback(track)) return;
-  const from = active;
-  const to = standby;
-  try {
-    to.volume = 0;
-    await loadAudio(to, track, 0, true);
-  } catch {
-    to.pause();
-    revokeAudioUrl(to);
-    return;
-  }
-  const startedAt = performance.now();
-  const duration = Math.max(500, state.crossfadeSeconds * 1000);
-  fade = { from, to, target, previous: state.index, startedAt, duration };
-  const animate = (now) => {
-    if (!fade || fade.from !== from) return;
-    const progress = clamp((now - startedAt) / duration, 0, 1);
-    from.volume = state.volume * Math.cos((progress * Math.PI) / 2);
-    to.volume = state.volume * Math.sin((progress * Math.PI) / 2);
-    if (progress < 1) {
-      fadeFrame = requestAnimationFrame(animate);
-      return;
-    }
-    const previous = fade.previous;
-    from.pause();
-    revokeAudioUrl(from);
-    from.removeAttribute("src");
-    from.volume = state.volume;
-    active = to;
-    standby = from;
-    state.index = target;
-    state.position = active.currentTime || 0;
-    fade = null;
-    fadeFrame = 0;
-    playing = true;
-    shuffleHistory.push(previous);
-    updateMediaSession();
-    persist();
-    emit("crossfade");
-  };
-  fadeFrame = requestAnimationFrame(animate);
-}
-function maybeCrossfade() {
-  if (
-    externalPlayback() ||
-    !state.crossfade ||
-    state.repeat === "one" ||
-    fade ||
-    active.paused ||
-    !Number.isFinite(active.duration) ||
-    active.duration <= state.crossfadeSeconds + 1
-  )
-    return;
-  if (active.duration - active.currentTime <= state.crossfadeSeconds + 0.15)
-    void beginCrossfade();
-}
 function configureAudio(audio) {
   audio.preload = "auto";
-  audio.volume = state.volume;
+  audio.volume = FIXED_VOLUME;
   audio.addEventListener("play", () => {
     if (audio !== active) return;
     playing = true;
@@ -823,7 +696,7 @@ function configureAudio(audio) {
     emit("playback");
   });
   audio.addEventListener("pause", () => {
-    if (audio !== active || fade) return;
+    if (audio !== active) return;
     playing = false;
     updateMediaSession();
     emit("playback");
@@ -836,12 +709,10 @@ function configureAudio(audio) {
       savePositionAt = now;
       persist();
     }
-    maybeCrossfade();
     updatePositionState();
     syncUi();
   });
   audio.addEventListener("ended", () => {
-    if (fade && fade.from === audio) return;
     if (audio === active) void next({ ended: true });
   });
   audio.addEventListener("error", () => {
@@ -852,7 +723,6 @@ function configureAudio(audio) {
   });
 }
 configureAudio(active);
-configureAudio(standby);
 
 function filteredTracks() {
   const query = search.trim().toLocaleLowerCase("es");
@@ -886,17 +756,10 @@ function queueRow(id, index) {
 function repeatLabel() {
   return state.repeat === "one" ? "Repetir 1" : state.repeat === "all" ? "Repetir todo" : "Sin repetir";
 }
-function sleepLabel() {
-  if (state.sleepEnd) return "Al terminar la canción";
-  if (!state.sleepAt) return "Desactivado";
-  const minutes = Math.max(0, Math.ceil((state.sleepAt - Date.now()) / 60000));
-  return `${minutes} min restantes`;
-}
 function panelHtml() {
   const track = currentTrack();
   const duration = playbackDuration(track);
   const position = playbackPosition(track);
-  const delegated = externalPlayback(track);
   const visible = filteredTracks();
   return `<div class="reader-music" data-music-root>
     <header><div><small>TSUKI × HANAMI</small><h3>Música para leer</h3></div><button data-music-close aria-label="Cerrar música">×</button></header>
@@ -912,12 +775,6 @@ function panelHtml() {
         <button data-music-repeat class="${state.repeat !== "off" ? "on" : ""}" aria-pressed="${state.repeat !== "off"}" title="${repeatLabel()}">${state.repeat === "one" ? "↻¹" : "↻"}<small>${state.repeat === "one" ? "Una" : state.repeat === "all" ? "Todo" : "Repetir"}</small></button>
       </nav>
       <p class="reader-music-status" data-music-status>${esc(statusMessage)}</p>
-    </section>
-    <section class="reader-music-options">
-      <label><span>Volumen</span><input data-music-volume type="range" min="0" max="1" step="0.01" value="${state.volume}"></label>
-      <label class="${delegated ? "muted" : ""}"><span>Crossfade${delegated ? " · no disponible en SoundCloud" : ""}</span><input data-music-crossfade type="checkbox" ${state.crossfade ? "checked" : ""} ${delegated ? "disabled" : ""}></label>
-      <label class="${state.crossfade && !delegated ? "" : "muted"}"><span>Duración · <b data-music-crossfade-label>${state.crossfadeSeconds.toFixed(1)} s</b></span><input data-music-crossfade-seconds type="range" min="0.5" max="12" step="0.5" value="${state.crossfadeSeconds}" ${state.crossfade && !delegated ? "" : "disabled"}></label>
-      <label><span>Temporizador</span><select data-music-sleep aria-label="Temporizador de apagado">${state.sleepAt ? `<option value="active" selected disabled>${esc(sleepLabel())}</option>` : ""}<option value="off" ${!state.sleepAt && !state.sleepEnd ? "selected" : ""}>Desactivado</option><option value="15">15 minutos</option><option value="30">30 minutos</option><option value="60">60 minutos</option><option value="end" ${state.sleepEnd ? "selected" : ""}>Al terminar la canción</option></select><small data-music-sleep-label>${esc(sleepLabel())}</small></label>
     </section>
     ${externalServices?.panelHtml?.({ track, position, duration }) || ""}
     <section class="reader-music-library">
@@ -996,8 +853,6 @@ function syncUi() {
   });
   const status = document.querySelector("[data-music-status]");
   if (status) status.textContent = statusMessage;
-  const sleep = document.querySelector("[data-music-sleep-label]");
-  if (sleep) sleep.textContent = sleepLabel();
   externalServices?.syncUi?.({ track, position, duration, playing });
 }
 function openPanel(restoring = false) {
@@ -1094,7 +949,6 @@ function setMediaActions() {
     seekforward: (details) => seek(playbackPosition() + (details.seekOffset || 10)),
     stop: () => {
       active.pause();
-      standby.pause();
       externalServices?.pausePlayback?.();
       playing = false;
       persist();
@@ -1106,26 +960,6 @@ function setMediaActions() {
       navigator.mediaSession.setActionHandler(action, handler);
     } catch {}
   }
-}
-function setSleep(value) {
-  state.sleepAt = null;
-  state.sleepEnd = false;
-  if (value === "end") state.sleepEnd = true;
-  else if (Number(value) > 0) state.sleepAt = Date.now() + Number(value) * 60000;
-  persist();
-  renderPanel();
-}
-function checkSleepTimer() {
-  if (state.sleepAt && Date.now() >= state.sleepAt) {
-    state.sleepAt = null;
-    active.pause();
-    standby.pause();
-    externalServices?.pausePlayback?.();
-    playing = false;
-    statusMessage = "Temporizador finalizado.";
-    persist();
-    emit("sleep");
-  } else syncUi();
 }
 function insertNext(id) {
   if (!trackById(id)) return;
@@ -1156,7 +990,6 @@ async function removeQueueIndex(index) {
   const wasCurrent = index === state.index;
   state.queue.splice(index, 1);
   if (!state.queue.length) {
-    cancelFade();
     active.pause();
     externalServices?.stopPlayback?.();
     revokeAudioUrl(active);
@@ -1188,14 +1021,10 @@ async function deleteTrack(id) {
   emit("library");
 }
 function clearQueue() {
-  cancelFade();
   active.pause();
-  standby.pause();
   externalServices?.stopPlayback?.();
   revokeAudioUrl(active);
-  revokeAudioUrl(standby);
   active.removeAttribute("src");
-  standby.removeAttribute("src");
   state.queue = [];
   state.index = -1;
   state.position = 0;
@@ -1264,19 +1093,6 @@ document.addEventListener("change", async (event) => {
     target.value = "";
   }
   if (target.matches("[data-music-seek]")) seek(target.value);
-  if (target.matches("[data-music-volume]")) setVolume(target.value);
-  if (target.matches("[data-music-crossfade]")) {
-    state.crossfade = target.checked;
-    if (!state.crossfade) cancelFade();
-    persist();
-    renderPanel();
-  }
-  if (target.matches("[data-music-crossfade-seconds]")) {
-    state.crossfadeSeconds = clamp(Number(target.value) || 5, 0.5, 12);
-    persist();
-    renderPanel();
-  }
-  if (target.matches("[data-music-sleep]")) setSleep(target.value);
 });
 document.addEventListener("input", (event) => {
   const target = event.target;
@@ -1293,11 +1109,6 @@ document.addEventListener("input", (event) => {
   if (target.matches("[data-music-seek]")) {
     const position = document.querySelector("[data-music-position]");
     if (position) position.textContent = formatTime(target.value);
-  }
-  if (target.matches("[data-music-volume]")) setVolume(target.value);
-  if (target.matches("[data-music-crossfade-seconds]")) {
-    const label = document.querySelector("[data-music-crossfade-label]");
-    if (label) label.textContent = `${Number(target.value).toFixed(1)} s`;
   }
 });
 document.addEventListener(
@@ -1362,22 +1173,6 @@ function updateExternalPlayback(update = {}) {
   return true;
 }
 
-async function reloadCurrentForEffects() {
-  const track = currentTrack();
-  if (externalPlayback(track)) {
-    statusMessage = "El ecualizador no puede procesar el reproductor oficial de SoundCloud.";
-    syncUi();
-    return false;
-  }
-  if (!track || !active.src) return false;
-  const position = Number(active.currentTime) || 0;
-  const autoplay = !active.paused;
-  await loadAudio(active, track, position, autoplay);
-  playing = autoplay;
-  emit("effects");
-  return true;
-}
-
 function registerExternalServices(services) {
   externalServices = services || null;
   if (externalServices && resolveExternalServicesReady) {
@@ -1388,13 +1183,10 @@ function registerExternalServices(services) {
     getCurrentTrack: currentTrack,
     getPosition: playbackPosition,
     getDuration: playbackDuration,
-    getVolume: () => state.volume,
     getPlaying: () => playing,
     getStatus: () => statusMessage,
-    getAudioElements: () => [active, standby],
     addRemoteTrack,
     playTrack,
-    reloadCurrent: reloadCurrentForEffects,
     updateExternalPlayback,
     render: renderPanel,
     sync: syncUi,
@@ -1420,7 +1212,6 @@ const ready = (async () => {
     state.queue = state.queue.filter((id) => trackById(id));
     if (!state.queue.length) state.index = -1;
     else state.index = clamp(state.index, 0, state.queue.length - 1);
-    if (state.sleepAt && state.sleepAt <= Date.now()) state.sleepAt = null;
     const restoredTrack = currentTrack();
     if (restoredTrack) {
       const bridgeReady =
@@ -1446,7 +1237,6 @@ const ready = (async () => {
   return true;
 })();
 setMediaActions();
-sleepInterval = setInterval(checkSleepTimer, 15000);
 
 window.HanamiReaderMusic = {
   ready,
@@ -1470,13 +1260,8 @@ window.HanamiReaderMusic = {
     playing,
     position: playbackPosition(),
     duration: playbackDuration(),
-    volume: state.volume,
     shuffle: state.shuffle,
     repeat: state.repeat,
-    crossfade: state.crossfade,
-    crossfadeSeconds: state.crossfadeSeconds,
-    sleepAt: state.sleepAt,
-    sleepEnd: state.sleepEnd,
     external: externalServices?.snapshot?.() || null,
   }),
 };

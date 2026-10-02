@@ -8,5 +8,5 @@ assert(library.includes("get('hanami-library-category','default')"), 'Predetermi
 assert(library.includes("value==='all'?'default':value"), 'Las instalaciones antiguas deben migrar Todo a Predeterminada');
 assert(library.includes("if(!categories.some(x=>x.id===L.active)){L.active='default'"), 'Una categoría eliminada debe volver a Predeterminada');
 assert(library.includes('orderedCategories().map'), 'Las pestañas deben proceder solo de categorías reales');
-assert(sw.includes('hanami-crimson-knot-v1354'));
+assert(sw.includes('hanami-crimson-knot-v1355'));
 console.log('PASS: Library tabs contain only real categories, including Predeterminada, and legacy all state migrates safely');

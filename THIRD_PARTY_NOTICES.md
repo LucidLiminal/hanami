@@ -8,18 +8,16 @@ Keiyoushi and Mihon do not endorse or support Hanami. The provider is not affili
 
 The Reader Music modules are browser/serverless adaptations informed by TSuki's
 music architecture and interaction model. Ported concepts and GPL-derived
-implementation details include MediaTrack metadata, persistent queues,
-crossfade and sleep controls, the InnerTube request/response model, the Shazam
-fingerprint payload generator, the external lyrics provider chain, and the
-native equalizer effect model.
+implementation details include MediaTrack metadata, persistent queues, the
+Shazam fingerprint payload generator and the external lyrics provider chain.
 
 - Upstream project: TSuki (`f97e58ecdcd964da5da0c02d427ec471b1cc2361`)
 - Upstream license: GNU General Public License v3.0
 - License copy: `docs/licenses/TSuki-GPL-3.0.txt`
 
 Hanami replaces Android Media3/ExoPlayer, NewPipe, AudioRecord and Android audio
-effects with browser/serverless equivalents: HTMLAudioElement, Web Audio,
-getUserMedia, IndexedDB and Vercel functions. The Shazam signature algorithm in
+effects with browser/serverless equivalents: HTMLAudioElement, getUserMedia,
+IndexedDB and Vercel functions. The Shazam signature algorithm in
 `public/music-recognition.js` is a JavaScript port of TSuki's GPL-3.0
 `ShazamSignatureGenerator.kt`. InnerTube, Shazam, LRCLIB, Unison, Paxsenix and
 BetterLyrics are third-party network services and are not affiliated with or
