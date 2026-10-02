@@ -2,6 +2,23 @@
 
 Primer port manual del catálogo TypeScript de Hanami. Funciona como un único proyecto de Vercel: no usa Docker, Java, Miwayomi ni APK.
 
+## Nuevo en v139: cambiar y recolocar los pins musicales
+
+- La tarjeta expandida de cada pin tiene una acción **Cambiar canción**.
+  Abre `reader-music-picker` directamente en el contexto de ese pin.
+- La nueva elección conserva el pin, sustituye su canción y actualiza la
+  cola de lectura activa; no borra archivos ni listas personales.
+- Los pins editables se pueden arrastrar verticalmente. La altura nueva se
+  guarda como coordenada de lectura y reordena la cola sin cortar la canción
+  actual.
+- Los cambios de posición y de canción de un pin propio de SoundCloud se
+  sincronizan con el grupo. Los pins compartidos de otros lectores permanecen
+  bloqueados para edición y arrastre.
+
+Versión `5.13.0` · caché PWA `hanami-crimson-knot-v139`.
+No hay una migración SQL nueva. Detalles y pruebas:
+`READER_MUSIC_V139.md`.
+
 ## Nuevo en v138: tarjetas laterales, listas locales y reproducción continua
 
 - Se elimina `span#readerIndicator`.

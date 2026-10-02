@@ -5,6 +5,7 @@ import {
   discoverySnapshot,
   loadTrends,
   recentTracks,
+  replaceBindingTrack,
 } from "./reader-music-discovery.js";
 
 const LYRICS_CACHE_KEY = "hanami-reader-lyrics-cache-v1";
@@ -821,9 +822,10 @@ function pickerHtml() {
   const discovery = discoverySnapshot();
   const recent = recentTracks();
   const assigning = !!picker?.context;
+  const replacing = !!picker?.replaceBindingId;
   return `<header class="music-discovery-top"><button type="button" class="music-discovery-back" data-music-picker-close aria-label="Volver a la lectura"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5-7 7 7 7"/></svg></button><div><small>MÚSICA PARA TU LECTURA</small><h2>Música</h2></div></header>
   <main class="music-discovery-content">
-    ${assigning ? `<p class="music-discovery-context">Elige una pista para la página ${Number(picker.context.pageIndex || 0) + 1}. Su tarjeta aparecerá en el lateral al llegar a ese punto de lectura.</p>` : ""}
+    ${assigning ? `<p class="music-discovery-context">${replacing ? `Elige la nueva canción para la página ${Number(picker.context.pageIndex || 0) + 1}. Se actualizarán este pin y la cola de lectura actual.` : `Elige una pista para la página ${Number(picker.context.pageIndex || 0) + 1}. Su tarjeta aparecerá en el lateral al llegar a ese punto de lectura.`}</p>` : ""}
     <form class="music-url-search" data-music-picker-form novalidate>
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg>
       <input type="url" inputmode="url" autocomplete="off" spellcheck="false" data-music-picker-query value="${esc(ui.query)}" placeholder="Pega la URL de una canción…" aria-label="URL de una canción de SoundCloud" aria-describedby="musicPickerUrlWarning">
@@ -897,7 +899,9 @@ function destroyPicker() {
   previous.node.remove();
   for (const [node, inert] of previous.inert) node.inert = inert;
   document.body.classList.remove("reader-music-picker-open");
-  document.querySelector("#readerViewport")?.focus({ preventScroll: true });
+  if (previous.returnFocus?.isConnected && !previous.returnFocus.inert)
+    previous.returnFocus.focus({ preventScroll: true });
+  else document.querySelector("#readerViewport")?.focus({ preventScroll: true });
 }
 
 function closePicker(fromHistory = false) {
@@ -909,7 +913,7 @@ function closePicker(fromHistory = false) {
   destroyPicker();
 }
 
-function openPicker({ context = null, restoring = false } = {}) {
+function openPicker({ context = null, replaceBindingId = "", restoring = false } = {}) {
   destroyPicker();
   const root = document.querySelector("#reader");
   if (!root || root.classList.contains("hidden")) return false;
@@ -925,21 +929,21 @@ function openPicker({ context = null, restoring = false } = {}) {
   node.dataset.musicPicker = "";
   node.setAttribute("role", "dialog");
   node.setAttribute("aria-modal", "true");
-  node.setAttribute("aria-label", context ? "Instanciar una pista de música" : "Buscar música");
+  node.setAttribute("aria-label", context ? replaceBindingId ? "Cambiar canción de un marcador" : "Instanciar una pista de música" : "Buscar música");
   node.tabIndex = -1;
   const inert = [...root.children]
     .filter((child) => !child.matches(".reader-comment-editor,.reader-page-actions-overlay,.reader-music-picker"))
     .map((child) => [child, child.inert]);
   for (const [child] of inert) child.inert = true;
   root.append(node);
-  picker = { node, context, inert };
+  picker = { node, context, inert, replaceBindingId: String(replaceBindingId || ""), returnFocus: document.activeElement };
   document.body.classList.add("reader-music-picker-open");
   if (!restoring && window.HanamiScreens) {
     window.HanamiScreens.push(
       "reader-music-services",
-      { pageIndex: context?.pageIndex ?? null },
+      { pageIndex: context?.pageIndex ?? null, replaceBindingId: String(replaceBindingId || "") || null },
       {
-        restore: () => openPicker({ context, restoring: true }),
+        restore: () => openPicker({ context, replaceBindingId, restoring: true }),
         suspend: destroyPicker,
       },
     );
@@ -1034,9 +1038,20 @@ async function selectPickerTrack(source, key, playlistId) {
       });
     }
     if (instance !== picker) return;
-    const binding = instance.context ? assignTrack(remote, instance.context) : null;
+    const binding = instance.context
+      ? instance.replaceBindingId
+        ? replaceBindingTrack(instance.replaceBindingId, remote)
+        : assignTrack(remote, instance.context)
+      : null;
+    const queue = binding
+      ? await window.HanamiMusicDiscovery?.prepareReadingQueue?.() || [remote.id]
+      : [];
     const started = binding
-      ? await music.playPin(remote.id, { id: binding.id, groupId: binding.groupId, title: remote.title })
+      ? await music.playPin(
+        remote.id,
+        { id: binding.id, groupId: binding.groupId, title: remote.title },
+        { queue },
+      )
       : source === "local" && playlistId ? await window.HanamiReaderPlayer.playList(playlistId, remote.id) : await music.play(remote.id);
     if (instance !== picker) return;
     if (!started) {
@@ -1376,6 +1391,7 @@ function snapshot() {
     picker: {
       open: !!picker,
       pageIndex: picker?.context?.pageIndex ?? null,
+      replaceBindingId: picker?.replaceBindingId || null,
       recentCount: recentTracks().length,
       trendsCount: discoverySnapshot().trends.length,
       trendsStatus: discoverySnapshot().trendsStatus,

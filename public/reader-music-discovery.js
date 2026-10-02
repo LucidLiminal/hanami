@@ -126,6 +126,22 @@ function publicMetadata(track) {
     duration: Math.max(0, Math.min(86400, Number(track.duration) || 0)),
   };
 }
+function canShareBinding(groupId, metadata, connection = window.HanamiSocialSync?.state?.() || {}) {
+  return isRemoteMusicGroup(groupId) && !!metadata && connection.configured &&
+    connection.authenticated && !incognito();
+}
+function pageContextForBinding(binding) {
+  try {
+    const [groupId, sourceId, mangaUrl, chapterUrl, pageIndex] = JSON.parse(binding.pageKey);
+    if (![groupId, sourceId, mangaUrl, chapterUrl].every((value) => typeof value === "string"))
+      return null;
+    return {
+      groupId, sourceId, mangaUrl, chapterUrl, pageIndex: Number(pageIndex) || 0,
+      x: Math.max(0, Math.min(1, Number(binding.x) || 0)),
+      y: Math.max(0, Math.min(1, Number(binding.y) || 0)),
+    };
+  } catch { return null; }
+}
 function recordActivity(track, kind) {
   if (incognito()) return;
   const metadata = publicMetadata(track);
@@ -167,7 +183,7 @@ export function recentTracks() {
   }).filter(Boolean);
 }
 
-export function assignTrack(track, context) {
+export function assignTrack(track, context, { replaceBindingId = "" } = {}) {
   if (!track?.id || !context) throw new Error("Selecciona una pista y una página válidas.");
   const scoped = scope(context);
   const pageKey = instancePageKey(scoped);
@@ -176,8 +192,19 @@ export function assignTrack(track, context) {
   const connection = window.HanamiSocialSync?.state?.() || {};
   const actorId = connection.user?.id || "";
   const metadata = publicMetadata(track);
-  const shouldShare = isRemoteMusicGroup(scoped.groupId) && metadata && connection.configured && connection.authenticated && !incognito();
-  const previous = state.bindings.find((item) => item.pageKey === pageKey && (!item.actorId || item.actorId === actorId) && !item.deletedAt && Math.hypot(item.x - x, item.y - y) < 0.03);
+  const shouldShare = canShareBinding(scoped.groupId, metadata, connection);
+  const requestedId = String(replaceBindingId || "");
+  const replacement = requestedId ? state.bindings.find((item) => item.id === requestedId && !item.deletedAt) : null;
+  if (requestedId && (!replacement || !canChangeBinding(replacement)))
+    throw new Error("Ya no puedes cambiar esta pista.");
+  if (replacement && replacement.pageKey !== pageKey)
+    throw new Error("La pista ya no pertenece a esta página.");
+  if (replacement && ["shared", "pending"].includes(replacement.shareState) &&
+    isRemoteMusicGroup(replacement.groupId) && !metadata)
+    throw new Error("Una pista compartida solo puede cambiarse por una canción de SoundCloud.");
+  const previous = replacement || state.bindings.find((item) => item.pageKey === pageKey &&
+    (!item.actorId || item.actorId === actorId) && !item.deletedAt &&
+    Math.hypot(item.x - x, item.y - y) < 0.03);
   if (!previous && state.bindings.length >= MAX_BINDINGS)
     throw new Error("Has alcanzado el límite de pistas guardadas en páginas.");
   const binding = {
@@ -192,7 +219,7 @@ export function assignTrack(track, context) {
       permalinkUrl: track.permalinkUrl || "", soundcloudId: track.soundcloudId || "",
       soundcloudUrn: track.soundcloudUrn || "", duration: Number(track.duration) || 0,
     },
-    createdAt: Date.now(),
+    createdAt: previous?.createdAt || Date.now(),
   };
   const oldBindings = state.bindings;
   state.bindings = [...state.bindings.filter((item) => item.id !== binding.id), binding];
@@ -343,6 +370,78 @@ function canRemoveBinding(binding) {
   const moderator = group?.ownerId === actor || member?.role === "moderator" || member?.role === "owner";
   return moderator || binding.actorId === actor && member?.state !== "muted" && member?.state !== "blocked";
 }
+function canChangeBinding(binding) {
+  if (!binding || binding.remote) return false;
+  if (!["shared", "pending"].includes(binding.shareState)) return true;
+  if (incognito()) return false;
+  const actor = window.HanamiSocialSync?.state?.().user?.id || "";
+  if (!actor || binding.actorId !== actor) return false;
+  const group = window.HanamiReadingGroups?.groups?.().find((room) => room.id === binding.groupId);
+  const member = group?.members?.find((person) => person.id === actor);
+  return member?.state !== "muted" && member?.state !== "blocked";
+}
+function editableBinding(id) {
+  return state.bindings.find((item) => item.id === id && !item.deletedAt) || null;
+}
+export function changeBinding(id) {
+  const binding = editableBinding(id);
+  if (!binding || !canChangeBinding(binding))
+    throw new Error("No tienes permiso para cambiar esta pista.");
+  const context = pageContextForBinding(binding);
+  if (!context) throw new Error("No se pudo recuperar el punto de lectura de esta pista.");
+  const opened = window.HanamiReaderMusicServices?.openPicker?.({
+    context, replaceBindingId: binding.id,
+  });
+  if (!opened) throw new Error("El selector de música todavía no está disponible.");
+  return true;
+}
+export function replaceBindingTrack(id, track) {
+  const binding = editableBinding(id);
+  if (!binding || !canChangeBinding(binding))
+    throw new Error("No tienes permiso para cambiar esta pista.");
+  const context = pageContextForBinding(binding);
+  if (!context) throw new Error("No se pudo recuperar el punto de lectura de esta pista.");
+  // Do not let an asynchronous visibility check restart the previous song
+  // between persisting this replacement and starting the selected song.
+  followRequest++;
+  followActiveId = binding.id;
+  return assignTrack(track, context, { replaceBindingId: binding.id });
+}
+async function syncActiveReadingQueue() {
+  const music = window.HanamiReaderMusic;
+  const pinId = music?.snapshot?.().pin?.id;
+  if (!music || !pinId) return;
+  const queue = await prepareReadingQueue();
+  if (music.snapshot?.().pin?.id === pinId) music.syncPinQueue?.(queue);
+}
+export function moveBinding(id, coordinate) {
+  const binding = editableBinding(id);
+  if (!binding || !canChangeBinding(binding))
+    throw new Error("No tienes permiso para mover esta pista.");
+  const y = Math.max(0, Math.min(1, Number(coordinate) || 0));
+  if (Math.abs(y - (Number(binding.y) || 0)) < 0.0005) return binding;
+  const connection = window.HanamiSocialSync?.state?.() || {};
+  const metadata = publicMetadata(binding.track);
+  const shouldShare = canShareBinding(binding.groupId, metadata, connection);
+  const next = {
+    ...binding, y, revision: (Number(binding.revision) || 0) + 1,
+    shareState: shouldShare ? "pending" : "local",
+  };
+  const oldBindings = state.bindings;
+  state.bindings = [...state.bindings.filter((item) => item.id !== binding.id), next];
+  if (!save()) {
+    state.bindings = oldBindings;
+    throw new Error(syncError);
+  }
+  if (shouldShare && !queueSharedPin(next, { ...metadata, soundcloudId: binding.track.soundcloudId || "" })) {
+    next.shareState = "local";
+    save();
+  }
+  renderAll();
+  emit();
+  void syncActiveReadingQueue();
+  return next;
+}
 async function resolveBindingTrack(binding) {
   const music = window.HanamiReaderMusic;
   await music.ready;
@@ -419,7 +518,8 @@ async function followVisiblePins() {
     const stored = music.listTracks().find((track) => track.id === binding.trackId ||
       !!canonicalMusicUrl(binding.track.url) && canonicalMusicUrl(track.permalinkUrl || track.url) === canonicalMusicUrl(binding.track.url));
     return { id: binding.id, order, visible, available: !!binding.track.url || !!stored,
-      binding, track: stored || binding.track, pageIndex: Number(JSON.parse(binding.pageKey)[4]) || 0, canRemove: canRemoveBinding(binding) };
+      binding, track: stored || binding.track, pageIndex: Number(JSON.parse(binding.pageKey)[4]) || 0,
+      canRemove: canRemoveBinding(binding), canChange: canChangeBinding(binding) };
   });
   renderPinCards(pins.filter((pin) => pin.visible), bounds);
   if (!followsReadingPins(current.readingMode) || current.readingSuspended) return;
@@ -527,7 +627,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
   document.addEventListener("load", (event) => {
     if (event.target.matches?.("#readerViewport figure > img,#readerViewport figure > iframe")) renderFigure(event.target.closest("figure"));
   }, true);
-  installPinCards({ play: playBinding, remove: removeBinding });
+  installPinCards({ play: playBinding, change: changeBinding, move: moveBinding, remove: removeBinding });
   const readerRoot = document.querySelector("#reader");
   if (readerRoot) new MutationObserver(scheduleFollow).observe(readerRoot, { attributes: true, attributeFilter: ["class"] });
   new MutationObserver((records) => {
@@ -536,5 +636,9 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
     ))) requestAnimationFrame(renderAll);
     if (records.some((record) => [...record.removedNodes].some((node) => node.nodeType === 1 && node.matches?.(".reader-music-picker,.reader-comment-editor")))) scheduleFollow();
   }).observe(document.documentElement, { childList: true, subtree: true });
-  window.HanamiMusicDiscovery = { assignTrack, recentTracks, loadTrends, flushActivity, snapshot: discoverySnapshot, renderAll, sharedPageKeys, prepareReadingQueue, publishCurrentReading, removeBinding, followVisiblePins };
+  window.HanamiMusicDiscovery = {
+    assignTrack, recentTracks, loadTrends, flushActivity, snapshot: discoverySnapshot,
+    renderAll, sharedPageKeys, prepareReadingQueue, publishCurrentReading,
+    changeBinding, replaceBindingTrack, moveBinding, removeBinding, followVisiblePins,
+  };
 }

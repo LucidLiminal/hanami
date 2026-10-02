@@ -606,6 +606,24 @@ function setQueue(ids, startId = ids[0]) {
   state.queueVisited = [];
   persist();
 }
+function syncPinQueue(ids) {
+  const unique = [...new Set(ids)].filter((id) => trackById(id));
+  const currentId = currentTrack()?.id;
+  // Coordinate edits must reorder the reading queue without interrupting the
+  // song that is already authorized and playing.
+  if (!unique.length || !currentId || !unique.includes(currentId)) return false;
+  const changed = state.queue.length !== unique.length ||
+    state.queue.some((id, index) => id !== unique[index]);
+  state.queue = unique;
+  state.index = unique.indexOf(currentId);
+  state.queueVisited = state.queueVisited.filter((id) => unique.includes(id));
+  shuffleHistory.length = 0;
+  if (!changed) return true;
+  persist();
+  renderPanel();
+  emit("queue");
+  return true;
+}
 async function playTrack(id) {
   readingSuspended = false;
   currentPin = null;
@@ -1452,6 +1470,7 @@ window.HanamiReaderMusic = {
     const result = state.queue.length ? await selectIndex(state.index, { autoplay }) : false;
     renderPanel(); emit("queue"); return result;
   },
+  syncPinQueue,
   toggle: togglePlay,
   next,
   previous,
