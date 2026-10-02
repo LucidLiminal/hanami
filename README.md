@@ -2,6 +2,28 @@
 
 Primer port manual del catálogo TypeScript de Hanami. Funciona como un único proyecto de Vercel: no usa Docker, Java, Miwayomi ni APK.
 
+## Nuevo en v136: acciones de página y selector de música
+
+- La pulsación larga abre una barra con **poner como portada, copiar la imagen,
+  compartirla, guardarla, hacer un comentario e instanciar una pista de música**.
+- El selector independiente contiene únicamente los servicios de música:
+  búsqueda por URL de canción de SoundCloud, **Para ti** con reproducciones
+  recientes y **Tendencias** con actividad de otros usuarios.
+- Elegir una canción coloca una instancia en el punto de la página; su botón
+  permite reproducir o pausar. Las instancias y el historial se guardan localmente.
+- Las portadas personalizadas se conservan al actualizar los metadatos.
+
+Para activar **Tendencias reales**, ejecuta
+`supabase/hanami-reader-music-v136.sql` en el SQL Editor del proyecto Supabase
+que ya utiliza Hanami. Se reutilizan `SUPABASE_URL`, `SUPABASE_ANON_KEY` y la
+sesión existente; no se necesita una clave `service_role` en el cliente.
+Sin servidor, migración, conexión o actividad suficiente se muestra el estado
+correspondiente, nunca una lista ficticia de canciones.
+
+Detalles, límites de navegador y pruebas: `READER_PAGE_ACTIONS_V136.md`.
+Después de desplegar, recarga o reabre la PWA para activar la caché
+`hanami-crimson-knot-v136`.
+
 ## Incluido
 
 - Adaptador `hanami.es.olympus` inspirado en la operación de la extensión Keiyoushi.

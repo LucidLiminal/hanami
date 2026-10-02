@@ -29,19 +29,25 @@ await page.evaluate(() => {
 });
 const image = page.locator("#readerViewport figure img").first();
 await image.waitFor({ state: "visible" });
+await page.waitForFunction(() => {
+  const image = document.querySelector("#readerViewport figure img");
+  return image?.complete && image.naturalWidth > 0;
+});
+await page.waitForTimeout(150);
 const box = await image.boundingBox();
 assert(box);
 await page.mouse.move(box.x + box.width * 0.45, box.y + 240);
 await page.mouse.down();
-await page.waitForTimeout(620);
+await page.locator("[data-reader-page-actions]").waitFor({ state: "visible" });
 await page.mouse.up();
+await page.locator('[data-reader-page-action="comment"]').click();
 await page.locator(".reader-comment-editor").waitFor({ state: "visible" });
 await page.locator("[data-comment-text]").fill("Mira este detalle");
 await page.locator("[data-comment-save]").click();
 await page.waitForTimeout(250);
 assert.equal(await page.locator(".reader-comment").count(), 1);
 assert.equal(
-  await page.locator(".reader-comment-body").innerText(),
+  await page.locator(".reader-comment-body > span").innerText(),
   "Mira este detalle",
 );
 const card = page.locator(".reader-comment").first();

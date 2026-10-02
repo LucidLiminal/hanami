@@ -26,15 +26,15 @@ for (const token of [
   assert(comments.includes(token), token);
 
 assert(reader.includes("data-comment-context"));
-assert(reader.includes("HanamiReaderComments?.begin"));
+assert(reader.includes("HanamiReaderPageActions?.open"));
 assert(reader.includes("clientX:e.clientX,clientY:e.clientY"));
 assert(css.includes(".reader-comment-layer"));
 assert(css.includes(".reader-comment-editor"));
 assert(css.includes("touch-action:none"));
 assert(html.includes('src="/reader-comments.js"'));
-assert(sw.includes("hanami-crimson-knot-v1355"));
+assert(sw.includes("hanami-crimson-knot-v136"));
 assert(sw.includes("'/reader-comments.js'"));
-assert.equal(pkg.version, "5.9.5");
+assert.equal(pkg.version, "5.10.0");
 assert(
   pkg.scripts.test.includes(
     "node tests/reader-image-comments-v115.test.mjs",

@@ -257,9 +257,9 @@ assert(styles.includes(".hanami-soundcloud-engine"));
 assert(styles.includes(".reader-music-soundcloud-source"));
 assert(!styles.includes(".reader-music-options"));
 assert(!styles.includes(".reader-music-eq-top"));
-assert(sw.includes("hanami-crimson-knot-v1355"));
+assert(sw.includes("hanami-crimson-knot-v136"));
 const pkg = JSON.parse(packageText);
-assert.equal(pkg.version, "5.9.5");
+assert.equal(pkg.version, "5.10.0");
 
 console.log(
   "PASS: v135.5 confirms every load through getCurrentSound, keeps playback synchronized when Widget events are missing and exposes only the simplified SoundCloud controls.",

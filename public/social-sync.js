@@ -65,14 +65,18 @@ async function jsonRequest(path, options = {}, authenticated = true) {
   } catch {
     payload = text;
   }
-  if (!response.ok)
-    throw new Error(
+  if (!response.ok) {
+    const error = new Error(
       payload?.msg ||
         payload?.message ||
         payload?.error_description ||
         payload?.error ||
         `Supabase respondió HTTP ${response.status}`,
     );
+    error.code = payload?.code || "";
+    error.status = response.status;
+    throw error;
+  }
   return payload;
 }
 async function loadConfig() {
@@ -654,6 +658,40 @@ async function sync(groupId = window.HanamiReadingGroups?.activeId?.()) {
     emit();
   }
 }
+async function listMusicTrends(limit = 30) {
+  await ready;
+  if (session?.access_token && session.refresh_token &&
+      Number(session.expires_at || 0) < Math.floor(Date.now() / 1000) + 60)
+    await refreshSession();
+  return jsonRequest("/rest/v1/rpc/list_reader_music_trends", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ p_limit: Math.max(1, Math.min(50, Number(limit) || 30)) }),
+    signal: AbortSignal.timeout(15000),
+  });
+}
+
+async function recordMusicActivity(activity) {
+  await ready;
+  if (!state().authenticated || activity.actorId !== session?.user?.id)
+    throw new Error("La actividad no pertenece a la sesión actual.");
+  if (session.refresh_token &&
+      Number(session.expires_at || 0) < Math.floor(Date.now() / 1000) + 60)
+    await refreshSession();
+  if (activity.actorId !== session?.user?.id)
+    throw new Error("La sesión ha cambiado antes de enviar la actividad.");
+  return jsonRequest("/rest/v1/rpc/record_reader_music_activity", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      p_event_id: activity.id,
+      p_track: activity.track,
+      p_kind: activity.kind,
+    }),
+    signal: AbortSignal.timeout(15000),
+  });
+}
+
 async function bootstrap() {
   config = await loadConfig();
   session = read(SESSION_KEY);
@@ -706,6 +744,8 @@ window.HanamiSocialSync = {
   deleteGroupEntry,
   recommendManga,
   saveGroupProgress,
+  listMusicTrends,
+  recordMusicActivity,
   sync,
   pullComments,
   cachedGroups: () => [...groupCache],

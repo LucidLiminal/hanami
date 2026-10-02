@@ -1,4 +1,11 @@
 import { recognizeAmbient } from "./music-recognition.js";
+import {
+  assignTrack,
+  canonicalMusicUrl,
+  discoverySnapshot,
+  loadTrends,
+  recentTracks,
+} from "./reader-music-discovery.js";
 
 const LYRICS_CACHE_KEY = "hanami-reader-lyrics-cache-v1";
 const SOUNDCLOUD_WIDGET_API = "https://w.soundcloud.com/player/api.js";
@@ -16,6 +23,10 @@ const clamp = (value, minimum, maximum) =>
 const compact = (value) => String(value ?? "").replace(/\s+/g, " ").trim();
 
 let adapter = null;
+let picker = null;
+let pickerError = "";
+let pickerSelecting = "";
+let soundCloudSearchToken = 0;
 const ui = {
   tab: "soundcloud",
   query: "",
@@ -705,6 +716,246 @@ function hydrateLyrics(track = currentTrack()) {
 
 function render() {
   adapter?.render?.();
+  renderPicker();
+}
+
+const discoveryMusicIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l12-2v13M9 9l12-2"/><ellipse cx="6" cy="18" rx="3" ry="3"/><ellipse cx="18" cy="16" rx="3" ry="3"/></svg>';
+
+function discoveryCard(track, source, compactCard = false) {
+  const key = source === "recent" ? track.id : source === "trend" ? track.permalinkUrl : resultKey(track);
+  const busy = pickerSelecting === `${source}:${key}`;
+  const artwork = /^https:\/\//i.test(track.artwork || "") ? track.artwork : "";
+  const assigning = !!picker?.context;
+  const label = assigning ? `Instanciar ${track.title}` : `Reproducir ${track.title}`;
+  const foot = source === "trend"
+    ? `${track.listeners} lector${track.listeners === 1 ? "" : "es"} · ${track.plays} escucha${track.plays === 1 ? "" : "s"} · ${track.uses} uso${track.uses === 1 ? "" : "s"}`
+    : source === "recent" ? "Escuchada en Hanami" : "SoundCloud · enlace verificado";
+  return `<article class="music-discovery-card ${compactCard ? "compact-card" : ""}">
+    <div class="music-discovery-art">
+      ${artwork ? `<img src="${esc(artwork)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<i aria-hidden="true">${discoveryMusicIcon}</i>`}
+      ${compactCard ? "" : discoveryCardContent(track, source, key, label, busy, assigning)}
+    </div>
+    ${compactCard ? discoveryCardContent(track, source, key, label, busy, assigning) : ""}
+    <p class="music-discovery-card-foot">${esc(foot)}</p>
+  </article>`;
+}
+
+function discoveryCardContent(track, source, key, label, busy, assigning) {
+  return `<div class="music-discovery-card-content"><span><b>${esc(track.title || "Sin título")}</b><em>${esc(track.artist || "Artista desconocido")}</em></span><button type="button" data-music-picker-pick="${esc(key)}" data-music-picker-source="${source}" aria-label="${esc(label)}" title="${esc(label)}" ${pickerSelecting ? "disabled" : ""}>${busy ? "…" : assigning ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>' : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 4 13 8-13 8Z"/></svg>'}</button></div>`;
+}
+
+function pickerHtml() {
+  const discovery = discoverySnapshot();
+  const recent = recentTracks();
+  const assigning = !!picker?.context;
+  return `<header class="music-discovery-top"><button type="button" class="music-discovery-back" data-music-picker-close aria-label="Volver a la lectura"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5-7 7 7 7"/></svg></button><div><small>MÚSICA PARA TU LECTURA</small><h2>Música</h2></div></header>
+  <main class="music-discovery-content">
+    ${assigning ? `<p class="music-discovery-context">Elige una pista para la página ${Number(picker.context.pageIndex || 0) + 1}. Se colocará en el punto que has mantenido presionado.</p>` : ""}
+    <form class="music-url-search" data-music-picker-form novalidate>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg>
+      <input type="url" inputmode="url" autocomplete="off" spellcheck="false" data-music-picker-query value="${esc(ui.query)}" placeholder="Pega la URL de una canción…" aria-label="URL de una canción de SoundCloud" aria-describedby="musicPickerUrlWarning">
+      <button type="submit" data-music-picker-search aria-label="Buscar canción por URL" ${ui.searchBusy || !ui.query.trim() ? "disabled" : ""}>${ui.searchBusy ? "…" : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>'}</button>
+    </form>
+    <p id="musicPickerUrlWarning" class="music-url-warning">Por ahora, solo se aceptan URL de canciones de SoundCloud; no nombres de canciones ni artistas.</p>
+    <p class="music-picker-status ${pickerError ? "error" : ""}" data-music-picker-status role="status" aria-live="polite">${esc(pickerError || (ui.searchBusy || ui.query ? ui.searchStatus : ""))}</p>
+    ${ui.results.length ? `<section class="music-discovery-section" aria-labelledby="musicPickerResults"><header><div><small>ENLACE ENCONTRADO</small><h3 id="musicPickerResults">${ui.results.length === 1 ? "Tu canción" : "Resultados"}</h3></div></header><div class="music-discovery-carousel" data-music-carousel="results">${ui.results.map((track) => discoveryCard(track, "result")).join("")}</div></section>` : ""}
+    <section class="music-discovery-section" aria-labelledby="musicPickerRecent"><header><div><small>PARA TI</small><h3 id="musicPickerRecent">Escuchado recientemente <span class="music-discovery-count">${recent.length}</span></h3></div>${recent.length > 1 ? '<button type="button" data-music-picker-more="recent" aria-label="Ver más canciones recientes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button>' : ""}</header>
+      ${recent.length ? `<div class="music-discovery-carousel" data-music-carousel="recent">${recent.map((track) => discoveryCard(track, "recent")).join("")}</div>` : '<div class="music-discovery-empty"><b>Tu próxima lectura puede tener banda sonora</b><p>Las canciones que escuches en Hanami aparecerán aquí. Pega un enlace para empezar.</p></div>'}
+    </section>
+    <section class="music-discovery-section" aria-labelledby="musicPickerTrends"><header><div><small>TENDENCIAS</small><h3 id="musicPickerTrends">Lo más sonado <span class="music-discovery-count">${discovery.trends.length}</span></h3></div><button type="button" data-music-picker-refresh aria-label="Actualizar tendencias" ${discovery.trendsStatus === "loading" ? "disabled" : ""}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6 8a7 7 0 0 1 12-2l2 2M18 16a7 7 0 0 1-12 2l-2-2"/></svg></button></header>
+      ${discovery.trends.length ? `<p class="music-discovery-note">${esc(discovery.trendsMessage)}</p><div class="music-discovery-carousel compact" data-music-carousel="trends">${discovery.trends.map((track) => discoveryCard(track, "trend", true)).join("")}</div>` : `<div class="music-discovery-empty" data-music-trends-state="${esc(discovery.trendsStatus)}"><b>${discovery.trendsStatus === "loading" ? "Cargando tendencias…" : discovery.trendsStatus === "error" ? "Tendencias no disponibles" : discovery.trendsStatus === "unavailable" ? "Conecta la comunidad" : "Aún no hay tendencias"}</b><p>${esc(discovery.trendsMessage)}</p>${discovery.trendsStatus === "error" ? '<button type="button" data-music-picker-refresh>Volver a intentar</button>' : ""}</div>`}
+    </section>
+  </main>`;
+}
+
+function renderPicker() {
+  if (!picker?.node.isConnected) return;
+  const node = picker.node;
+  const scrollTop = node.scrollTop;
+  const carousels = [...node.querySelectorAll("[data-music-carousel]")].map((item) => [item.dataset.musicCarousel, item.scrollLeft]);
+  const inputFocused = document.activeElement?.matches("[data-music-picker-query]");
+  const selection = inputFocused ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null;
+  node.innerHTML = pickerHtml();
+  node.scrollTop = scrollTop;
+  for (const [name, left] of carousels) {
+    const carousel = node.querySelector(`[data-music-carousel="${name}"]`);
+    if (carousel) carousel.scrollLeft = left;
+  }
+  updatePickerNavigation();
+  if (inputFocused) {
+    const input = node.querySelector("[data-music-picker-query]");
+    input.focus({ preventScroll: true });
+    if (selection?.[0] != null) {
+      try { input.setSelectionRange(...selection); } catch {}
+    }
+  }
+}
+
+function updatePickerNavigation() {
+  if (!picker) return;
+  const carousel = picker.node.querySelector('[data-music-carousel="recent"]');
+  const button = picker.node.querySelector('[data-music-picker-more="recent"]');
+  if (button && carousel) button.hidden = carousel.scrollWidth <= carousel.clientWidth + 1;
+}
+
+function destroyPicker() {
+  if (!picker) return;
+  const previous = picker;
+  picker = null;
+  previous.node.remove();
+  for (const [node, inert] of previous.inert) node.inert = inert;
+  document.body.classList.remove("reader-music-picker-open");
+  document.querySelector("#readerViewport")?.focus({ preventScroll: true });
+}
+
+function closePicker(fromHistory = false) {
+  if (!picker) return;
+  if (!fromHistory && window.HanamiScreens?.is("reader-music-services")) {
+    window.HanamiScreens.back();
+    return;
+  }
+  destroyPicker();
+}
+
+function openPicker({ context = null, restoring = false } = {}) {
+  destroyPicker();
+  const root = document.querySelector("#reader");
+  if (!root || root.classList.contains("hidden")) return false;
+  pickerError = "";
+  pickerSelecting = "";
+  // The separate selector never inherits a legacy text-search query.
+  if (!/^https:\/\//i.test(ui.query)) {
+    ui.query = "";
+    ui.results = [];
+  }
+  const node = document.createElement("section");
+  node.className = "reader-music-services reader-music-picker";
+  node.dataset.musicPicker = "";
+  node.setAttribute("role", "dialog");
+  node.setAttribute("aria-modal", "true");
+  node.setAttribute("aria-label", context ? "Instanciar una pista de música" : "Buscar música");
+  node.tabIndex = -1;
+  const inert = [...root.children]
+    .filter((child) => !child.matches(".reader-comment-editor,.reader-page-actions-overlay,.reader-music-picker"))
+    .map((child) => [child, child.inert]);
+  for (const [child] of inert) child.inert = true;
+  root.append(node);
+  picker = { node, context, inert };
+  document.body.classList.add("reader-music-picker-open");
+  if (!restoring && window.HanamiScreens) {
+    window.HanamiScreens.push(
+      "reader-music-services",
+      { pageIndex: context?.pageIndex ?? null },
+      {
+        restore: () => openPicker({ context, restoring: true }),
+        suspend: destroyPicker,
+      },
+    );
+  }
+  node.addEventListener("input", (event) => {
+    if (!event.target.matches("[data-music-picker-query]")) return;
+    ui.query = event.target.value;
+    pickerError = "";
+    if (ui.searchBusy) {
+      ++soundCloudSearchToken;
+      ui.searchBusy = false;
+    }
+    node.querySelector("[data-music-picker-search]").disabled = !ui.query.trim();
+    if (!ui.query.trim()) {
+      ui.results = [];
+      ui.searchStatus = "";
+      renderPicker();
+    }
+  });
+  node.addEventListener("submit", (event) => {
+    if (!event.target.matches("[data-music-picker-form]")) return;
+    event.preventDefault();
+    pickerError = "";
+    void searchSoundCloud(node.querySelector("[data-music-picker-query]").value, { urlOnly: true });
+  });
+  node.addEventListener("click", (event) => {
+    const button = event.target.closest("button");
+    if (!button) return;
+    if (button.hasAttribute("data-music-picker-close")) closePicker();
+    if (button.hasAttribute("data-music-picker-refresh")) void loadTrends();
+    if (button.dataset.musicPickerMore) {
+      const carousel = node.querySelector(`[data-music-carousel="${button.dataset.musicPickerMore}"]`);
+      carousel?.scrollBy({
+        left: carousel.clientWidth * 0.85,
+        behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      });
+    }
+    if (button.dataset.musicPickerPick) void selectPickerTrack(button.dataset.musicPickerSource, button.dataset.musicPickerPick);
+  });
+  node.addEventListener("error", (event) => {
+    const image = event.target;
+    if (!image.matches?.(".music-discovery-art > img")) return;
+    image.insertAdjacentHTML("beforebegin", `<i aria-hidden="true">${discoveryMusicIcon}</i>`);
+    image.remove();
+  }, true);
+  node.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault(); event.stopPropagation(); closePicker();
+    } else if (event.key === "Tab") {
+      const controls = [...node.querySelectorAll("button:not([disabled]),input")].filter((item) => item.getClientRects().length);
+      const first = controls[0], last = controls.at(-1);
+      if (event.shiftKey && [node, first].includes(document.activeElement)) {
+        event.preventDefault(); last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault(); first?.focus();
+      }
+    }
+  });
+  renderPicker();
+  requestAnimationFrame(() => node.querySelector("[data-music-picker-close]")?.focus({ preventScroll: true }));
+  void loadTrends();
+  return true;
+}
+
+async function selectPickerTrack(source, key) {
+  if (!picker || pickerSelecting) return;
+  const instance = picker;
+  const track = source === "recent" ? recentTracks().find((item) => item.id === key) :
+    source === "trend" ? discoverySnapshot().trends.find((item) => item.permalinkUrl === key) :
+    ui.results.find((item) => resultKey(item) === key);
+  if (!track) return;
+  pickerSelecting = `${source}:${key}`;
+  pickerError = "";
+  renderPicker();
+  try {
+    const music = window.HanamiReaderMusic;
+    if (!music) throw new Error("El reproductor todavía no está listo.");
+    await music.ready;
+    const url = canonicalMusicUrl(track.permalinkUrl || track.url);
+    let remote = music.snapshot().tracks.find((item) =>
+      source === "recent" ? item.id === track.id :
+      !!url && canonicalMusicUrl(item.permalinkUrl || item.url) === url,
+    );
+    if (!remote) {
+      if (!url) throw new Error("Esta pista local ya no está disponible.");
+      remote = await music.addUrl(url, {
+        title: track.title, artist: track.artist, album: track.album || "",
+        artwork: track.artwork || "", duration: track.duration || 0, provider: "soundcloud",
+        soundcloudId: track.soundcloudId || track.id || "",
+        soundcloudUrn: track.soundcloudUrn || "", permalinkUrl: url, userUrl: track.userUrl || "",
+      });
+    }
+    if (instance !== picker) return;
+    if (instance.context) assignTrack(remote, instance.context);
+    const started = await music.play(remote.id);
+    if (instance !== picker) return;
+    if (!started) {
+      pickerError = `${instance.context ? "La pista quedó guardada en esta página. " : ""}${adapter?.getStatus?.() || "No se pudo iniciar la reproducción. Puedes intentarlo desde el reproductor."}`;
+      return;
+    }
+    window.HanamiToast?.(instance.context ? "Pista añadida a esta página" : "Reproduciendo canción");
+    closePicker();
+  } catch (error) {
+    if (instance === picker) pickerError = error.message || "No se pudo seleccionar la pista.";
+  } finally {
+    pickerSelecting = "";
+    renderPicker();
+  }
 }
 
 function soundCloudResultHtml(result) {
@@ -784,7 +1035,7 @@ function lyricsPanelHtml(track) {
 
 function panelHtml({ track } = {}) {
   return `<section class="reader-music-services" data-music-services>
-    <header><span><small>SERVICIOS EXTERNOS</small><b>Buscar y reconocer</b></span><em>HANAMI · v135.5</em></header>
+    <header><span><small>SERVICIOS EXTERNOS</small><b>Buscar y reconocer</b></span><em>HANAMI · v136</em></header>
     <nav aria-label="Servicios de música">
       <button data-music-service-tab="soundcloud" class="${ui.tab === "soundcloud" ? "active" : ""}">Buscar</button>
       <button data-music-service-tab="lyrics" class="${ui.tab === "lyrics" ? "active" : ""}">Letras</button>
@@ -806,14 +1057,29 @@ async function loadCapabilities() {
   } catch {}
 }
 
-async function searchSoundCloud(query = ui.query) {
+async function searchSoundCloud(query = ui.query, { urlOnly = false } = {}) {
   const value = compact(query);
+  if (urlOnly) {
+    let url;
+    try { url = new URL(value); } catch {}
+    const host = url?.hostname.toLowerCase().replace(/^(www|m)\./, "");
+    if (!url || url.protocol !== "https:" || url.username || url.password ||
+        !["soundcloud.com", "on.soundcloud.com"].includes(host)) {
+      ui.query = value;
+      ui.results = [];
+      ui.searchStatus = "Por ahora, pega una URL HTTPS de una canción de SoundCloud; no se aceptan búsquedas por nombre.";
+      pickerError = ui.searchStatus;
+      render();
+      return;
+    }
+  }
   if (!value) {
     ui.searchStatus = "Escribe una canción, artista o enlace de SoundCloud.";
     render();
     return;
   }
   ui.query = value;
+  const request = ++soundCloudSearchToken;
   ui.searchBusy = true;
   ui.recognitionStatus = "";
   ui.searchStatus = /^https:\/\//i.test(value)
@@ -823,17 +1089,21 @@ async function searchSoundCloud(query = ui.query) {
   try {
     const params = new URLSearchParams({ q: value });
     const data = await apiJson(`/api/music/soundcloud/search?${params}`);
+    if (request !== soundCloudSearchToken) return;
     ui.results = Array.isArray(data.results) ? data.results : [];
     ui.searchStatus = ui.results.length
       ? `${ui.results.length} resultado${ui.results.length === 1 ? "" : "s"} reproducible${ui.results.length === 1 ? "" : "s"} mediante SC.Widget.`
       : "No se encontraron pistas reproducibles para esta búsqueda.";
   } catch (error) {
+    if (request !== soundCloudSearchToken) return;
     ui.results = [];
     if (error?.kind === "soundcloud_not_configured") ui.searchConfigured = false;
     ui.searchStatus = error?.message || "No se pudo buscar en SoundCloud.";
   } finally {
-    ui.searchBusy = false;
-    render();
+    if (request === soundCloudSearchToken) {
+      ui.searchBusy = false;
+      render();
+    }
   }
 }
 
@@ -994,6 +1264,13 @@ function snapshot() {
     recognized: ui.recognized?.track || null,
     lyricsProvider: ui.lyrics?.provider || null,
     lyricsSynced: !!ui.lyrics?.synced,
+    picker: {
+      open: !!picker,
+      pageIndex: picker?.context?.pageIndex ?? null,
+      recentCount: recentTracks().length,
+      trendsCount: discoverySnapshot().trends.length,
+      trendsStatus: discoverySnapshot().trendsStatus,
+    },
     soundcloud: {
       ready: widgetState.ready,
       paused: widgetState.paused,
@@ -1020,9 +1297,13 @@ const service = {
   getPlaybackPosition,
   getPlaybackDuration,
   isPlaybackPaused,
+  openPicker,
+  closePicker,
 };
 
 if (typeof document !== "undefined") {
+  addEventListener("hanami-music-discovery-change", renderPicker);
+  addEventListener("resize", updatePickerNavigation);
   document.addEventListener("input", (event) => {
     const target = event.target;
     if (target.matches("[data-music-soundcloud-query]")) ui.query = target.value;

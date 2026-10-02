@@ -55,6 +55,8 @@ let search = "";
 let statusMessage = "";
 let savePositionAt = 0;
 let loadToken = 0;
+let playbackSessionId = "";
+let confirmedPlaybackSessionId = "";
 let externalServices = null;
 let resolveExternalServicesReady = null;
 const externalServicesReady = new Promise((resolve) => {
@@ -507,6 +509,7 @@ async function selectIndex(index, { autoplay = true, position = 0 } = {}) {
   if (!track) return false;
   const token = ++loadToken;
   active.pause();
+  playbackSessionId = crypto.randomUUID();
   active.volume = FIXED_VOLUME;
   statusMessage = "Cargando…";
   state.index = safe;
@@ -686,9 +689,18 @@ function toggleShuffle() {
   persist();
   emit("preference");
 }
+function confirmListening() {
+  if (!playing || !playbackSessionId || confirmedPlaybackSessionId === playbackSessionId) return;
+  confirmedPlaybackSessionId = playbackSessionId;
+  emit("listened");
+}
+
 function configureAudio(audio) {
   audio.preload = "auto";
   audio.volume = FIXED_VOLUME;
+  audio.addEventListener("playing", () => {
+    if (audio === active) confirmListening();
+  });
   audio.addEventListener("play", () => {
     if (audio !== active) return;
     playing = true;
@@ -903,6 +915,7 @@ function emit(reason) {
         reason,
         track: currentTrack(),
         playing,
+        sessionId: playbackSessionId,
         queue: [...state.queue],
         index: state.index,
       },
@@ -1166,6 +1179,8 @@ function updateExternalPlayback(update = {}) {
     }
     updatePositionState();
     syncUi();
+    // PLAY can be absent on SC.Widget.load(); confirmed progress is evidence too.
+    if (playing && state.position > 0.05) confirmListening();
     return true;
   }
   persist();
@@ -1252,6 +1267,7 @@ window.HanamiReaderMusic = {
   seek,
   remove: deleteTrack,
   registerExternalServices,
+  listTracks: () => tracks.map(({ blob, ...track }) => ({ ...track, hasBlob: !!blob })),
   snapshot: () => ({
     tracks: tracks.map(({ blob, ...track }) => ({ ...track, hasBlob: !!blob })),
     queue: [...state.queue],

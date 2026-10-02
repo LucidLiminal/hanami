@@ -10,7 +10,7 @@ for(const token of ['brand-knot','brand-mark','hanami-knot-logo.png','aria-label
 for(const token of ['--black:#170b0d','--paper:#fbf9d1','--purple:#9a3f3f','--acid:#e6cfa9','--red:#c1856d','/* v133 — crimson knot identity */'])assert(css.includes(token),token);
 assert(more.includes('mt-knot-logo')&&more.includes('hanami-knot-logo.png'));
 assert.equal(manifest.theme_color,'#170b0d');assert.equal(manifest.background_color,'#170b0d');
-assert(sw.includes("hanami-crimson-knot-v1355"));assert(sw.includes("'/assets/hanami-knot-logo.png'"));
-assert.equal(pkg.version,'5.9.5');assert(pkg.scripts.test.includes('node tests/theme-brand-v133.test.mjs'));
+assert(sw.includes("hanami-crimson-knot-v136"));assert(sw.includes("'/assets/hanami-knot-logo.png'"));
+assert.equal(pkg.version,'5.10.0');assert(pkg.scripts.test.includes('node tests/theme-brand-v133.test.mjs'));
 for(const asset of ['public/assets/hanami-knot-logo.png','public/assets/hanami-pwa-192.png','public/assets/hanami-pwa-512.png','public/assets/hanami-pwa-maskable-512.png','public/assets/hanami-apple-touch-180.png','public/favicon.ico'])assert((await stat(new URL(asset,root))).size>1000,asset);
 console.log('PASS: v133 applies the crimson-knot logo, four-color warm palette and cache-safe PWA assets');
