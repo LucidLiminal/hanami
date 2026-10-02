@@ -24,6 +24,12 @@ assert.equal(
   normalizeSoundCloudUrl("https://on.soundcloud.com/example"),
   "https://on.soundcloud.com/example",
 );
+assert.equal(
+  normalizeSoundCloudUrl(
+    "https://soundcloud.com/katyperry/last-friday-night-t-g-i-f?utm_source=clipboard&utm_medium=text&utm_campaign=social_sharing",
+  ),
+  "https://soundcloud.com/katyperry/last-friday-night-t-g-i-f",
+);
 assert.throws(
   () => normalizeSoundCloudUrl("https://soundcloud.com.evil.test/track"),
   /soundcloud\.com/i,
@@ -210,6 +216,16 @@ assert(!services.includes("script.crossOrigin"));
 assert(services.includes("if (existing) existing.remove();"));
 assert(services.includes('frame.allow = "autoplay; encrypted-media"'));
 assert(services.includes("armWidgetPlayProbe"));
+assert(services.includes("completeWidgetPending"));
+assert(services.includes("pollPendingSound"));
+assert(services.includes("canonicalSoundCloudUrl"));
+assert(services.includes("startWidgetStatePolling"));
+assert(services.includes("pollPendingSound(widgetState.pending);"));
+assert(
+  services.includes(
+    "completeWidgetPending({ playing: true, refreshDuration: false })",
+  ),
+);
 assert(
   services.includes(
     "SoundCloud no entregó audio para esta pista. Prueba otra versión o ábrela en SoundCloud.",
@@ -228,10 +244,10 @@ assert(player.includes("updateExternalPlayback"));
 assert(player.includes('metadata.provider === "soundcloud"'));
 assert(styles.includes(".hanami-soundcloud-engine"));
 assert(styles.includes(".reader-music-soundcloud-source"));
-assert(sw.includes("hanami-crimson-knot-v1352"));
+assert(sw.includes("hanami-crimson-knot-v1354"));
 const pkg = JSON.parse(packageText);
-assert.equal(pkg.version, "5.9.2");
+assert.equal(pkg.version, "5.9.4");
 
 console.log(
-  "PASS: v135.2 loads the official Widget API without forcing CORS, grants encrypted-media and detects tracks whose Widget stream stalls without proxying audio.",
+  "PASS: v135.4 confirms every load through getCurrentSound, strips tracking parameters and keeps playback state synchronized even when Widget events are missing.",
 );

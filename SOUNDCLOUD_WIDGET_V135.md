@@ -23,6 +23,30 @@ produce no progress. After eight seconds it reports a useful error and keeps
 the public SoundCloud link available so the reader can open the original or
 choose a different upload.
 
+## v135.3 queue transitions
+
+The Widget emits `READY` when the iframe is first created, but does not
+consistently emit it again after `SC.Widget.load()` changes the current track.
+Hanami now completes autoplay transitions on `PLAY` or `PLAY_PROGRESS`, and
+polls `getCurrentSound()` for paused loads. The existing timeout remains a real
+failure boundary instead of rejecting a new track that is already playing.
+Duration is refreshed on the first progress event so metadata from the previous
+queue item cannot leak into the next one.
+
+## v135.4 event-independent confirmation
+
+Some Chromium/Edge sessions load the correct sound and expose its duration
+while the listener registered by Hanami receives no `READY`, `PLAY` or
+`PLAY_PROGRESS` event. Hanami now polls `getCurrentSound()` for every load,
+including autoplay. When the returned SoundCloud ID or canonical permalink
+matches the pending track, Hanami marks it ready and calls `play()` directly.
+Position, paused state, duration and queue completion also have a callback-based
+polling fallback, so missing events cannot leave the UI or automatic next-track
+behavior stuck.
+
+Shared-link parameters such as `utm_source`, `utm_medium`, `utm_campaign`,
+`si` and `ref` are removed before the iframe URL is built.
+
 ## Playback
 
 The browser loads `https://w.soundcloud.com/player/api.js` and creates one

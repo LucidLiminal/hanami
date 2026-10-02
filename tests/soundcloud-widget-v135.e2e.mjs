@@ -36,6 +36,8 @@ await context.addInitScript(() => {
     let position = 0;
     const duration = 185_000;
     let paused = true;
+    let currentId = "123456";
+    let currentUrl = "https://soundcloud.com/hanami/crimson-reader";
     let progressTimer = 0;
     const emit = (name, detail = {}) => {
       for (const listener of listeners.get(name) || []) listener(detail);
@@ -65,9 +67,10 @@ await context.addInitScript(() => {
       },
       load(url, options = {}) {
         telemetry.loads.push({ url, options });
+        currentUrl = url;
+        currentId = url.includes("second-reader") ? "654321" : "123456";
         position = 0;
         paused = !options.auto_play;
-        ready();
       },
       play() {
         telemetry.plays++;
@@ -100,8 +103,9 @@ await context.addInitScript(() => {
       },
       getCurrentSound(callback) {
         callback({
+          id: currentId,
           title: "Crimson Reader",
-          permalink_url: "https://soundcloud.com/hanami/crimson-reader",
+          permalink_url: currentUrl,
         });
       },
     };
@@ -302,6 +306,42 @@ assert.equal(snapshot.external.soundcloud.ready, true);
 await page.locator(".reader-music [data-music-toggle]").click();
 await page.waitForFunction(
   () => window.HanamiReaderMusic.snapshot().playing,
+);
+
+const transitioned = await page.evaluate(async () => {
+  const track = await window.HanamiReaderMusic.addUrl(
+    "https://soundcloud.com/hanami/second-reader",
+    {
+      provider: "soundcloud",
+      soundcloudId: "654321",
+      soundcloudUrn: "soundcloud:tracks:654321",
+      title: "Second Reader",
+      artist: "Hanami",
+      duration: 185,
+      permalinkUrl: "https://soundcloud.com/hanami/second-reader",
+      userUrl: "https://soundcloud.com/hanami",
+    },
+  );
+  const played = await window.HanamiReaderMusic.play(track.id);
+  return { id: track.id, played };
+});
+assert.equal(transitioned.played, true);
+await page.waitForFunction(
+  (id) => {
+    const state = window.HanamiReaderMusic.snapshot();
+    return (
+      state.current === id &&
+      state.playing &&
+      state.external?.soundcloud?.ready &&
+      state.external.soundcloud.position > 0
+    );
+  },
+  transitioned.id,
+);
+assert.equal(
+  (await page.evaluate(() => window.HanamiReaderMusic.snapshot())).external
+    .soundcloud.playbackError,
+  "",
 );
 
 assert.deepEqual(errors, []);

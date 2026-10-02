@@ -1,6 +1,6 @@
 {
   "name": "hanami-olympus-vercel",
-  "version": "5.9.2",
+  "version": "5.9.4",
   "private": true,
   "type": "module",
   "scripts": {

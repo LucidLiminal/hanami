@@ -54,6 +54,11 @@ const widgetState = {
   playProbeToken: 0,
   playProbeProgress: false,
   pauseRequested: false,
+  durationRefreshPending: false,
+  statePollTimer: 0,
+  statePollToken: 0,
+  statePollPaused: null,
+  statePollEnded: false,
 };
 
 function readLyricsCache() {
@@ -226,6 +231,7 @@ function cancelWidgetPending(result = false) {
   const pending = widgetState.pending;
   if (!pending) return;
   clearTimeout(pending.timer);
+  clearTimeout(pending.pollTimer);
   widgetState.pending = null;
   pending.resolve(result);
 }
@@ -238,6 +244,175 @@ function widgetUpdate(update) {
     playing: !widgetState.paused,
     ...update,
   });
+}
+
+function comparableSoundCloudUrl(value) {
+  try {
+    const url = new URL(String(value || ""));
+    return `${url.hostname.replace(/^(?:www\.|m\.)/, "")}${url.pathname.replace(/\/+$/, "")}`;
+  } catch {
+    return "";
+  }
+}
+
+function canonicalSoundCloudUrl(value) {
+  try {
+    const url = new URL(String(value || ""));
+    url.hash = "";
+    for (const parameter of [...url.searchParams.keys()]) {
+      if (
+        parameter === "si" ||
+        parameter === "ref" ||
+        parameter.startsWith("utm_")
+      )
+        url.searchParams.delete(parameter);
+    }
+    return url.href;
+  } catch {
+    return String(value || "");
+  }
+}
+
+function pendingMatchesSound(pending, sound) {
+  if (!pending || !sound) return false;
+  if (
+    pending.soundcloudId &&
+    String(sound.id || "") === String(pending.soundcloudId)
+  )
+    return true;
+  return (
+    comparableSoundCloudUrl(sound.permalink_url) ===
+    comparableSoundCloudUrl(pending.permalinkUrl)
+  );
+}
+
+function refreshWidgetDuration() {
+  widgetState.widget?.getDuration?.((milliseconds) => {
+    const duration = Math.max(0, Number(milliseconds) || 0) / 1_000;
+    if (duration) widgetState.duration = duration;
+    widgetUpdate({ reason: "ready" });
+  });
+}
+
+function completeWidgetPending({
+  playing = false,
+  startPlayback = false,
+  refreshDuration = true,
+} = {}) {
+  const pending = widgetState.pending;
+  if (!pending) return false;
+  clearTimeout(pending.timer);
+  clearTimeout(pending.pollTimer);
+  widgetState.pending = null;
+  widgetState.ready = true;
+  widgetState.paused = !playing;
+  widgetState.widget?.setVolume?.(
+    Math.round(clamp(pending.volume ?? adapter?.getVolume?.() ?? 0.82, 0, 1) * 100),
+  );
+  if (refreshDuration) refreshWidgetDuration();
+  else widgetState.durationRefreshPending = true;
+  const position = Math.max(0, Number(pending.position) || 0);
+  if (position) {
+    widgetState.widget?.seekTo?.(position * 1_000);
+    widgetState.position = position;
+  }
+  if (startPlayback && pending.autoplay) {
+    widgetState.paused = false;
+    armWidgetPlayProbe();
+    widgetState.widget?.play?.();
+    playing = true;
+  }
+  if (playing) startWidgetStatePolling();
+  pending.resolve({
+    ready: true,
+    playing,
+    duration: widgetState.duration,
+  });
+  return true;
+}
+
+function pollPendingSound(pending) {
+  const check = () => {
+    if (widgetState.pending !== pending) return;
+    let answered = false;
+    pending.pollTimer = setTimeout(() => {
+      if (!answered && widgetState.pending === pending) check();
+    }, 420);
+    widgetState.widget?.getCurrentSound?.((sound) => {
+      answered = true;
+      clearTimeout(pending.pollTimer);
+      if (widgetState.pending !== pending) return;
+      if (pendingMatchesSound(pending, sound)) {
+        completeWidgetPending({
+          playing: !!pending.autoplay,
+          startPlayback: !!pending.autoplay,
+        });
+        return;
+      }
+      pending.pollTimer = setTimeout(check, 160);
+    });
+  };
+  pending.pollTimer = setTimeout(check, 80);
+}
+
+function stopWidgetStatePolling() {
+  clearTimeout(widgetState.statePollTimer);
+  widgetState.statePollTimer = 0;
+  widgetState.statePollToken++;
+  widgetState.statePollPaused = null;
+  widgetState.statePollEnded = false;
+}
+
+function startWidgetStatePolling() {
+  stopWidgetStatePolling();
+  const token = widgetState.statePollToken;
+  const tick = () => {
+    if (token !== widgetState.statePollToken || !widgetState.widget) return;
+    widgetState.widget.getPosition?.((milliseconds) => {
+      if (token !== widgetState.statePollToken) return;
+      const position = Math.max(0, Number(milliseconds) || 0) / 1_000;
+      if (Number.isFinite(position)) widgetState.position = position;
+      widgetState.widget.getDuration?.((durationMilliseconds) => {
+        if (token !== widgetState.statePollToken) return;
+        const duration =
+          Math.max(0, Number(durationMilliseconds) || 0) / 1_000;
+        if (duration) widgetState.duration = duration;
+      });
+      widgetState.widget.isPaused?.((paused) => {
+        if (token !== widgetState.statePollToken) return;
+        const isPaused = !!paused;
+        const ended =
+          isPaused &&
+          widgetState.duration > 0 &&
+          widgetState.position >= widgetState.duration - 0.75;
+        if (ended && !widgetState.statePollEnded) {
+          widgetState.statePollEnded = true;
+          widgetState.paused = true;
+          widgetUpdate({
+            reason: "finish",
+            playing: false,
+            ended: true,
+          });
+          stopWidgetStatePolling();
+          return;
+        }
+        if (
+          !isPaused ||
+          widgetState.statePollPaused === null ||
+          widgetState.statePollPaused !== isPaused
+        ) {
+          widgetState.paused = isPaused;
+          widgetUpdate({
+            reason: isPaused ? "pause" : "progress",
+            playing: !isPaused,
+          });
+        }
+        widgetState.statePollPaused = isPaused;
+      });
+    });
+    widgetState.statePollTimer = setTimeout(tick, 900);
+  };
+  widgetState.statePollTimer = setTimeout(tick, 700);
 }
 
 function clearWidgetPlayProbe() {
@@ -269,6 +444,8 @@ function armWidgetPlayProbe() {
       if (position > initialPosition + 0.2) {
         widgetState.position = position;
         clearWidgetPlayProbe();
+        startWidgetStatePolling();
+        widgetUpdate({ reason: "progress", playing: true });
         return;
       }
       clearWidgetPlayProbe();
@@ -292,43 +469,38 @@ function bindWidgetEvents(widget) {
   widget.bind(events.READY, () => {
     const pending = widgetState.pending;
     widgetState.ready = true;
-    widget.setVolume(
-      Math.round(clamp(pending?.volume ?? adapter?.getVolume?.() ?? 0.82, 0, 1) * 100),
-    );
-    widget.getDuration((milliseconds) => {
-      widgetState.duration = Math.max(0, Number(milliseconds) || 0) / 1_000;
-      widgetUpdate({ reason: "ready" });
-    });
-    const position = Math.max(0, Number(pending?.position) || 0);
-    if (position) {
-      widget.seekTo(position * 1_000);
-      widgetState.position = position;
-    }
-    if (pending?.autoplay) {
-      widgetState.paused = false;
-      armWidgetPlayProbe();
-      widget.play();
-    } else widgetState.paused = true;
-    if (pending) {
-      clearTimeout(pending.timer);
-      widgetState.pending = null;
-      pending.resolve({
-        ready: true,
+    if (pending)
+      completeWidgetPending({
         playing: !!pending.autoplay,
-        duration: widgetState.duration,
+        startPlayback: true,
       });
-    }
+    else
+      refreshWidgetDuration();
   });
   widget.bind(events.PLAY, () => {
+    const transitioning = !!widgetState.pending;
+    if (transitioning)
+      completeWidgetPending({ playing: true, refreshDuration: false });
     widgetState.paused = false;
+    if (transitioning && !widgetState.playProbeTimer) armWidgetPlayProbe();
+    startWidgetStatePolling();
     widgetUpdate({ reason: "play", playing: true });
   });
   widget.bind(events.PAUSE, () => {
     widgetState.paused = true;
-    if (widgetState.pauseRequested) clearWidgetPlayProbe();
+    if (widgetState.pauseRequested) {
+      clearWidgetPlayProbe();
+      stopWidgetStatePolling();
+    }
     widgetUpdate({ reason: "pause", playing: false });
   });
   widget.bind(events.PLAY_PROGRESS, (progress = {}) => {
+    if (widgetState.pending)
+      completeWidgetPending({ playing: true, refreshDuration: false });
+    if (widgetState.durationRefreshPending) {
+      widgetState.durationRefreshPending = false;
+      refreshWidgetDuration();
+    }
     widgetState.playProbeProgress = true;
     clearWidgetPlayProbe();
     ui.playbackError = "";
@@ -338,12 +510,14 @@ function bindWidgetEvents(widget) {
   });
   widget.bind(events.FINISH, () => {
     clearWidgetPlayProbe();
+    stopWidgetStatePolling();
     widgetState.paused = true;
     widgetState.position = widgetState.duration;
     widgetUpdate({ reason: "finish", playing: false, ended: true });
   });
   widget.bind(events.ERROR, () => {
     clearWidgetPlayProbe();
+    stopWidgetStatePolling();
     widgetState.paused = true;
     const message =
       "SoundCloud no pudo reproducir esta pista. Puede haber sido retirada o no permitir inserción.";
@@ -403,15 +577,19 @@ async function loadPlayback(
 ) {
   if (!handlesPlayback(track))
     throw new Error("La pista no contiene un enlace válido de SoundCloud.");
-  const permalinkUrl = track.permalinkUrl || track.url;
+  const permalinkUrl = canonicalSoundCloudUrl(
+    track.permalinkUrl || track.url,
+  );
   await loadSoundCloudWidgetApi();
   cancelWidgetPending(false);
   clearWidgetPlayProbe();
+  stopWidgetStatePolling();
   const token = ++widgetState.token;
   widgetState.ready = false;
   widgetState.paused = !autoplay;
   widgetState.position = Math.max(0, Number(position) || 0);
   widgetState.duration = Math.max(0, Number(track.duration) || 0);
+  widgetState.durationRefreshPending = false;
   widgetState.permalinkUrl = permalinkUrl;
   const promise = new Promise((resolve, reject) => {
     widgetState.pending = {
@@ -421,6 +599,9 @@ async function loadPlayback(
       position,
       autoplay,
       volume,
+      permalinkUrl,
+      soundcloudId: track.soundcloudId || "",
+      pollTimer: 0,
       timer: setTimeout(() => {
         if (widgetState.pending?.token !== token) return;
         widgetState.pending = null;
@@ -429,7 +610,7 @@ async function loadPlayback(
     };
   });
   if (!widgetState.widget) createWidget(permalinkUrl, autoplay);
-  else
+  else {
     widgetState.widget.load(permalinkUrl, {
       auto_play: autoplay,
       show_artwork: false,
@@ -441,14 +622,19 @@ async function loadPlayback(
       download: false,
       visual: false,
     });
+  }
+  pollPendingSound(widgetState.pending);
   return promise;
 }
 
 async function togglePlayback(track, { position = 0, volume = 0.82 } = {}) {
+  const requestedPermalink = canonicalSoundCloudUrl(
+    track?.permalinkUrl || track?.url,
+  );
   if (
     !widgetState.widget ||
     !widgetState.ready ||
-    widgetState.permalinkUrl !== (track?.permalinkUrl || track?.url)
+    widgetState.permalinkUrl !== requestedPermalink
   ) {
     await loadPlayback(track, { position, autoplay: true, volume });
     return { playing: true };
@@ -457,6 +643,7 @@ async function togglePlayback(track, { position = 0, volume = 0.82 } = {}) {
     widgetState.paused = false;
     armWidgetPlayProbe();
     widgetState.widget.play();
+    startWidgetStatePolling();
     return { playing: true };
   }
   widgetState.paused = true;
@@ -468,6 +655,7 @@ function pausePlayback() {
   widgetState.pauseRequested = true;
   widgetState.playProbeToken++;
   clearWidgetPlayProbe();
+  stopWidgetStatePolling();
   widgetState.paused = true;
   widgetState.widget?.pause?.();
 }
@@ -640,7 +828,7 @@ function equalizerPanelHtml(track) {
 
 function panelHtml({ track } = {}) {
   return `<section class="reader-music-services" data-music-services>
-    <header><span><small>SERVICIOS EXTERNOS</small><b>Buscar, reconocer y ajustar</b></span><em>HANAMI · v135.2</em></header>
+    <header><span><small>SERVICIOS EXTERNOS</small><b>Buscar, reconocer y ajustar</b></span><em>HANAMI · v135.4</em></header>
     <nav aria-label="Servicios de música">
       <button data-music-service-tab="soundcloud" class="${ui.tab === "soundcloud" ? "active" : ""}">Buscar</button>
       <button data-music-service-tab="lyrics" class="${ui.tab === "lyrics" ? "active" : ""}">Letras</button>
