@@ -1,7 +1,10 @@
+import { followsReadingPins, chooseVisiblePin } from "./reader-music-policy.js";
+import { isRemoteMusicGroup, queueSharedPin, sharedBindingsFor, sharedMusicSnapshot, scheduleGroupPins, hasPendingMusicPin } from "./reader-music-group.js";
 /*
- * Local listening history and page instances; only public SoundCloud track
- * activity is sent to the optional community backend. No reading context,
- * local files, comments or individual history are published.
+ * Personal listening history stays local. Community trends receive only public
+ * SoundCloud activity, never reading coordinates or comments. Page coordinates
+ * and public track metadata are shared separately with authorized members of
+ * the selected private reading group; local audio files are never uploaded.
  */
 const STORAGE_KEY = "hanami-reader-music-discovery-v1";
 const MAX_RECENT = 30;
@@ -68,9 +71,49 @@ function save() {
     return false;
   }
 }
-function scope(context = {}) {
-  return { ...context, groupId: context.groupId || window.HanamiReadingGroups?.activeId?.() || "local-room" };
+let libraryText = null;
+let libraryItems = [];
+function savedLibrary() {
+  try {
+    if (typeof localStorage === "undefined") return [];
+    const text = localStorage.getItem("hanami-library") || "[]";
+    if (text !== libraryText) {
+      libraryText = text;
+      const parsed = JSON.parse(text);
+      libraryItems = Array.isArray(parsed) ? parsed : [];
+    }
+    return libraryItems;
+  } catch { return []; }
 }
+export function canonicalLibraryPageKey(key, library = []) {
+  try {
+    const parts = JSON.parse(key);
+    if (!Array.isArray(parts) || parts.length !== 5) return key;
+    const work = library.find((item) => item.sourceId === parts[1] && item.id === parts[2] && typeof item.url === "string" && item.url);
+    if (!work) return key;
+    return JSON.stringify([parts[0], parts[1], work.url, parts[3], parts[4]]);
+  } catch { return key; }
+}
+function migrateLegacyMusicBindings() {
+  const original = state.bindings;
+  let changed = false;
+  state.bindings = original.map((binding) => {
+    if (binding.shareState && binding.shareState !== "local") return binding;
+    const pageKey = canonicalLibraryPageKey(binding.pageKey, savedLibrary());
+    if (pageKey === binding.pageKey) return binding;
+    changed = true;
+    return { ...binding, pageKey };
+  });
+  if (changed && !save()) state.bindings = original;
+}
+function scope(context = {}) {
+  // Library readers historically supplied a device-local mangaId but no URL.
+  // Resolve music's identity only; leave comment and progress keys unchanged.
+  const work = !context.mangaUrl && context.mangaId ? savedLibrary().find((item) =>
+    item.id === context.mangaId && item.sourceId === context.sourceId) : null;
+  return { ...context, mangaUrl: context.mangaUrl || work?.url || "", groupId: context.groupId || window.HanamiReadingGroups?.activeId?.() || "local-room" };
+}
+migrateLegacyMusicBindings();
 function publicMetadata(track) {
   const url = canonicalMusicUrl(track.permalinkUrl || track.url);
   if (!url || track.provider !== "soundcloud") return null;
@@ -129,12 +172,18 @@ export function assignTrack(track, context) {
   const pageKey = instancePageKey(scoped);
   const x = Math.max(0, Math.min(1, Number(scoped.x) || 0));
   const y = Math.max(0, Math.min(1, Number(scoped.y) || 0));
-  const previous = state.bindings.find((item) => item.pageKey === pageKey && Math.hypot(item.x - x, item.y - y) < 0.03);
+  const connection = window.HanamiSocialSync?.state?.() || {};
+  const actorId = connection.user?.id || "";
+  const metadata = publicMetadata(track);
+  const shouldShare = isRemoteMusicGroup(scoped.groupId) && metadata && connection.configured && connection.authenticated && !incognito();
+  const previous = state.bindings.find((item) => item.pageKey === pageKey && (!item.actorId || item.actorId === actorId) && !item.deletedAt && Math.hypot(item.x - x, item.y - y) < 0.03);
   if (!previous && state.bindings.length >= MAX_BINDINGS)
     throw new Error("Has alcanzado el límite de pistas guardadas en páginas.");
   const binding = {
     id: previous?.id || crypto.randomUUID(),
-    pageKey, x, y,
+    pageKey, x, y, groupId: scoped.groupId, actorId,
+    revision: (Number(previous?.revision) || 0) + 1,
+    shareState: shouldShare ? "pending" : "local",
     trackId: track.id,
     track: {
       id: track.id, title: track.title, artist: track.artist, artwork: track.artwork || "",
@@ -151,12 +200,17 @@ export function assignTrack(track, context) {
     throw new Error(syncError);
   }
   if (!previous || previous.trackId !== track.id) recordActivity(track, "use");
+  if (shouldShare && !queueSharedPin(binding, { ...metadata, soundcloudId: track.soundcloudId || "" })) {
+    binding.shareState = "local";
+    save();
+  }
   renderAll();
   emit();
   return binding;
 }
 
 export async function flushActivity() {
+  if (incognito()) return;
   if (syncing || (typeof navigator !== "undefined" && navigator.onLine === false)) return;
   const social = window.HanamiSocialSync;
   await social?.ready;
@@ -169,6 +223,7 @@ export async function flushActivity() {
   try {
     let item;
     while ((item = state.pending.find((entry) => entry.actorId === identity.user?.id))) {
+      if (incognito()) break;
       await social.recordMusicActivity(item);
       state.pending = state.pending.filter((entry) => entry.id !== item.id);
       save();
@@ -221,57 +276,227 @@ export async function loadTrends() {
 }
 
 export function discoverySnapshot() {
-  return { recent: recentTracks(), trends: [...trends], trendsStatus, trendsMessage, pendingCount: state.pending.length, syncError };
+  return { recent: recentTracks(), trends: [...trends], trendsStatus, trendsMessage, pendingCount: state.pending.length, syncError, shared: sharedMusicSnapshot(), bindings: state.bindings.map((item) => ({ ...item, track: { ...item.track } })) };
 }
 
 function figureContext(figure) {
   try { return scope(JSON.parse(figure.dataset.commentContext || "{}")); }
   catch { return scope({}); }
 }
+export function sharedPageKeys(groupId = window.HanamiReadingGroups?.activeId?.() || "local-room") {
+  return [...new Set([...document.querySelectorAll("#readerViewport figure[data-comment-context]")].map((figure) =>
+    instancePageKey({ ...figureContext(figure), groupId }),
+  ))];
+}
+function bindingsForPage(pageKey) {
+  const actor = window.HanamiSocialSync?.state?.().user?.id || "";
+  const sharedState = sharedMusicSnapshot();
+  const local = state.bindings.filter((item) => item.pageKey === pageKey &&
+    (!item.actorId || !isRemoteMusicGroup(item.groupId) || item.actorId === actor) &&
+    !(item.shareState === "shared" && sharedState.readDenied));
+  return [...new Map([...sharedBindingsFor(pageKey), ...local].map((item) => [item.id, item])).values()].filter((item) => !item.deletedAt);
+}
 function renderFigure(figure) {
   if (!figure?.isConnected) return;
-  figure.querySelector(".reader-music-anchor-layer")?.remove();
-  const bindings = state.bindings.filter((item) => item.pageKey === instancePageKey(figureContext(figure)));
+  const bindings = bindingsForPage(instancePageKey(figureContext(figure)));
   const image = figure.querySelector("img,iframe");
-  if (!bindings.length || !image) return;
+  if (!bindings.length || !image) { figure.querySelector(".reader-music-anchor-layer")?.remove(); delete figure.dataset.musicSignature; return; }
   const rect = image.getBoundingClientRect(), parent = figure.getBoundingClientRect();
   if (!rect.width || !rect.height) return;
+  const signature = JSON.stringify([rect.width, rect.height, rect.left - parent.left, rect.top - parent.top,
+    bindings.map((item) => [item.id, item.x, item.y, item.track.title, item.track.artist, item.shareState])]);
+  if (figure.dataset.musicSignature === signature && figure.querySelector(".reader-music-anchor-layer")) return;
+  figure.dataset.musicSignature = signature;
+  const focused = figure.contains(document.activeElement) ? document.activeElement.dataset.readerMusicPin : "";
+  figure.querySelector(".reader-music-anchor-layer")?.remove();
   const layer = document.createElement("div");
   layer.className = "reader-music-anchor-layer";
   layer.setAttribute("aria-label", "Pistas de esta página");
   layer.innerHTML = bindings.map((item) => {
     const left = rect.left - parent.left + Math.max(24, Math.min(rect.width - 24, item.x * rect.width));
     const top = rect.top - parent.top + Math.max(24, Math.min(rect.height - 24, item.y * rect.height));
-    return `<button type="button" class="reader-music-pin" data-reader-music-pin="${esc(item.id)}" style="left:${left}px;top:${top}px" aria-label="Reproducir o pausar ${esc(item.track.title)}" title="${esc(item.track.title)} · ${esc(item.track.artist)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l12-2v13M9 9l12-2"/><ellipse cx="6" cy="18" rx="3" ry="3"/><ellipse cx="18" cy="16" rx="3" ry="3"/></svg></button>`;
+    return `<button type="button" class="reader-music-pin" data-reader-music-pin="${esc(item.id)}" data-share-state="${esc(item.shareState || "local")}" style="left:${left}px;top:${top}px" aria-label="Reproducir o pausar ${esc(item.track.title)}${item.shareState === "shared" ? ", compartida en el grupo" : ""}" aria-pressed="false" title="${esc(item.track.title)} · ${esc(item.track.artist)}${item.shareState === "pending" ? " · Pendiente de compartir" : item.shareState === "shared" ? " · Grupo de lectura" : " · Este dispositivo"}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l12-2v13M9 9l12-2"/><ellipse cx="6" cy="18" rx="3" ry="3"/><ellipse cx="18" cy="16" rx="3" ry="3"/></svg></button>`;
   }).join("");
   figure.append(layer);
+  if (focused) layer.querySelector(`[data-reader-music-pin="${CSS.escape(focused)}"]`)?.focus({ preventScroll: true });
 }
 function renderAll() {
   if (typeof document === "undefined") return;
   document.querySelectorAll("#readerViewport figure[data-comment-context]").forEach(renderFigure);
+  syncPinState();
+  scheduleGroupPins();
+  scheduleFollow();
 }
-async function playBinding(id) {
-  const binding = state.bindings.find((item) => item.id === id);
+function orderedBindings() {
+  const result = [];
+  document.querySelectorAll("#readerViewport figure[data-comment-context]").forEach((figure) => {
+    bindingsForPage(instancePageKey(figureContext(figure))).sort((a, b) => a.y - b.y || a.x - b.x || a.id.localeCompare(b.id)).forEach((binding) => result.push(binding));
+  });
+  return result;
+}
+async function resolveBindingTrack(binding) {
   const music = window.HanamiReaderMusic;
-  if (!binding || !music) return;
+  await music.ready;
+  let track = music.listTracks().find((item) => item.id === binding.trackId ||
+    !!canonicalMusicUrl(binding.track.permalinkUrl || binding.track.url) && canonicalMusicUrl(item.permalinkUrl || item.url) === canonicalMusicUrl(binding.track.permalinkUrl || binding.track.url));
+  if (!track && binding.track.url) track = await music.addUrl(binding.track.url, binding.track);
+  if (!track) throw new Error("Esta pista local ya no está en tu biblioteca de música.");
+  return track;
+}
+export async function prepareReadingQueue() {
+  const ids = [];
+  for (const binding of orderedBindings()) {
+    try { const track = await resolveBindingTrack(binding); if (!ids.includes(track.id)) ids.push(track.id); }
+    catch { /* Missing local files cannot be re-created on another device. */ }
+  }
+  return ids;
+}
+let followActiveId = "";
+let followScope = "";
+let lastTop = 0;
+let direction = 1;
+let visibleIds = new Set();
+let followFrame = 0;
+let followRequest = 0;
+let lastMode = "pin-loop";
+function syncPinState() {
+  const current = window.HanamiReaderMusic?.snapshot?.();
+  document.querySelectorAll("[data-reader-music-pin]").forEach((button) => {
+    const on = !!current?.playing && current.pin?.id === button.dataset.readerMusicPin;
+    button.classList.toggle("playing", on);
+    button.setAttribute("aria-pressed", String(on));
+  });
+}
+function scheduleFollow() {
+  if (followFrame) return;
+  followFrame = requestAnimationFrame(() => { followFrame = 0; void followVisiblePins(); });
+}
+async function playBinding(id, automatic = false, request = 0) {
+  const binding = orderedBindings().find((item) => item.id === id);
+  const music = window.HanamiReaderMusic;
+  if (!binding || !music) return false;
   try {
-    await music.ready;
-    let track = music.snapshot().tracks.find((item) => item.id === binding.trackId);
-    if (!track && binding.track.url) track = await music.addUrl(binding.track.url, binding.track);
-    if (!track) throw new Error("Esta pista local ya no está en tu biblioteca de música.");
+    const track = await resolveBindingTrack(binding);
+    if (automatic && request !== followRequest) return false;
     const before = music.snapshot();
-    const sameTrack = before.current === track.id;
-    const started = sameTrack ? await music.toggle() : await music.play(track.id);
-    if (started === false && !(sameTrack && before.playing))
+    const samePin = before.current === track.id && before.pin?.id === binding.id;
+    const queue = orderedBindings().map((item) => music.listTracks().find((entry) => entry.id === item.trackId ||
+      !!canonicalMusicUrl(item.track.url) && canonicalMusicUrl(entry.permalinkUrl || entry.url) === canonicalMusicUrl(item.track.url))?.id).filter(Boolean);
+    const started = samePin && !automatic ? await music.toggle() :
+      await music.playPin(track.id, { id: binding.id, groupId: binding.groupId, title: track.title }, { automatic, queue });
+    if (!automatic && started === false && !(samePin && before.playing))
       window.HanamiToast?.("La pista está guardada, pero no se pudo iniciar. Abre el reproductor para ver el error.");
-  } catch (error) { window.HanamiToast?.(error.message); }
+    return started;
+  } catch (error) { if (!automatic) window.HanamiToast?.(error.message); return false; }
+}
+async function followVisiblePins() {
+  const viewport = document.querySelector("#readerViewport");
+  const reader = document.querySelector("#reader");
+  const music = window.HanamiReaderMusic;
+  if (!viewport || !reader || reader.classList.contains("hidden") || viewport.inert || !music) return;
+  if (window.HanamiScreens && !window.HanamiScreens.is("reader")) return;
+  const current = music.snapshot();
+  if (!followsReadingPins(current.readingMode) || current.readingSuspended) return;
+  const first = viewport.querySelector("figure[data-comment-context]");
+  const context = first ? figureContext(first) : {};
+  const nextScope = JSON.stringify([context.groupId, context.sourceId, context.mangaUrl || context.mangaId]);
+  const resetScope = nextScope !== followScope;
+  if (resetScope) { followScope = nextScope; followActiveId = current.pin?.groupId === context.groupId ? current.pin.id : ""; visibleIds.clear(); lastTop = viewport.scrollTop; direction = 1; followRequest++; }
+  if (Math.abs(viewport.scrollTop - lastTop) > 1) direction = viewport.scrollTop > lastTop ? 1 : -1;
+  lastTop = viewport.scrollTop;
+  const bounds = viewport.getBoundingClientRect();
+  const bindings = orderedBindings();
+  const pins = bindings.map((binding, order) => {
+    const button = viewport.querySelector(`[data-reader-music-pin="${CSS.escape(binding.id)}"]`);
+    const rect = button?.getBoundingClientRect();
+    const visible = !!rect && rect.width > 0 && rect.top + rect.height / 2 >= bounds.top + 8 &&
+      rect.top + rect.height / 2 <= bounds.bottom - 8 && rect.left + rect.width / 2 >= bounds.left &&
+      rect.left + rect.width / 2 <= bounds.right;
+    return { id: binding.id, order, visible, available: !!binding.track.url || music.listTracks().some((track) => track.id === binding.trackId) };
+  });
+  if (!pins.some((pin) => pin.id === followActiveId)) followActiveId = "";
+  const nextVisible = new Set(pins.filter((pin) => pin.visible).map((pin) => pin.id));
+  if (resetScope && followActiveId && current.playing) visibleIds = new Set(nextVisible);
+  const candidates = pins.map((pin) => ({ ...pin, visible: pin.visible && (!followActiveId || !visibleIds.has(pin.id)) }));
+  visibleIds = nextVisible;
+  const next = chooseVisiblePin(candidates, followActiveId, direction);
+  if (!next) return;
+  followActiveId = next.id;
+  const request = ++followRequest;
+  await playBinding(next.id, true, request);
+}
+export function publishCurrentReading() {
+  const groupId = window.HanamiReadingGroups?.activeId?.() || "local-room";
+  const connection = window.HanamiSocialSync?.state?.();
+  if (incognito()) throw new Error("La lectura de incógnito no publica pistas.");
+  if (!isRemoteMusicGroup(groupId) || !connection?.configured || !connection.authenticated) throw new Error("Selecciona un grupo compartido y conecta tu cuenta de Hanami.");
+  const keys = new Set(sharedPageKeys(groupId).map((key) => JSON.stringify(JSON.parse(key).slice(1))));
+  const candidates = [...state.bindings].filter((binding) => {
+    try { return keys.has(JSON.stringify(JSON.parse(binding.pageKey).slice(1))) && (!binding.actorId || binding.actorId === connection.user.id) && !binding.deletedAt; }
+    catch { return false; }
+  });
+  let count = 0;
+  for (const binding of candidates) {
+    if (!publicMetadata(binding.track) || binding.groupId === groupId && ["shared", "pending"].includes(binding.shareState)) continue;
+    const page = JSON.parse(binding.pageKey);
+    assignTrack(binding.track, { groupId, sourceId: page[1], mangaUrl: page[2], chapterUrl: page[3], pageIndex: page[4], x: binding.x, y: binding.y });
+    count++;
+  }
+  window.HanamiToast?.(count ? `${count} pista${count === 1 ? "" : "s"} preparada${count === 1 ? "" : "s"} para compartir.` : "No hay nuevas pistas públicas de SoundCloud para compartir en esta lectura.");
+  return count;
+}
+export function removeBinding(id) {
+  const binding = orderedBindings().find((item) => item.id === id) || state.bindings.find((item) => item.id === id);
+  if (!binding) return false;
+  if (binding.shareState === "shared" || binding.shareState === "pending") {
+    const deleted = { ...binding, actorId: window.HanamiSocialSync?.state?.().user?.id || "", revision: (Number(binding.revision) || 0) + 1, deletedAt: Date.now(), shareState: "pending" };
+    const old = state.bindings;
+    state.bindings = [...state.bindings.filter((item) => item.id !== id), deleted];
+    if (!save() || !queueSharedPin(deleted, null, "delete")) { state.bindings = old; save(); throw new Error("No se pudo preparar la eliminación de la pista compartida."); }
+  } else { state.bindings = state.bindings.filter((item) => item.id !== id); save(); }
+  renderAll(); emit(); return true;
 }
 
 if (typeof window !== "undefined" && typeof document !== "undefined") {
   addEventListener("hanami-reader-music-change", (event) => {
     const { track, playing, reason, sessionId } = event.detail || {};
     if (playing && reason === "listened") noteListen(track, sessionId);
+    const current = window.HanamiReaderMusic?.snapshot?.();
+    if (reason === "pin" && current?.pin?.id) {
+      if (followActiveId !== current.pin.id) followRequest++;
+      followActiveId = current.pin.id;
+    }
+    if (current?.readingMode !== lastMode) { lastMode = current.readingMode; visibleIds.clear(); if (followsReadingPins(lastMode)) followActiveId = current.pin?.id || ""; scheduleFollow(); }
+    syncPinState();
   });
+  addEventListener("hanami-music-pin-sync", () => {
+    const shared = sharedMusicSnapshot();
+    const current = window.HanamiReaderMusic?.snapshot?.();
+    if (shared.readDenied) {
+      followRequest++;
+      window.HanamiReaderMusic?.stopPinPlayback?.(shared.groupId, "Ya no tienes acceso a la música de este grupo.");
+    } else if (isRemoteMusicGroup(current?.pin?.groupId) && current.pin.viewerId !== (window.HanamiSocialSync?.state?.().user?.id || "")) {
+      followRequest++;
+      window.HanamiReaderMusic?.stopPinPlayback?.(current.pin.groupId, "La cuenta ha cambiado. Selecciona una pista con la sesión actual.");
+    }
+    renderAll(); emit();
+  });
+  addEventListener("hanami-music-pin-ack", (event) => {
+    const { id, revision, row, shareState, error } = event.detail;
+    const binding = state.bindings.find((item) => item.id === id);
+    if (!binding || Number(binding.revision) !== Number(revision)) return;
+    if (row?.deleted_at || binding.deletedAt && shareState === "local") state.bindings = state.bindings.filter((item) => item.id !== id);
+    else Object.assign(binding, { shareState, deletedAt: null, revision: Number(row?.revision) || binding.revision });
+    if (error) window.HanamiToast?.(error);
+    save(); renderAll(); emit();
+  });
+  addEventListener("hanami-music-pins-reconciled", (event) => {
+    const { pageKeys, ids, actorId } = event.detail;
+    state.bindings = state.bindings.filter((item) => !(item.actorId === actorId && item.shareState === "shared" && pageKeys.includes(item.pageKey) && !ids.includes(item.id) && !hasPendingMusicPin(item.id)));
+    save();
+  });
+  addEventListener("hanami-reader-player-visibility", (event) => { if (!event.detail.open) scheduleFollow(); });
+  document.addEventListener("scroll", (event) => { if (event.target.id === "readerViewport") scheduleFollow(); }, true);
   addEventListener("online", () => { void flushActivity(); });
   addEventListener("hanami-social-state", () => { void flushActivity(); });
   addEventListener("resize", renderAll);
@@ -289,6 +514,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
     if (records.some((record) => [...record.addedNodes].some((node) =>
       node.nodeType === 1 && (node.matches?.("figure[data-comment-context]") || node.querySelector?.("figure[data-comment-context]")),
     ))) requestAnimationFrame(renderAll);
+    if (records.some((record) => [...record.removedNodes].some((node) => node.nodeType === 1 && node.matches?.(".reader-music-picker,.reader-comment-editor")))) scheduleFollow();
   }).observe(document.documentElement, { childList: true, subtree: true });
-  window.HanamiMusicDiscovery = { assignTrack, recentTracks, loadTrends, flushActivity, snapshot: discoverySnapshot, renderAll };
+  window.HanamiMusicDiscovery = { assignTrack, recentTracks, loadTrends, flushActivity, snapshot: discoverySnapshot, renderAll, sharedPageKeys, prepareReadingQueue, publishCurrentReading, removeBinding, followVisiblePins };
 }

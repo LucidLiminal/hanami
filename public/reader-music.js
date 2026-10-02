@@ -1,3 +1,5 @@
+import { READING_MODES, normalizeReadingMode, readingModeInfo, followsReadingPins, trackEndAction } from "./reader-music-policy.js";
+import { playerHtml, syncPlayer, installPlayerUI, closeTool } from "./reader-player-view.js";
 /*
  * Hanami Reader Music — browser adaptation informed by TSuki's GPL-3.0
  * MediaTrack, local library, editable queue and compact/full player concepts.
@@ -24,6 +26,8 @@ const defaults = {
   position: 0,
   shuffle: false,
   repeat: "off",
+  readingMode: "pin-loop",
+  queueVisited: [],
 };
 function readState() {
   try {
@@ -38,6 +42,9 @@ state.index = Number.isInteger(state.index) ? state.index : -1;
 state.repeat = ["off", "all", "one"].includes(state.repeat)
   ? state.repeat
   : "off";
+state.readingMode = normalizeReadingMode(state.readingMode);
+state.queueVisited = Array.isArray(state.queueVisited) ? state.queueVisited.filter((id) => state.queue.includes(id)) : [];
+state.repeat = readingModeInfo(state.readingMode).legacyRepeat;
 for (const legacyPreference of [
   "volume",
   "crossfade",
@@ -64,6 +71,12 @@ const externalServicesReady = new Promise((resolve) => {
 });
 const objectUrls = new WeakMap();
 const shuffleHistory = [];
+let waitingForPin = false;
+let queueFinished = false;
+let readingSuspended = false;
+let currentPin = null;
+let playerPreviousFocus = null;
+let playerInertNodes = [];
 
 function openDb() {
   return new Promise((resolve, reject) => {
@@ -135,6 +148,8 @@ function persist() {
       position,
       shuffle: state.shuffle,
       repeat: state.repeat,
+      readingMode: state.readingMode,
+      queueVisited: [...state.queueVisited],
     }),
   );
 }
@@ -193,7 +208,7 @@ function formatTime(seconds) {
   const rest = Math.floor(value % 60);
   return hours
     ? `${hours}:${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`
-    : `${minutes}:${String(rest).padStart(2, "0")}`;
+    : `${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
 }
 function normalizedFileName(name) {
   return String(name || "Pista")
@@ -482,26 +497,28 @@ async function loadAudio(audio, track, position = 0, autoplay = false) {
 }
 function queueNextIndex({ ended = false } = {}) {
   if (!state.queue.length || state.index < 0) return -1;
-  if (state.repeat === "one" && ended) return state.index;
-  if (state.shuffle && state.queue.length > 1) {
-    const recent = new Set(shuffleHistory.slice(-Math.ceil(state.queue.length / 2)));
-    const candidates = state.queue
-      .map((_, index) => index)
-      .filter((index) => index !== state.index && !recent.has(index));
-    const pool = candidates.length
-      ? candidates
-      : state.queue.map((_, index) => index).filter((index) => index !== state.index);
-    return pool[Math.floor(Math.random() * pool.length)] ?? -1;
+  if (ended) {
+    const unvisited = state.queue.map((id, index) => ({ id, index }))
+      .filter((item) => !state.queueVisited.includes(item.id));
+    const action = trackEndAction(state.readingMode, unvisited.length > 0);
+    if (action === "repeat-track") return state.index;
+    if (action === "wait-pin" || action === "stop") return -1;
+    if (action === "restart-queue") {
+      state.queueVisited = [];
+      const candidates = state.queue.map((_, index) => index).filter((index) => state.queue.length === 1 || index !== state.index);
+      return state.shuffle ? candidates[Math.floor(Math.random() * candidates.length)] : 0;
+    }
+    return state.shuffle ? unvisited[Math.floor(Math.random() * unvisited.length)].index : unvisited[0].index;
   }
   const next = state.index + 1;
   if (next < state.queue.length) return next;
-  return state.repeat === "all" ? 0 : -1;
+  return state.readingMode === "queue-loop" ? 0 : -1;
 }
 function queuePreviousIndex() {
   if (!state.queue.length) return -1;
   if (state.shuffle && shuffleHistory.length) return shuffleHistory.pop();
   if (state.index > 0) return state.index - 1;
-  return state.repeat === "all" ? state.queue.length - 1 : 0;
+  return state.readingMode === "queue-loop" ? state.queue.length - 1 : 0;
 }
 async function selectIndex(index, { autoplay = true, position = 0 } = {}) {
   const safe = Number(index);
@@ -509,7 +526,10 @@ async function selectIndex(index, { autoplay = true, position = 0 } = {}) {
   if (!track) return false;
   const token = ++loadToken;
   active.pause();
+  playing = false;
   playbackSessionId = crypto.randomUUID();
+  waitingForPin = false;
+  queueFinished = false;
   active.volume = FIXED_VOLUME;
   statusMessage = "Cargando…";
   state.index = safe;
@@ -543,6 +563,7 @@ async function selectIndex(index, { autoplay = true, position = 0 } = {}) {
       }
     }
     if (token !== loadToken) return false;
+    if (!state.queueVisited.includes(track.id)) state.queueVisited.push(track.id);
     if (autoplay) {
       playing = true;
       statusMessage = "";
@@ -555,6 +576,7 @@ async function selectIndex(index, { autoplay = true, position = 0 } = {}) {
     emit("track");
     return true;
   } catch (error) {
+    if (token !== loadToken) return false;
     playing = false;
     statusMessage =
       error?.message ||
@@ -571,15 +593,27 @@ function setQueue(ids, startId = ids[0]) {
   state.index = Math.max(0, unique.indexOf(startId));
   state.position = 0;
   shuffleHistory.length = 0;
+  state.queueVisited = [];
   persist();
 }
 async function playTrack(id) {
+  readingSuspended = false;
+  currentPin = null;
   const ordered = filteredTracks().map((track) => track.id);
   const ids = ordered.includes(id) ? ordered : tracks.map((track) => track.id);
   setQueue(ids, id);
   return selectIndex(state.index, { autoplay: true });
 }
 async function togglePlay() {
+  const wasPlaying = playing;
+  readingSuspended = wasPlaying;
+  if (wasPlaying) ++loadToken;
+  if (!wasPlaying) waitingForPin = false;
+  if (queueFinished && state.queue.length) {
+    readingSuspended = false;
+    setQueue([...state.queue], state.queue[0]);
+    return selectIndex(0, { autoplay: true });
+  }
   if (!currentTrack()) {
     if (!tracks.length) {
       openPanel();
@@ -589,7 +623,7 @@ async function togglePlay() {
     }
     setQueue(tracks.map((track) => track.id), tracks[0].id);
     await selectIndex(0, { autoplay: true });
-    return;
+    return playing;
   }
   if (externalPlayback()) {
     try {
@@ -612,7 +646,7 @@ async function togglePlay() {
     updateMediaSession();
     persist();
     emit("playback");
-    return;
+    return playing;
   }
   if (!active.src) {
     await selectIndex(state.index, {
@@ -635,20 +669,28 @@ async function togglePlay() {
   }
   persist();
   emit("playback");
+  return playing;
 }
 async function next({ ended = false } = {}) {
+  // FINISH may arrive before the load promise's metadata write completes.
+  // The song that just ended has been visited regardless of that timing.
+  const endedId = ended ? state.queue[state.index] : null;
+  if (endedId && !state.queueVisited.includes(endedId)) state.queueVisited.push(endedId);
   const target = queueNextIndex({ ended });
   if (target < 0) {
+    ++loadToken;
     playing = false;
+    waitingForPin = ended && state.readingMode === "pin-once";
+    queueFinished = ended && state.readingMode === "queue-once";
+    statusMessage = waitingForPin ? "Esperando a la siguiente pista de la lectura." : queueFinished ? "La lista ha terminado." : "";
     if (externalPlayback()) {
       externalServices?.pausePlayback?.();
-      externalServices?.seekPlayback?.(0);
     } else {
       active.pause();
-      active.currentTime = 0;
     }
-    state.position = 0;
+    state.position = playbackPosition();
     persist();
+    updateMediaSession();
     emit("ended");
     return;
   }
@@ -679,9 +721,63 @@ function seek(seconds) {
   syncUi();
 }
 function cycleRepeat() {
-  state.repeat = state.repeat === "off" ? "all" : state.repeat === "all" ? "one" : "off";
+  const index = READING_MODES.findIndex((mode) => mode.id === state.readingMode);
+  void setReadingMode(READING_MODES[(index + 1) % READING_MODES.length].id);
+}
+async function setReadingMode(value, { restart = true } = {}) {
+  if (!READING_MODES.some((mode) => mode.id === value)) throw new Error("Modo de lectura no válido.");
+  const changed = value !== state.readingMode;
+  const autoplay = playing;
+  state.readingMode = value;
+  state.repeat = readingModeInfo(value).legacyRepeat;
+  waitingForPin = false;
+  queueFinished = false;
   persist();
+  if (changed && restart && !followsReadingPins(value) && state.queue.length) {
+    let ids = [...state.queue];
+    if (currentPin?.id) {
+      const readingQueue = await window.HanamiMusicDiscovery?.prepareReadingQueue?.();
+      if (readingQueue?.length) ids = readingQueue;
+    }
+    if (state.readingMode !== value) return state.readingMode;
+    currentPin = null;
+    setQueue(ids, ids[0]);
+    await selectIndex(0, { autoplay });
+  }
   emit("preference");
+  return value;
+}
+async function playPin(id, pin = {}, { automatic = false, queue = [] } = {}) {
+  if (automatic && (!followsReadingPins(state.readingMode) || readingSuspended)) return false;
+  if (!trackById(id)) return false;
+  readingSuspended = false;
+  waitingForPin = false;
+  currentPin = { id: String(pin.id || ""), groupId: String(pin.groupId || "local-room"), title: String(pin.title || ""), viewerId: window.HanamiSocialSync?.state?.().user?.id || "" };
+  const ordered = [...new Set([...queue, id])].filter((trackId) => trackById(trackId));
+  setQueue(ordered.length ? ordered : [id], id);
+  const success = await selectIndex(state.index, { autoplay: true });
+  if (currentPin?.id !== String(pin.id || "")) return false;
+  const finishedNaturally = waitingForPin && state.readingMode === "pin-once";
+  if (!success && automatic && !finishedNaturally && !readingSuspended) {
+    readingSuspended = true;
+    statusMessage = "Pulsa Reproducir o el marcador para autorizar el audio de esta lectura.";
+    emit("error");
+  } else emit("pin");
+  return success || finishedNaturally;
+}
+function stopPinPlayback(groupId, message = "Esta pista compartida ya no está disponible.") {
+  if (currentPin?.groupId !== groupId || !followsReadingPins(state.readingMode)) return false;
+  readingSuspended = true;
+  waitingForPin = false;
+  currentPin = null;
+  active.pause();
+  externalServices?.pausePlayback?.();
+  playing = false;
+  statusMessage = message;
+  updateMediaSession();
+  persist();
+  emit("stop");
+  return true;
 }
 function toggleShuffle() {
   state.shuffle = !state.shuffle;
@@ -759,7 +855,7 @@ function queueRow(id, index) {
   const track = trackById(id);
   if (!track) return "";
   return `<article class="reader-music-queue-row ${index === state.index ? "current" : ""}" data-music-queue-index="${index}">
-    <button data-music-queue-play="${index}"><small>${index === state.index ? "SONANDO" : String(index + 1)}</small><span><b>${esc(track.title)}</b><em>${esc(track.artist)}</em></span></button>
+    <button data-music-queue-play="${index}" aria-current="${index === state.index ? "true" : "false"}" aria-label="Reproducir ${esc(track.title)}${index === state.index ? ", pista activa" : ""}" title="${esc(track.title)} — ${esc(track.artist)}"><small aria-hidden="true">${index === state.index ? "♪" : String(index + 1)}</small><span><b>${esc(track.title)}</b><em>${esc(track.artist)}</em></span></button>
     <button data-music-queue-up="${index}" aria-label="Subir en la cola" ${index === 0 ? "disabled" : ""}>↑</button>
     <button data-music-queue-down="${index}" aria-label="Bajar en la cola" ${index === state.queue.length - 1 ? "disabled" : ""}>↓</button>
     <button data-music-queue-remove="${index}" aria-label="Quitar de la cola">×</button>
@@ -768,41 +864,41 @@ function queueRow(id, index) {
 function repeatLabel() {
   return state.repeat === "one" ? "Repetir 1" : state.repeat === "all" ? "Repetir todo" : "Sin repetir";
 }
+function playerModel() {
+  const track = currentTrack(), duration = playbackDuration(track), position = playbackPosition(track);
+  return { track, tracks, queue: [...state.queue], index: state.index, playing, duration, position,
+    durationText: formatTime(duration), positionText: formatTime(position), status: statusMessage,
+    readingMode: state.readingMode, shuffle: state.shuffle, waitingForPin, readingSuspended };
+}
 function panelHtml() {
-  const track = currentTrack();
-  const duration = playbackDuration(track);
-  const position = playbackPosition(track);
   const visible = filteredTracks();
-  return `<div class="reader-music" data-music-root>
-    <header><div><small>TSUKI × HANAMI</small><h3>Música para leer</h3></div><button data-music-close aria-label="Cerrar música">×</button></header>
-    <section class="reader-music-now ${track ? "" : "empty"}">
-      <div class="reader-music-art" aria-hidden="true">${/^https:\/\//i.test(track?.artwork || "") ? `<img src="${esc(track.artwork)}" alt="" referrerpolicy="no-referrer">` : track ? "♫" : "♪"}</div>
-      <div class="reader-music-meta"><small>AHORA SUENA</small><b data-music-title>${esc(track?.title || "Sin canción seleccionada")}</b><span data-music-artist>${esc(track?.artist || "Añade audio desde tu dispositivo")}</span></div>
-      <div class="reader-music-progress"><input data-music-seek type="range" min="0" max="${Math.max(1, duration)}" step="0.1" value="${clamp(position, 0, Math.max(1, duration))}" ${track ? "" : "disabled"} aria-label="Posición"><small><span data-music-position>${formatTime(position)}</span><span data-music-duration>${formatTime(duration)}</span></small></div>
-      <nav class="reader-music-controls" aria-label="Controles de música">
-        <button data-music-shuffle class="${state.shuffle ? "on" : ""}" aria-pressed="${state.shuffle}" title="Aleatorio">⇄<small>Aleatorio</small></button>
-        <button data-music-prev aria-label="Anterior">|‹</button>
-        <button class="reader-music-play" data-music-toggle aria-label="${playing ? "Pausar" : "Reproducir"}">${playing ? "Ⅱ" : "▶"}</button>
-        <button data-music-next aria-label="Siguiente">›|</button>
-        <button data-music-repeat class="${state.repeat !== "off" ? "on" : ""}" aria-pressed="${state.repeat !== "off"}" title="${repeatLabel()}">${state.repeat === "one" ? "↻¹" : "↻"}<small>${state.repeat === "one" ? "Una" : state.repeat === "all" ? "Todo" : "Repetir"}</small></button>
-      </nav>
-      <p class="reader-music-status" data-music-status>${esc(statusMessage)}</p>
-    </section>
-    ${externalServices?.panelHtml?.({ track, position, duration }) || ""}
-    <section class="reader-music-library">
+  const track = currentTrack();
+  const libraryHtml = `    <section class="reader-music-library">
       <header><div><small>BIBLIOTECA</small><b>${tracks.length} canción${tracks.length === 1 ? "" : "es"}</b></div><label class="reader-music-import"><input data-music-files type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus,.flac,.m3u,.m3u8" multiple><span>＋ Archivos locales</span></label></header>
       <input class="reader-music-search" data-music-search type="search" value="${esc(search)}" placeholder="Filtrar tu biblioteca" aria-label="Filtrar biblioteca de música">
       <div class="reader-music-list">${visible.length ? visible.map(trackRow).join("") : `<div class="reader-music-empty"><b>${tracks.length ? "Sin coincidencias" : "Tu biblioteca está vacía"}</b><span>${tracks.length ? "Prueba con otro filtro." : "Busca en SoundCloud, pega un enlace o añade archivos locales."}</span></div>`}</div>
       <details class="reader-music-manual"><summary>Fuente manual (opcional)</summary><div class="reader-music-url"><input data-music-url type="url" inputmode="url" placeholder="URL directa de audio o stream"><button data-music-add-url>Añadir URL</button></div></details>
     </section>
-    <details class="reader-music-queue" ${state.queue.length ? "open" : ""}><summary>Cola · ${state.queue.length}</summary><div>${state.queue.length ? state.queue.map(queueRow).join("") : '<p class="reader-music-empty">Selecciona una canción para crear la cola.</p>'}</div><footer><button data-music-shuffle-queue ${state.queue.length < 2 ? "disabled" : ""}>Mezclar cola</button><button data-music-clear-queue ${state.queue.length ? "" : "disabled"}>Vaciar cola</button></footer></details>
-  </div>`;
+`;
+  const queueHtml = `    <section class="reader-music-queue"><div>${state.queue.length ? state.queue.map(queueRow).join("") : '<p class="reader-music-empty">Selecciona una canción para crear la cola.</p>'}</div><footer><button data-music-shuffle-queue ${state.queue.length < 2 ? "disabled" : ""}>Mezclar cola</button><button data-music-clear-queue ${state.queue.length ? "" : "disabled"}>Vaciar cola</button></footer></section>`;
+  return playerHtml(playerModel(), {
+    libraryHtml: `${externalServices?.panelHtml?.({ track }) || ""}${libraryHtml}`,
+    queueHtml,
+    lyricsHtml: externalServices?.lyricsOnlyHtml?.({ track }) || "",
+  });
 }
 function renderPanel() {
   if (!panelOpen) return;
   const body = document.querySelector("#readerSheetBody");
   if (!body) return;
+  const focus = body.contains(document.activeElement) ? document.activeElement : null;
+  const attribute = focus ? [...focus.attributes].find((entry) => entry.name === "id" || entry.name.startsWith("data-player-") || entry.name.startsWith("data-music-")) : null;
+  const selector = attribute ? `[${attribute.name}="${CSS.escape(attribute.value)}"]` : "";
+  const scroll = body.querySelector(".player-tool-sheet")?.scrollTop || 0;
   body.innerHTML = panelHtml();
+  const toolSheet = body.querySelector(".player-tool-sheet");
+  if (toolSheet) toolSheet.scrollTop = scroll;
+  if (selector) body.querySelector(selector)?.focus({ preventScroll: true });
   syncUi();
 }
 function miniHtml() {
@@ -825,10 +921,10 @@ function syncUi() {
   const duration = playbackDuration(track);
   const position = playbackPosition(track);
   document.querySelectorAll("[data-music-title]").forEach((node) => {
-    node.textContent = track?.title || "Sin canción seleccionada";
+    node.textContent = track?.title || "Tu música para leer";
   });
   document.querySelectorAll("[data-music-artist]").forEach((node) => {
-    node.textContent = track?.artist || "Añade audio desde tu dispositivo";
+    node.textContent = track?.artist || "Elige una canción para empezar";
   });
   document.querySelectorAll("[data-music-position]").forEach((node) => {
     node.textContent = formatTime(position);
@@ -839,7 +935,8 @@ function syncUi() {
   document.querySelectorAll("[data-music-seek]").forEach((node) => {
     if (document.activeElement !== node) node.value = clamp(position, 0, Math.max(1, duration));
     node.max = Math.max(1, duration);
-    node.disabled = !track;
+    node.disabled = !track || duration <= 0;
+    node.setAttribute("aria-valuetext", `${formatTime(position)} de ${formatTime(duration)}`);
   });
   document.querySelectorAll("[data-music-toggle]").forEach((button) => {
     button.textContent = playing ? "Ⅱ" : "▶";
@@ -865,12 +962,18 @@ function syncUi() {
   });
   const status = document.querySelector("[data-music-status]");
   if (status) status.textContent = statusMessage;
+  syncPlayer(playerModel());
   externalServices?.syncUi?.({ track, position, duration, playing });
 }
 function openPanel(restoring = false) {
   attach();
   const sheet = document.querySelector("#readerSheet");
-  if (!sheet) return false;
+  if (!sheet || document.querySelector("#reader")?.classList.contains("hidden")) return false;
+  if (!restoring && window.HanamiOverlays?.current?.() === sheet) {
+    addEventListener("hanami-overlay-close", () => openPanel(), { once: true });
+    window.HanamiOverlays.close();
+    return true;
+  }
   if (
     !restoring &&
     window.HanamiScreens?.is?.("reader") &&
@@ -884,9 +987,20 @@ function openPanel(restoring = false) {
         suspend: () => closePanel(true),
       },
     );
+  if (!panelOpen) {
+    playerPreviousFocus = document.activeElement;
+    playerInertNodes = ["#readerViewport", "#readerTop", "#readerBottom"].map((selector) => document.querySelector(selector)).filter(Boolean).map((node) => [node, node.inert]);
+    playerInertNodes.forEach(([node]) => { node.inert = true; });
+  }
   panelOpen = true;
+  sheet.classList.add("reader-player-open");
+  sheet.setAttribute("role", "dialog");
+  sheet.setAttribute("aria-modal", "true");
+  sheet.setAttribute("aria-label", "Reproductor de música");
   renderPanel();
   sheet.classList.remove("hidden");
+  dispatchEvent(new CustomEvent("hanami-reader-player-visibility", { detail: { open: true } }));
+  if (!restoring) requestAnimationFrame(() => sheet.querySelector(".btn-collapse")?.focus({ preventScroll: true }));
   return true;
 }
 function closePanel(fromHistory = false) {
@@ -898,7 +1012,15 @@ function closePanel(fromHistory = false) {
     return;
   }
   panelOpen = false;
-  document.querySelector("#readerSheet")?.classList.add("hidden");
+  closeTool(true);
+  const sheet = document.querySelector("#readerSheet");
+  sheet?.classList.add("hidden");
+  sheet?.classList.remove("reader-player-open");
+  ["role", "aria-modal", "aria-label"].forEach((name) => sheet?.removeAttribute(name));
+  playerInertNodes.forEach(([node, previous]) => { if (node.isConnected) node.inert = previous; });
+  playerInertNodes = [];
+  dispatchEvent(new CustomEvent("hanami-reader-player-visibility", { detail: { open: false } }));
+  if (playerPreviousFocus?.isConnected) playerPreviousFocus.focus({ preventScroll: true });
 }
 function emit(reason) {
   attach();
@@ -908,6 +1030,7 @@ function emit(reason) {
     playing,
     position: playbackPosition(),
   });
+  if (["loading", "track", "queue", "library", "preference", "pin", "error"].includes(reason)) renderPanel();
   syncUi();
   dispatchEvent(
     new CustomEvent("hanami-reader-music-change", {
@@ -961,6 +1084,8 @@ function setMediaActions() {
     seekbackward: (details) => seek(playbackPosition() - (details.seekOffset || 10)),
     seekforward: (details) => seek(playbackPosition() + (details.seekOffset || 10)),
     stop: () => {
+      readingSuspended = true;
+      waitingForPin = false;
       active.pause();
       externalServices?.pausePlayback?.();
       playing = false;
@@ -1034,6 +1159,9 @@ async function deleteTrack(id) {
   emit("library");
 }
 function clearQueue() {
+  readingSuspended = true;
+  waitingForPin = false;
+  currentPin = null;
   active.pause();
   externalServices?.stopPlayback?.();
   revokeAudioUrl(active);
@@ -1127,6 +1255,8 @@ document.addEventListener("input", (event) => {
 document.addEventListener(
   "keydown",
   (event) => {
+    if (document.querySelector(".reader-music-picker")) return;
+    if (panelOpen && event.key === "Escape" && document.querySelector(".player-tool-sheet")) return;
     if (panelOpen && event.key === "Escape") {
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -1214,6 +1344,21 @@ function registerExternalServices(services) {
   return !!externalServices;
 }
 
+installPlayerUI({
+  track: currentTrack,
+  open: () => openPanel(true),
+  render: renderPanel,
+  sync: syncUi,
+  setMode: setReadingMode,
+  playList: async (ids) => {
+    await setReadingMode("queue-once", { restart: false });
+    readingSuspended = false;
+    currentPin = null;
+    setQueue(ids, ids[0]);
+    return selectIndex(0, { autoplay: true });
+  },
+});
+
 const ready = (async () => {
   try {
     tracks = await allTracks();
@@ -1229,6 +1374,7 @@ const ready = (async () => {
     else state.index = clamp(state.index, 0, state.queue.length - 1);
     const restoredTrack = currentTrack();
     if (restoredTrack) {
+      readingSuspended = true;
       const bridgeReady =
         !requiresExternalPlayback(restoredTrack) ||
         (await waitForExternalServices());
@@ -1251,6 +1397,15 @@ const ready = (async () => {
   }
   return true;
 })();
+window.HanamiScreens?.registerType?.("reader-music", async (record) => {
+  await ready;
+  if (!openPanel(true)) return false;
+  window.HanamiScreens.register(record.id, {
+    restore: () => openPanel(true),
+    suspend: () => closePanel(true),
+  });
+  return true;
+});
 setMediaActions();
 
 window.HanamiReaderMusic = {
@@ -1261,6 +1416,17 @@ window.HanamiReaderMusic = {
   importFiles: importAudioFiles,
   addUrl: addRemoteTrack,
   play: playTrack,
+  playPin,
+  stopPinPlayback,
+  setReadingMode,
+  toggleShuffle,
+  setQueue: async (ids, startId) => {
+    const autoplay = playing;
+    currentPin = null;
+    setQueue(ids, startId);
+    const result = state.queue.length ? await selectIndex(state.index, { autoplay }) : false;
+    renderPanel(); emit("queue"); return result;
+  },
   toggle: togglePlay,
   next,
   previous,
@@ -1278,6 +1444,13 @@ window.HanamiReaderMusic = {
     duration: playbackDuration(),
     shuffle: state.shuffle,
     repeat: state.repeat,
+    readingMode: state.readingMode,
+    queueVisited: [...state.queueVisited],
+    waitingForPin,
+    queueFinished,
+    readingSuspended,
+    pin: currentPin ? { ...currentPin } : null,
+    panelOpen,
     external: externalServices?.snapshot?.() || null,
   }),
 };

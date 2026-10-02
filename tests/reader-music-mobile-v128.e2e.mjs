@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { chromium } from "playwright";
 
 function wav({ seconds = 12, frequency = 220, sampleRate = 8000 } = {}) {
@@ -35,6 +36,14 @@ const context = await browser.newContext({
   viewport: { width: 390, height: 844 },
   hasTouch: true,
   serviceWorkers: "block",
+  acceptDownloads: true,
+});
+await context.addInitScript(() => {
+  window.__LOCAL_MUSIC_SHARES__ = [];
+  Object.defineProperty(navigator, "canShare", { configurable: true, value: () => true });
+  Object.defineProperty(navigator, "share", { configurable: true, value: async (data) => {
+    window.__LOCAL_MUSIC_SHARES__.push({ name: data.files?.[0]?.name, size: data.files?.[0]?.size, type: data.files?.[0]?.type });
+  } });
 });
 const page = await context.newPage();
 const errors = [];
@@ -55,7 +64,7 @@ async function openReader(title = "Lectura con música") {
         chapter: { url: "/chapter/music", number: 1, name: "Capítulo musical" },
         pages: [{ imageUrl: image }, { imageUrl: image }],
       },
-      true,
+      false,
     );
   }, title);
   await page.locator("#reader:not(.hidden)").waitFor({ state: "visible" });
@@ -63,10 +72,21 @@ async function openReader(title = "Lectura con música") {
   await page.locator(".reader-music").waitFor({ state: "visible" });
 }
 
-await page.goto("http://127.0.0.1:4173/");
+async function openCollection() {
+  await page.locator('.player-screen [data-player-tool="queue"]').click();
+  await page.locator('.player-tool-sheet').waitFor({ state: 'visible' });
+  await page.locator('.player-tool-tabs [data-player-tool="library"]').click();
+}
+async function closeCollection() {
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => window.HanamiScreens.is('reader-music'));
+}
+
+await page.goto((process.env.HANAMI_TEST_URL || "http://127.0.0.1:4173") + "/");
 await page.waitForFunction(() => !!window.HanamiReaderMusic);
 await page.evaluate(() => window.HanamiReaderMusic.ready);
 await openReader();
+await openCollection();
 
 assert.equal(await page.locator(".reader-music-track").count(), 0);
 await page.locator("[data-music-files]").setInputFiles([
@@ -90,13 +110,26 @@ assert(snapshot.duration > 10);
 assert.equal(await page.locator("#readerMusicMini").isVisible(), true);
 assert.equal(await page.locator("[data-music-mini-title]").textContent(), "Moonlight");
 
+await closeCollection();
+await page.locator("[data-player-share]").click();
+const fileShare = (await page.evaluate(() => window.__LOCAL_MUSIC_SHARES__))[0];
+assert.equal(fileShare.name, "Luna - Moonlight.wav");
+assert.equal(fileShare.size, wav({ frequency: 220 }).length);
+assert.equal(fileShare.type, "audio/wav");
+const downloaded = page.waitForEvent("download");
+await page.locator("[data-player-download]").click();
+const savedAudio = await downloaded;
+assert.equal(savedAudio.suggestedFilename(), "Luna - Moonlight.wav");
+assert.deepEqual(await readFile(await savedAudio.path()), wav({ frequency: 220 }), "Download must contain the original audio bytes");
 await page.locator(".reader-music [data-music-next]").click();
 await page.waitForFunction(() => {
   const state = window.HanamiReaderMusic.snapshot();
   return state.tracks.find((track) => track.id === state.current)?.title === "Rain";
 });
 await page.locator("[data-music-shuffle]").click();
-await page.locator("[data-music-repeat]").click();
+await page.locator('[data-player-tool="modes"]').click();
+await page.locator('[data-player-mode="queue-loop"]').click();
+await page.waitForFunction(() => window.HanamiScreens.is('reader-music'));
 for (const selector of [
   "[data-music-volume]",
   "[data-music-crossfade]",
@@ -127,6 +160,7 @@ assert.notEqual(snapshot.current, beforeAdvance);
 assert.equal(snapshot.playing, true);
 
 await page.locator("[data-music-close]").click();
+await page.waitForFunction(() => document.querySelector("#readerSheet").classList.contains("hidden"));
 assert.equal(await page.locator("#readerSheet").evaluate((node) => node.classList.contains("hidden")), true);
 const beforeShell = await page.evaluate(() => window.HanamiReaderMusic.snapshot());
 await page.evaluate(() => {
@@ -154,6 +188,7 @@ await page.reload();
 await page.waitForFunction(() => !!window.HanamiReaderMusic);
 await page.evaluate(() => window.HanamiReaderMusic.ready);
 await openReader("Persistencia musical");
+await openCollection();
 snapshot = await page.evaluate(() => window.HanamiReaderMusic.snapshot());
 assert.equal(snapshot.tracks.length, 3);
 assert.equal(snapshot.queue.length, 3);
@@ -165,6 +200,7 @@ assert.equal("volume" in snapshot, false);
 assert.equal("crossfade" in snapshot, false);
 assert.equal("sleepAt" in snapshot, false);
 assert.equal(await page.locator(".reader-music-track").count(), 3);
+await closeCollection();
 await page.locator(".reader-music [data-music-toggle]").click();
 await page.waitForFunction(() => window.HanamiReaderMusic.snapshot().playing);
 

@@ -692,6 +692,39 @@ async function recordMusicActivity(activity) {
   });
 }
 
+async function groupMusicRequest(actorId, path, payload) {
+  await ready;
+  if (!state().authenticated || actorId !== session?.user?.id)
+    throw new Error("La sesión actual no puede sincronizar estas pistas.");
+  if (session.refresh_token && Number(session.expires_at || 0) < Math.floor(Date.now() / 1000) + 60)
+    await refreshSession();
+  if (actorId !== session?.user?.id)
+    throw new Error("La cuenta ha cambiado antes de sincronizar las pistas.");
+  const result = await jsonRequest(path, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload), signal: AbortSignal.timeout(15000),
+  });
+  if (actorId !== session?.user?.id) throw new Error("La cuenta ha cambiado durante la sincronización.");
+  return result;
+}
+async function listGroupMusicPins(groupId, pageKeys, actorId = session?.user?.id) {
+  return groupMusicRequest(actorId, "/rest/v1/rpc/list_group_reader_music_pins", {
+    p_group: groupId, p_page_keys: pageKeys,
+  });
+}
+async function saveGroupMusicPin(operation) {
+  const record = operation.record;
+  return groupMusicRequest(operation.actorId, "/rest/v1/rpc/upsert_group_reader_music_pin", {
+    p_group: operation.groupId, p_pin_id: record.id, p_page_key: record.pageKey,
+    p_x: record.x, p_y: record.y, p_track: record.track, p_revision: record.revision,
+  });
+}
+async function deleteGroupMusicPin(operation) {
+  return groupMusicRequest(operation.actorId, "/rest/v1/rpc/delete_group_reader_music_pin", {
+    p_group: operation.groupId, p_pin_id: operation.record.id, p_revision: operation.record.revision,
+  });
+}
+
 async function bootstrap() {
   config = await loadConfig();
   session = read(SESSION_KEY);
@@ -746,6 +779,9 @@ window.HanamiSocialSync = {
   saveGroupProgress,
   listMusicTrends,
   recordMusicActivity,
+  listGroupMusicPins,
+  saveGroupMusicPin,
+  deleteGroupMusicPin,
   sync,
   pullComments,
   cachedGroups: () => [...groupCache],

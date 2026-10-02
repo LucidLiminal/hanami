@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
+const base = process.env.HANAMI_TEST_URL || "http://127.0.0.1:4173";
 
 const browser = await chromium.launch({
   headless: true,
@@ -27,7 +28,7 @@ page.on("console", (message) => {
   if (message.type() === "error") issues.push(`console: ${message.text()}`);
 });
 
-await page.goto("http://127.0.0.1:4173/");
+await page.goto(base + "/");
 await page.waitForFunction(() => !!window.HanamiReader);
 await page.evaluate(() => {
   const image =
@@ -56,10 +57,10 @@ assert.equal(
   await page.locator('meta[name="mobile-web-app-capable"]').getAttribute("content"),
   "yes",
 );
-const favicon = await page.request.get("http://127.0.0.1:4173/favicon.ico");
+const favicon = await page.request.get(base + "/favicon.ico");
 assert.equal(favicon.status(), 200);
 assert.match(favicon.headers()["content-type"], /image\/x-icon/);
-const api = await page.request.get("http://127.0.0.1:4173/api/music/capabilities");
+const api = await page.request.get(base + "/api/music/capabilities");
 assert.equal(api.status(), 200);
 assert.deepEqual(issues, []);
 

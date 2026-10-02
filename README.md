@@ -2,6 +2,28 @@
 
 Primer port manual del catálogo TypeScript de Hanami. Funciona como un único proyecto de Vercel: no usa Docker, Java, Miwayomi ni APK.
 
+## Nuevo en v137: reproductor completo y música compartida
+
+- `reader-music` es una pantalla completa: carátula grande, título y artista,
+  progreso, anterior / play-pausa / siguiente y acciones de compartir y descargar.
+- Cabecera con minimizar, grupo, letras y cola. Favoritos y listas personales
+  se guardan en el navegador; biblioteca y servicios están detrás de sus pestañas.
+- Cuatro modos: repetir hasta el siguiente marcador, reproducir una vez y
+  esperar al siguiente, repetir toda la cola o reproducirla completa una vez.
+- Los dos modos de lectura activan pistas cuando sus marcadores entran en el
+  visor. Los dos modos de cola ignoran la posición de los marcadores.
+- Los miembros autorizados del grupo activo comparten las pistas de SoundCloud
+  y sus posiciones; no se suben archivos de audio locales.
+
+Para activar **pistas compartidas**, ejecuta
+`supabase/hanami-group-reader-music-v137.sql` en el proyecto Supabase existente,
+con las migraciones sociales v117 y v124 ya aplicadas. El ZIP incluye la
+migración, pero no la ejecuta en producción.
+
+Detalles de modos, privacidad, límites y pruebas: `READER_PLAYER_V137.md`.
+Versión `5.11.0` · caché PWA `hanami-crimson-knot-v137`.
+Después de desplegar, recarga o reabre la PWA.
+
 ## Nuevo en v136: acciones de página y selector de música
 
 - La pulsación larga abre una barra con **poner como portada, copiar la imagen,
@@ -10,7 +32,8 @@ Primer port manual del catálogo TypeScript de Hanami. Funciona como un único p
   búsqueda por URL de canción de SoundCloud, **Para ti** con reproducciones
   recientes y **Tendencias** con actividad de otros usuarios.
 - Elegir una canción coloca una instancia en el punto de la página; su botón
-  permite reproducir o pausar. Las instancias y el historial se guardan localmente.
+  permite reproducir o pausar. El historial sigue siendo local. En v137,
+  las instancias de SoundCloud también se sincronizan con el grupo activo.
 - Las portadas personalizadas se conservan al actualizar los metadatos.
 
 Para activar **Tendencias reales**, ejecuta
@@ -21,8 +44,7 @@ Sin servidor, migración, conexión o actividad suficiente se muestra el estado
 correspondiente, nunca una lista ficticia de canciones.
 
 Detalles, límites de navegador y pruebas: `READER_PAGE_ACTIONS_V136.md`.
-Después de desplegar, recarga o reabre la PWA para activar la caché
-`hanami-crimson-knot-v136`.
+El selector continúa separado del reproductor completo de v137.
 
 ## Incluido
 
@@ -117,7 +139,9 @@ Vercel no ejecuta las APK originales. Este proyecto contiene una reimplementaci�
 ## Música durante la lectura
 
 El visor incluye un reproductor y servicios musicales adaptados de la
-arquitectura de TSuki. Pulsa **Música** en la barra inferior del capítulo para:
+arquitectura de TSuki. Pulsa **Música** en la barra inferior del capítulo.
+La pantalla principal muestra la canción y los controles; la cabecera abre
+letras, cola y grupo. Desde **Cola → Biblioteca** puedes:
 
 - buscar pistas públicas en SoundCloud mediante su API oficial;
 - pegar un enlace de una pista y resolverlo mediante oEmbed, incluso sin
@@ -148,7 +172,7 @@ un enlace a la pista original. Shazam y algunos proveedores de letras son
 servicios externos y pueden cambiar o limitar solicitudes; el micrófono solo se
 activa tras una acción explícita.
 
-Consulta `SOUNDCLOUD_WIDGET_V135.md`, `READER_MUSIC_V128.md` y
+Consulta `READER_PLAYER_V137.md`, `SOUNDCLOUD_WIDGET_V135.md`, `READER_MUSIC_V128.md` y
 `THIRD_PARTY_NOTICES.md` para la arquitectura, configuración y atribución.
 
 ## Identidad visual v133

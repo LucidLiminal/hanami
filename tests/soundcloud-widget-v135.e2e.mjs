@@ -196,7 +196,7 @@ async function openReader(title = "SoundCloud Reader") {
         },
         pages: [{ imageUrl: image }],
       },
-      true,
+      false,
     );
   }, title);
   await page.locator("#reader:not(.hidden)").waitFor({ state: "visible" });
@@ -204,12 +204,23 @@ async function openReader(title = "SoundCloud Reader") {
   await page.locator(".reader-music").waitFor({ state: "visible" });
 }
 
-await page.goto("http://127.0.0.1:4173/");
+async function openCollection() {
+  await page.locator('.player-screen [data-player-tool="queue"]').click();
+  await page.locator('.player-tool-sheet').waitFor({ state: 'visible' });
+  await page.locator('.player-tool-tabs [data-player-tool="library"]').click();
+}
+async function closeCollection() {
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => window.HanamiScreens.is('reader-music'));
+}
+
+await page.goto((process.env.HANAMI_TEST_URL || "http://127.0.0.1:4173") + "/");
 await page.waitForFunction(
   () => !!window.HanamiReaderMusic && !!window.HanamiReaderMusicServices,
 );
 await page.evaluate(() => window.HanamiReaderMusic.ready);
 await openReader();
+await openCollection();
 
 await page
   .locator("[data-music-soundcloud-query]")
@@ -257,6 +268,7 @@ assert.equal(
   true,
 );
 
+await closeCollection();
 await page.locator(".reader-music [data-music-toggle]").click();
 await page.waitForFunction(
   () => !window.HanamiReaderMusic.snapshot().playing,

@@ -12,7 +12,7 @@ const page = await browser.newPage({
 });
 const errors = [];
 page.on("pageerror", (error) => errors.push(error.message));
-await page.goto("http://127.0.0.1:4173/");
+await page.goto((process.env.HANAMI_TEST_URL || "http://127.0.0.1:4173") + "/");
 await page.evaluate(() => {
   const image =
     "data:image/svg+xml," +

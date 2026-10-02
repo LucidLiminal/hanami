@@ -15,6 +15,6 @@ for(const token of ['hanami-extension-stores','extensionStoresDialog','extension
 assert(b.includes('#browseChild [data-extension-store-card]')&&b.includes('URL del repositorio copiada'));
 assert(c.includes('.extension-store-fab')&&c.includes('.extension-store-card')&&c.includes('@media(prefers-reduced-motion:reduce)'));
 assert(d.includes("'hanami-extension-stores'"));
-assert(s.includes('hanami-crimson-knot-v136'));
-const pkg=JSON.parse(p);assert.equal(pkg.version,'5.10.0');assert(pkg.scripts.test.includes('extension-stores-github-v87.test.mjs'));
+assert(s.includes('hanami-crimson-knot-v137'));
+const pkg=JSON.parse(p);assert.equal(pkg.version,'5.11.0');assert(pkg.scripts.test.includes('extension-stores-github-v87.test.mjs'));
 console.log('PASS: GitHub extension stores port includes safe inspection, create/confirm/delete dialogs, refresh, cards, backup and long-press copy');

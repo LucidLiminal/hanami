@@ -46,6 +46,7 @@ const ui = {
   lyricsBusy: false,
   lyricsStatus: "",
   activeLyric: -1,
+  lyricsRequest: 0,
 };
 
 const widgetState = {
@@ -487,6 +488,10 @@ function bindWidgetEvents(widget) {
       refreshWidgetDuration();
   });
   widget.bind(events.PLAY, () => {
+    if (widgetState.pauseRequested) {
+      widgetState.widget?.pause?.();
+      return;
+    }
     const transitioning = !!widgetState.pending;
     if (transitioning)
       completeWidgetPending({ playing: true, refreshDuration: false });
@@ -504,6 +509,7 @@ function bindWidgetEvents(widget) {
     widgetUpdate({ reason: "pause", playing: false });
   });
   widget.bind(events.PLAY_PROGRESS, (progress = {}) => {
+    if (widgetState.pauseRequested) return;
     if (widgetState.pending)
       completeWidgetPending({ playing: true, refreshDuration: false });
     if (widgetState.durationRefreshPending) {
@@ -596,6 +602,7 @@ async function loadPlayback(
   const token = ++widgetState.token;
   widgetState.ready = false;
   widgetState.paused = !autoplay;
+  widgetState.pauseRequested = !autoplay;
   widgetState.position = Math.max(0, Number(position) || 0);
   widgetState.duration = Math.max(0, Number(track.duration) || 0);
   widgetState.durationRefreshPending = false;
@@ -635,7 +642,11 @@ async function loadPlayback(
   return promise;
 }
 
-async function togglePlayback(track, { position = 0 } = {}) {
+async function togglePlayback(track, { position = 0, playing: requestedPlaying } = {}) {
+  if (requestedPlaying === true) {
+    pausePlayback();
+    return { playing: false };
+  }
   const requestedPermalink = canonicalSoundCloudUrl(
     track?.permalinkUrl || track?.url,
   );
@@ -661,6 +672,7 @@ async function togglePlayback(track, { position = 0 } = {}) {
 
 function pausePlayback() {
   widgetState.pauseRequested = true;
+  cancelWidgetPending(false);
   widgetState.playProbeToken++;
   clearWidgetPlayProbe();
   stopWidgetStatePolling();
@@ -698,6 +710,8 @@ function currentTrack() {
 }
 
 function hydrateLyrics(track = currentTrack()) {
+  ui.lyricsRequest++;
+  ui.lyricsBusy = false;
   const key = trackKey(track);
   ui.trackKey = key;
   ui.activeLyric = -1;
@@ -941,14 +955,16 @@ async function selectPickerTrack(source, key) {
       });
     }
     if (instance !== picker) return;
-    if (instance.context) assignTrack(remote, instance.context);
-    const started = await music.play(remote.id);
+    const binding = instance.context ? assignTrack(remote, instance.context) : null;
+    const started = binding
+      ? await music.playPin(remote.id, { id: binding.id, groupId: binding.groupId, title: remote.title })
+      : await music.play(remote.id);
     if (instance !== picker) return;
     if (!started) {
       pickerError = `${instance.context ? "La pista quedó guardada en esta página. " : ""}${adapter?.getStatus?.() || "No se pudo iniciar la reproducción. Puedes intentarlo desde el reproductor."}`;
       return;
     }
-    window.HanamiToast?.(instance.context ? "Pista añadida a esta página" : "Reproduciendo canción");
+    window.HanamiToast?.(binding?.shareState === "pending" ? "Pista añadida · pendiente de compartir en el grupo" : instance.context ? "Pista añadida a esta página" : "Reproduciendo canción");
     closePicker();
   } catch (error) {
     if (instance === picker) pickerError = error.message || "No se pudo seleccionar la pista.";
@@ -1020,7 +1036,7 @@ function lyricsLinesHtml() {
   return `<div class="reader-music-lyrics-scroll" data-music-lyrics-scroll>${ui.lyrics.lines
     .map(
       (line, index) =>
-        `<p data-music-lyric="${index}"${Number.isFinite(line.time) ? ` data-music-lyric-time="${line.time}"` : ""}>${esc(line.text)}</p>`,
+        `<p data-music-lyric="${index}" aria-current="${index === ui.activeLyric ? "true" : "false"}"${index === ui.activeLyric ? ' class="active"' : ""}${Number.isFinite(line.time) ? ` data-music-lyric-time="${line.time}"` : ""}>${esc(line.text)}</p>`,
     )
     .join("")}</div>`;
 }
@@ -1035,7 +1051,7 @@ function lyricsPanelHtml(track) {
 
 function panelHtml({ track } = {}) {
   return `<section class="reader-music-services" data-music-services>
-    <header><span><small>SERVICIOS EXTERNOS</small><b>Buscar y reconocer</b></span><em>HANAMI · v136</em></header>
+    <header><span><small>SERVICIOS EXTERNOS</small><b>Buscar y reconocer</b></span><em>HANAMI · v137</em></header>
     <nav aria-label="Servicios de música">
       <button data-music-service-tab="soundcloud" class="${ui.tab === "soundcloud" ? "active" : ""}">Buscar</button>
       <button data-music-service-tab="lyrics" class="${ui.tab === "lyrics" ? "active" : ""}">Letras</button>
@@ -1043,6 +1059,15 @@ function panelHtml({ track } = {}) {
     ${soundCloudPanelHtml(track)}
     ${lyricsPanelHtml(track)}
   </section>`;
+}
+function lyricsOnlyHtml({ track } = {}) {
+  return `<section class="reader-music-services player-lyrics-only" data-music-services>${lyricsPanelHtml(track)}</section>`;
+}
+async function openLyrics() {
+  ui.tab = "lyrics";
+  if (trackKey(currentTrack()) !== ui.trackKey) hydrateLyrics();
+  render();
+  if (currentTrack() && !ui.lyrics) await loadLyrics();
 }
 
 async function loadCapabilities() {
@@ -1190,6 +1215,8 @@ async function findRecognizedTrack() {
 async function loadLyrics() {
   const track = currentTrack();
   if (!track || ui.lyricsBusy) return;
+  const request = ++ui.lyricsRequest;
+  const key = trackKey(track);
   ui.lyricsBusy = true;
   ui.lyricsStatus = "Consultando proveedores externos…";
   render();
@@ -1200,17 +1227,18 @@ async function loadLyrics() {
       duration: String(adapter.getDuration?.() || track.duration || 0),
     });
     const result = await apiJson(`/api/music/lyrics?${params}`);
+    if (request !== ui.lyricsRequest || key !== trackKey(currentTrack())) return;
     const parsed = parseLrc(result.lyrics);
     ui.lyrics = { ...result, ...parsed };
     ui.lyricsStatus = `${parsed.synced ? "Letras sincronizadas" : "Letras"} de ${result.provider}.`;
     saveLyricsCache(trackKey(track), result);
     ui.activeLyric = -1;
   } catch (error) {
+    if (request !== ui.lyricsRequest || key !== trackKey(currentTrack())) return;
     ui.lyrics = null;
     ui.lyricsStatus = error?.message || "No se encontraron letras.";
   } finally {
-    ui.lyricsBusy = false;
-    render();
+    if (request === ui.lyricsRequest) { ui.lyricsBusy = false; render(); }
   }
 }
 
@@ -1242,7 +1270,9 @@ function syncUi({ track, position }) {
   if (active === ui.activeLyric) return;
   ui.activeLyric = active;
   document.querySelectorAll("[data-music-lyric]").forEach((node) => {
-    node.classList.toggle("active", Number(node.dataset.musicLyric) === active);
+    const current = Number(node.dataset.musicLyric) === active;
+    node.classList.toggle("active", current);
+    node.setAttribute("aria-current", current ? "true" : "false");
   });
   const node = document.querySelector(`[data-music-lyric="${active}"]`);
   const scroller = node?.closest("[data-music-lyrics-scroll]");
@@ -1285,6 +1315,9 @@ function snapshot() {
 const service = {
   connect,
   panelHtml,
+  lyricsOnlyHtml,
+  openLyrics,
+  prepareLibrary: () => { ui.tab = "soundcloud"; },
   onPlayerChange,
   syncUi,
   snapshot,

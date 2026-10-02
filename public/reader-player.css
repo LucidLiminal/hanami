@@ -1,0 +1,178 @@
+/* Full player: the discovery screen intentionally remains a separate route. */
+#readerSheet.reader-player-open {
+  position: fixed; inset: 0; width: 100%; height: 100dvh; max-height: none; transform: none;
+  margin: 0; padding: 0; border: 0; border-radius: 0; overflow: auto; z-index: 170;
+  background: radial-gradient(ellipse at 85% 0, #4a2026 0, transparent 50%), #170b0d;
+  overscroll-behavior: contain;
+}
+#readerSheet.reader-player-open > i { display: none; }
+#readerSheet.reader-player-open #readerSheetBody { padding: 0; min-height: 100%; }
+#readerSheet .reader-music.player-screen {
+  --music-accent: #e6cfa9; --music-muted: #c9b69c; width: 100%; max-width: none; min-height: 100dvh;
+  margin: 0; padding: 0; color: #fbf9d1; font: 16px/1.5 Arial, sans-serif;
+  position: relative; isolation: isolate; display: flex; flex-direction: column; background: transparent;
+}
+#readerSheet .player-screen .player-dynamic-background { position: absolute; z-index: -1; inset: 0; overflow: hidden; pointer-events: none; }
+#readerSheet .player-screen .player-dynamic-background img { position: absolute; width: 100%; height: 90dvh; object-fit: cover; filter: blur(70px) saturate(.85); opacity: .7; transform: scale(1.15); }
+#readerSheet .player-screen .player-dynamic-background img[hidden] { display: none; }
+#readerSheet .player-screen .player-dynamic-background i { position: absolute; inset: 0; background: linear-gradient(180deg, #0c101730, #100c15d9 72%, #100b12f5); }
+#readerSheet .player-screen button { color: inherit; font: inherit; box-sizing: border-box; cursor: pointer; min-height: 44px !important; min-width: 44px !important; }
+#readerSheet .player-screen button:disabled { opacity: .45; cursor: default; }
+#readerSheet .player-screen button:focus-visible,
+#readerSheet .player-screen input:focus-visible { outline: 2px solid #fbf9d1; outline-offset: 4px; }
+#readerSheet .player-screen svg { width: 24px; height: 24px; stroke: currentColor; stroke-width: 1.65; fill: none; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+#readerSheet .player-screen .player-header {
+  position: static; display: flex; align-items: center; gap: 12px; width: min(1120px, 100%); max-width: none;
+  margin: 0 auto; min-height: 56px; padding: calc(6px + env(safe-area-inset-top)) 20px 6px;
+  background: transparent; border: 0; box-sizing: border-box;
+}
+#readerSheet .player-screen .player-status { flex: 1; min-width: 0; text-align: center; font-size: 14px; color: #c9b69c; }
+#readerSheet .player-screen .header-actions { display: flex; flex: 0 0 auto; gap: 4px; }
+#readerSheet .player-screen .player-icon-button { width: 44px; height: 44px; min-width: 44px; padding: 10px; display: inline-grid; place-items: center; border: 0; border-radius: 50%; background: transparent; }
+#readerSheet .player-screen .player-header .player-icon-button { background: #1d202a88; }
+#readerSheet .player-screen .player-icon-button:hover:not(:disabled) { background: #fbf9d10d; }
+#readerSheet .player-screen input[type="search"],
+#readerSheet .player-screen input[type="url"],
+#readerSheet .player-screen input[type="text"] { font: 16px/1.4 Arial, sans-serif !important; color: #fbf9d1; min-height: 44px !important; }
+#readerSheet .player-screen input::placeholder { color: #c9b69c; opacity: 1; }
+#readerSheet .player-screen .player-main { flex: 1; width: min(1120px, 100%); margin: 0 auto; padding: 16px 20px 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; box-sizing: border-box; }
+#readerSheet .player-screen .album-art-container { position: relative; flex: none; width: min(100%, 340px, 40dvh); aspect-ratio: 1; margin: 0; overflow: hidden; border: 1px solid #e6cfa929; border-radius: 28px; background: linear-gradient(135deg, #492026, #281114); }
+#readerSheet .player-screen.is-empty .album-art-container { width: min(100%, 280px, 33dvh); }
+#readerSheet .player-screen .album-art-container img { display: block; width: 100%; height: 100%; object-fit: cover; }
+#readerSheet .player-screen .album-art-container img[hidden] { display: none; }
+#readerSheet .player-screen .player-art-fallback { display: grid; place-items: center; position: absolute; inset: 0; color: #e6cfa9; }
+#readerSheet .player-screen .player-art-fallback svg { width: 38%; height: 38%; stroke-width: .85; opacity: .65; }
+#readerSheet .player-screen .has-art .player-art-fallback { display: none; }
+#readerSheet .player-screen .player-track-panel { width: min(100%, 480px); min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+#readerSheet .player-screen .track-info-section { display: flex; align-items: center; gap: 8px; }
+#readerSheet .player-screen hgroup { flex: 1; min-width: 0; }
+#readerSheet .player-screen .track-title { margin: 0; color: #fbf9d1; font: 600 26px/1.2 Arial, sans-serif; letter-spacing: -.02em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+#readerSheet .player-screen .track-artist { margin: 6px 0 0; color: #c9b69c; font: 600 18px/1.35 Arial, sans-serif; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+#readerSheet .player-screen .track-actions { display: flex; gap: 0; flex-shrink: 0; }
+#readerSheet .player-screen .btn-favorite[aria-pressed="true"] svg { fill: #e6cfa9; stroke: #e6cfa9; }
+#readerSheet .player-screen .progress-section { width: 100%; }
+#readerSheet .player-screen .progress-bar { display: block; width: 100%; height: 44px; min-height: 44px; margin: 0; padding: 0; accent-color: #e6cfa9; background: transparent; border: 0; cursor: pointer; }
+#readerSheet .player-screen .progress-bar::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: #e6cfa94d; }
+#readerSheet .player-screen .progress-bar::-webkit-slider-thumb { margin-top: -5px; }
+#readerSheet .player-screen .progress-bar::-moz-range-track { height: 4px; border-radius: 2px; background: #e6cfa94d; }
+#readerSheet .player-screen .time-indicators { display: flex; justify-content: space-between; color: #c9b69c; font: 14px/1.4 Arial, sans-serif; margin-top: 2px; font-variant-numeric: tabular-nums; }
+#readerSheet .player-screen .player-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: center; gap: 8px; margin: 0; padding: 0; }
+#readerSheet .player-screen .player-controls .player-icon-button { width: 100%; height: 76px; border-radius: 40px; background: #25262fe6; }
+#readerSheet .player-screen .player-controls .player-icon-button svg { width: 28px; height: 28px; fill: currentColor; }
+#readerSheet .player-screen .btn-play-pause { display: grid; place-items: center; width: 100%; height: 76px; padding: 23px; border: 0; border-radius: 24px; color: #170b0d; background: #e6cfa9; }
+#readerSheet .player-screen .btn-play-pause svg { width: 30px; height: 30px; fill: currentColor; stroke-width: 1.3; }
+#readerSheet .player-screen .secondary-controls { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+#readerSheet .player-screen .secondary-controls button { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 8px 10px; border: 0; border-radius: 12px; background: transparent; font-size: 14px; color: #c9b69c; }
+#readerSheet .player-screen .secondary-controls .btn-mode[aria-pressed="true"] { color: #fbf9d1; background: #e6cfa912; }
+#readerSheet .player-screen .btn-repeat { position: relative; color: #fbf9d1 !important; }
+#readerSheet .player-screen .btn-repeat i { box-sizing: border-box; font: 700 14px/1 Arial, sans-serif; position: absolute; left: 22px; top: -3px; width: 18px; padding: 2px; border-radius: 5px; background: #e6cfa9; color: #170b0d; text-align: center; }
+#readerSheet .player-screen .player-mode-description { margin: -6px 0 0; color: #c9b69c; font-size: 14px; line-height: 1.45; text-align: center; }
+#readerSheet .player-screen .player-playback-status { margin: 0; padding: 0; min-height: 0; color: #e6cfa9; font: 14px/1.45 Arial, sans-serif; text-align: center; }
+#readerSheet .player-screen .player-playback-status:empty { display: none; }
+#readerSheet .player-screen .player-choose-music { border: 1px solid #e6cfa966; background: #e6cfa910; border-radius: 12px; padding: 10px 16px; }
+#readerSheet .player-screen .player-footer { position: static; width: min(1120px, 100%); margin: 0 auto; display: flex; justify-content: center; align-items: center; gap: 56px; border: 0; padding: 4px 24px calc(12px + env(safe-area-inset-bottom)); background: transparent; box-sizing: border-box; }
+#readerSheet .player-screen .player-footer button { display: flex; align-items: center; gap: 8px; padding: 8px; border: 0; border-radius: 12px; background: transparent; font-size: 14px; }
+#readerSheet .player-screen .player-tool-overlay { position: fixed; inset: 0; z-index: 20; display: flex; justify-content: center; align-items: flex-end; padding: 12px 16px calc(16px + env(safe-area-inset-bottom)); box-sizing: border-box; }
+#readerSheet .player-screen .player-tool-backdrop { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; background: #080305a8; backdrop-filter: blur(5px); }
+#readerSheet .player-screen .player-tool-sheet { position: relative; width: min(640px, 100%); max-height: calc(100dvh - 44px); overflow: auto; margin: 0; background: #2b1417; border: 1px solid #e6cfa940; border-radius: 24px; overscroll-behavior: contain; }
+#readerSheet .player-screen .player-tool-sheet > header { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 12px; min-height: 68px; margin: 0; padding: 12px 16px; background: #2b1417; border: 0; border-bottom: 1px solid #e6cfa91f; }
+#readerSheet .player-screen .player-tool-sheet h2 { flex: 1; min-width: 0; margin: 0; font: 700 22px/1.25 Arial, sans-serif; }
+#readerSheet .player-screen .player-tool-body { padding: 20px 16px 24px; }
+#readerSheet .player-screen .player-tool-intro { margin: 0 0 20px; font-size: 14px; color: #c9b69c; }
+#readerSheet .player-screen .player-tool-message { font-size: 14px; color: #e6cfa9; margin: 16px 0 0; }
+#readerSheet .player-screen .player-tool-message:empty { display: none; }
+#readerSheet .player-screen .player-group-status { padding: 16px; border: 1px solid #e6cfa92b; border-radius: 14px; margin-bottom: 16px; }
+#readerSheet .player-screen .player-group-status p, #readerSheet .player-screen .player-group-status small { font-size: 14px; color: #c9b69c; margin: 8px 0 0; }
+#readerSheet .player-screen .player-group-actions { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
+#readerSheet .player-screen .player-group-actions button { border: 1px solid #e6cfa940; border-radius: 10px; padding: 10px; background: transparent; font-size: 14px; }
+#readerSheet .player-screen .player-group-select-title { font: 700 18px/1.3 Arial, sans-serif; margin: 0 0 12px; }
+#readerSheet .player-screen .player-tool-tabs { display: flex; gap: 8px; margin: 0 0 20px; padding: 0; }
+#readerSheet .player-screen .player-tool-tabs button { flex: 1; padding: 8px 4px; border: 1px solid #e6cfa92b; border-radius: 10px; background: transparent; font-size: 14px; }
+#readerSheet .player-screen .player-tool-tabs [aria-current="page"] { background: #e6cfa9; color: #170b0d; border-color: #e6cfa9; }
+#readerSheet .player-screen .player-mode-options { display: flex; flex-direction: column; gap: 12px; }
+#readerSheet .player-screen .player-mode-options button { width: 100%; display: flex; gap: 12px; align-items: center; text-align: left; padding: 16px 12px; border: 1px solid #e6cfa929; border-radius: 14px; background: transparent; }
+#readerSheet .player-screen .player-mode-options [aria-checked="true"] { background: #e6cfa910; border-color: #e6cfa9; }
+#readerSheet .player-screen .player-mode-options i { font: 700 16px/1 Arial, sans-serif; display: grid; place-items: center; width: 32px; height: 32px; flex: 0 0 32px; border-radius: 50%; background: #e6cfa914; }
+#readerSheet .player-screen .player-mode-options span { flex: 1; min-width: 0; }
+#readerSheet .player-screen .player-mode-options b { font-size: 16px; display: block; }
+#readerSheet .player-screen .player-mode-options small { font: 14px/1.45 Arial, sans-serif; display: block; color: #c9b69c; margin-top: 6px; }
+#readerSheet .player-screen .player-mode-options em { font-style: normal; }
+#readerSheet .player-screen .player-list-create { display: flex; gap: 8px; margin: 8px 0 24px; }
+#readerSheet .player-screen [data-player-create-list] > label { border: 0; padding: 0; min-height: 0; font-size: 14px; color: #c9b69c; }
+#readerSheet .player-screen .player-list-create input { flex: 1; min-width: 0; margin: 0; font: 16px/1.4 Arial, sans-serif; color: #fbf9d1; border: 1px solid #e6cfa940; border-radius: 10px; padding: 10px 12px; background: #170b0d; }
+#readerSheet .player-screen .player-list-create button { border: 0; border-radius: 10px; padding: 8px 16px; background: #e6cfa9; color: #170b0d; }
+#readerSheet .player-screen .player-private-lists article { display: flex; align-items: center; gap: 12px; padding: 16px 0; border-top: 1px solid #e6cfa91f; }
+#readerSheet .player-screen .player-private-lists article > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+#readerSheet .player-screen .player-private-lists b { display: block; font-size: 16px; }
+#readerSheet .player-screen .player-private-lists small { display: block; font-size: 14px; color: #c9b69c; }
+#readerSheet .player-screen .player-private-lists button { border: 1px solid #e6cfa940; border-radius: 10px; padding: 8px; background: transparent; font-size: 14px; }
+#readerSheet .player-screen .player-private-lists button:last-child { width: 44px; height: 44px; padding: 10px; }
+#readerSheet .player-screen .player-tool-empty { padding: 20px; border: 1px solid #e6cfa929; border-radius: 14px; font-size: 16px; }
+#readerSheet .player-screen .player-tool-empty p { font-size: 14px; color: #c9b69c; margin: 8px 0 0; }
+#readerSheet .player-screen .reader-music-library > header { position: static; background: transparent; margin-bottom: 16px; }
+#readerSheet .player-screen .reader-music-library > header b { font: 700 16px/1.4 Arial, sans-serif; }
+#readerSheet .player-screen .reader-music-import { min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; }
+#readerSheet .player-screen .reader-music-import:focus-within { outline: 2px solid #fbf9d1; outline-offset: 4px; }
+#readerSheet .player-screen .reader-music-library > header small,
+#readerSheet .player-screen .reader-music-track small,
+#readerSheet .player-screen .reader-music-track time,
+#readerSheet .player-screen .reader-music-queue-row small,
+#readerSheet .player-screen .reader-music-queue-row em,
+#readerSheet .player-screen .reader-music-import span,
+#readerSheet .player-screen .reader-music-manual summary { font: 14px/1.4 Arial, sans-serif; }
+#readerSheet .player-screen .reader-music-track b,
+#readerSheet .player-screen .reader-music-queue-row b { font: 700 16px/1.35 Arial, sans-serif; }
+#readerSheet .player-screen .reader-music-track-main > i { width: 38px; min-width: 38px; }
+#readerSheet .player-screen .reader-music-track { grid-template-columns: minmax(0, 1fr) 44px 44px; }
+#readerSheet .player-screen .reader-music-manual button { font: 14px/1.4 Arial, sans-serif !important; }
+#readerSheet .player-screen .reader-music-library { margin: 0; }
+#readerSheet .player-screen .reader-music-queue { margin: 0; border: 0; background: transparent; padding: 0; }
+#readerSheet .player-screen .reader-music-queue-row { grid-template-columns: minmax(0, 1fr) 44px 44px 44px; gap: 4px; }
+#readerSheet .player-screen .reader-music-queue-row > button { min-width: 44px; }
+#readerSheet .player-screen .reader-music-queue-row > button:first-child { padding: 10px 6px; }
+#readerSheet .player-screen .reader-music-queue-row > button:first-child small { width: 24px; min-width: 24px; flex: 0 0 24px; font-size: 14px; }
+#readerSheet .player-screen .reader-music-queue > footer { display: flex; gap: 12px; padding: 20px 0 0; }
+#readerSheet .player-screen .reader-music-queue > footer button { flex: 1; border: 1px solid #e6cfa940; border-radius: 10px; padding: 8px; background: transparent; font: 14px/1.4 Arial, sans-serif !important; }
+#readerSheet .player-screen .reader-music-services { font: 16px/1.5 Arial, sans-serif; }
+#readerSheet .player-screen .reader-music-services small,
+#readerSheet .player-screen .reader-music-services em,
+#readerSheet .player-screen .reader-music-services p,
+#readerSheet .player-screen .reader-music-services button { font: 14px/1.5 Arial, sans-serif !important; }
+#readerSheet .player-screen .reader-music-service-empty span { font: 14px/1.5 Arial, sans-serif !important; color: #c9b69c; }
+#readerSheet .player-screen .reader-music-soundcloud-source b { font: 700 14px/1.4 Arial, sans-serif !important; }
+#readerSheet .player-screen .reader-music-soundcloud-source a { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; font: 14px/1.4 Arial, sans-serif !important; color: #e6cfa9; }
+#readerSheet .player-screen .reader-music-service-status { color: #c9b69c; }
+#readerSheet .player-screen .reader-music-service-status.error { color: #ffd4c6; }
+#readerSheet .player-screen .reader-music-lyrics-scroll { max-height: 55dvh; font-size: 18px; }
+#readerSheet .player-screen .reader-music-lyrics-scroll p[data-music-lyric] { font: 500 18px/1.5 Arial, sans-serif !important; color: #c9b69c; opacity: 1; border-left: 2px solid transparent; padding: 8px 10px; }
+#readerSheet .player-screen .reader-music-lyrics-scroll p.active { font-weight: 700 !important; color: #fbf9d1; border-left-color: #e6cfa9; background: #e6cfa910; border-radius: 8px; transform: none; }
+#readerSheet .player-screen .player-lyrics-only [data-music-service-panel="lyrics"] { display: block; }
+#reader .reader-music-picker { z-index: 195; }
+#reader .reader-music-pin[aria-pressed="true"] { background: #e6cfa9; color: #170b0d; border-color: #fbf9d1; }
+#reader .reader-music-pin[data-share-state="pending"] { border-style: dashed; }
+#reader .reader-music-pin[data-share-state="shared"]::after { content: ""; position: absolute; width: 8px; height: 8px; border: 2px solid #170b0d; border-radius: 50%; background: #e6cfa9; right: 0; top: 0; }
+@media (min-width: 900px) {
+  #readerSheet .player-screen .player-main { flex-direction: row; justify-content: center; gap: 72px; padding: 40px 48px; }
+  #readerSheet .player-screen .album-art-container { width: min(42vw, 420px, 62dvh); }
+  #readerSheet .player-screen .player-track-panel { width: 420px; flex-shrink: 0; gap: 28px; }
+  #readerSheet .player-screen .track-title { font-size: 32px; }
+  #readerSheet .player-screen .track-artist { font-size: 18px; }
+  #readerSheet .player-screen .player-controls { gap: 12px; }
+  #readerSheet .player-screen .btn-play-pause, #readerSheet .player-screen .player-controls .player-icon-button { width: 100%; height: 88px; }
+  #readerSheet .player-screen .player-footer { padding-bottom: 32px; }
+}
+@media (max-width: 360px) {
+  #readerSheet .player-screen .player-header { gap: 4px; padding-inline: 16px; }
+  #readerSheet .player-screen .header-actions { gap: 0; }
+  #readerSheet .player-screen .track-actions { flex-direction: column; }
+}
+@media (max-height: 740px) and (max-width: 899px) {
+  #readerSheet .player-screen .album-art-container { width: min(100%, 220px, 27dvh); }
+  #readerSheet .player-screen .player-main { gap: 12px; padding-top: 4px; padding-bottom: 8px; }
+  #readerSheet .player-screen .player-track-panel { gap: 12px; }
+  #readerSheet .player-screen .btn-play-pause,
+  #readerSheet .player-screen .player-controls .player-icon-button { width: 100%; height: 64px; padding: 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #readerSheet .player-screen *, #readerSheet .player-screen *::before, #readerSheet .player-screen *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
+}
