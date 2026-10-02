@@ -39,8 +39,8 @@ assert.equal(
   "app.js debe proteger la ficha de grupo y la de explorar",
 );
 
-assert(sw.includes("hanami-crimson-knot-v137"));
-assert.equal(pkg.version, "5.11.0");
+assert(sw.includes("hanami-crimson-knot-v138"));
+assert.equal(pkg.version, "5.12.0");
 assert(
   pkg.scripts.test.includes(
     "node tests/reader-music-v128.test.mjs",

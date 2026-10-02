@@ -1,0 +1,58 @@
+/* Page anchors keep their reading coordinates; the cards live at the viewport edge. */
+#reader .reader-music-anchor-layer { pointer-events: none; }
+#reader .reader-music-anchor { position: absolute; width: 1px; height: 1px; pointer-events: none; }
+#reader .reader-music-pin-dock {
+  position: fixed; right: 0; z-index: 14; width: 48px; max-width: calc(100vw - 24px);
+  display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden;
+  overscroll-behavior: contain; scrollbar-width: thin; pointer-events: none;
+  font: 16px/1.5 Arial, sans-serif; color: #fbf9d1;
+}
+#reader .reader-music-pin-dock[hidden] { display: none; }
+#reader .reader-music-pin-dock.has-expanded-pin { width: min(320px, calc(100vw - 24px)); }
+#reader .reader-music-pin-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; width: 100%; margin-block: auto; padding-block: 4px; box-sizing: border-box; }
+#reader .reader-music-pin {
+  position: relative; transform: none; pointer-events: auto; width: 48px; height: auto; min-height: 48px;
+  display: block; place-items: normal; padding: 0; margin: 0; flex: none; border: 1px solid #e6cfa980; border-right: 0;
+  border-radius: 12px 0 0 12px; background: #231116f5; color: #fbf9d1; box-shadow: 0 2px 8px #0003;
+  touch-action: manipulation; box-sizing: border-box;
+}
+#reader .reader-music-pin.is-expanded { width: 100%; border-radius: 16px 0 0 16px; }
+#reader .reader-music-pin button {
+  font: 14px/1.4 Arial, sans-serif; color: inherit; cursor: pointer;
+  min-width: 44px; min-height: 44px; border: 0; box-sizing: border-box;
+}
+#reader .reader-music-pin button:disabled { cursor: default; opacity: .45; }
+#reader .reader-music-pin button:focus-visible { outline: 2px solid #fbf9d1; outline-offset: -4px; }
+#reader .reader-music-pin svg { width: 24px; height: 24px; stroke: currentColor; stroke-width: 1.7; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+#reader .reader-music-pin-expand { position: relative; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 12px 0 0 12px; padding: 12px; background: transparent; }
+#reader .reader-music-pin [hidden] { display: none !important; }
+#reader .reader-music-pin-expand i { position: absolute; bottom: 6px; right: 7px; width: 6px; height: 6px; border-radius: 50%; background: #e6cfa9; }
+#reader .reader-music-pin[data-playing="true"] { border-color: #e6cfa9; }
+#reader .reader-music-pin[data-share-state="pending"] { border-style: dashed; }
+#reader .reader-music-pin[data-share-state="shared"]::after { content: none; }
+#reader .reader-music-pin-content { width: 100%; padding: 8px 12px 12px; box-sizing: border-box; }
+#reader .reader-music-pin-content > header { position: static; display: flex; align-items: center; gap: 8px; padding: 0; min-height: 44px; width: 100%; margin: 0 0 8px; border: 0; background: transparent; }
+#reader .reader-music-pin-content > header > span { flex: 1; min-width: 0; font: 14px/1.4 Arial, sans-serif; color: #c9b69c; }
+#reader .reader-music-pin-minimize { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 10px; border-radius: 8px; background: #e6cfa90a; }
+#reader .reader-music-pin-track { display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: 12px; align-items: center; }
+#reader .reader-music-pin .album-cover { position: relative; width: 80px; aspect-ratio: 1; margin: 0; border: 1px solid #e6cfa92b; border-radius: 8px; background: #492026; overflow: hidden; }
+#reader .reader-music-pin .album-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+#reader .reader-music-pin .album-cover > i { position: absolute; inset: 0; display: grid; place-items: center; color: #c9b69c; }
+#reader .reader-music-pin .album-cover > i svg { width: 40px; height: 40px; }
+#reader .reader-music-pin .album-cover.has-art > i { display: none; }
+#reader .reader-music-pin hgroup { min-width: 0; }
+#reader .reader-music-pin .track-title { margin: 0; font: 700 16px/1.35 Arial, sans-serif; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+#reader .reader-music-pin .track-artist { margin: 6px 0 0; font: 14px/1.4 Arial, sans-serif; color: #c9b69c; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+#reader .reader-music-pin-actions { display: flex; gap: 8px; margin-top: 16px; }
+#reader .reader-music-pin-play { display: flex; align-items: center; justify-content: center; gap: 8px; flex: 1; min-width: 0; padding: 10px 12px; background: #e6cfa9; color: #170b0d !important; border-radius: 8px; }
+#reader .reader-music-pin-play svg { fill: currentColor; }
+#reader .reader-music-pin-remove { display: grid; place-items: center; flex: 0 0 44px; width: 44px; padding: 10px; border-radius: 8px; background: #e6cfa912; }
+#reader .reader-music-pin-status { margin: 8px 0 0; color: #c9b69c; font: 14px/1.4 Arial, sans-serif; }
+#reader .reader-music-pin-status:empty { display: none; }
+@media (max-width: 359px) {
+  #reader .reader-music-pin-track { grid-template-columns: 72px minmax(0, 1fr); }
+  #reader .reader-music-pin .album-cover { width: 72px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #reader .reader-music-pin-dock { scroll-behavior: auto; }
+}

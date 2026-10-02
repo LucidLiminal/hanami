@@ -1,0 +1,22 @@
+.reader-music-picker .music-local-playlist { border: 1px solid #e6cfa938; border-radius: 12px; margin-bottom: 12px; background: #e6cfa905; overflow: hidden; }
+.reader-music-picker .music-local-playlist > summary { display: flex; align-items: center; gap: 12px; min-height: 68px; padding: 12px 16px; cursor: pointer; list-style: none; box-sizing: border-box; }
+.reader-music-picker .music-local-playlist > summary::-webkit-details-marker { display: none; }
+.reader-music-picker .music-local-playlist > summary > svg { width: 24px; height: 24px; flex: 0 0 24px; color: #e6cfa9; }
+.reader-music-picker .music-local-playlist > summary > span { flex: 1; min-width: 0; }
+.reader-music-picker .music-local-playlist > summary b { display: block; font: 700 16px/1.4 Arial, sans-serif; overflow-wrap: anywhere; }
+.reader-music-picker .music-local-playlist > summary small { display: block; margin-top: 4px; font: 14px/1.4 Arial, sans-serif; color: #c9b69c; }
+.reader-music-picker .music-local-playlist[open] .music-local-list-chevron { transform: rotate(180deg); }
+.reader-music-picker .music-local-playlist summary:focus-visible { outline: 2px solid #fbf9d1; outline-offset: -4px; }
+.reader-music-picker .music-local-list-tracks { border-top: 1px solid #e6cfa929; padding: 4px 12px 12px; }
+.reader-music-picker .music-local-track { display: grid; grid-template-columns: 56px minmax(0, 1fr) 44px; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid #e6cfa91f; }
+.reader-music-picker .music-local-track:last-child { border-bottom: 0; padding-bottom: 0; }
+.reader-music-picker .music-local-track-art { position: relative; width: 56px; height: 56px; background: #492026; border-radius: 8px; overflow: hidden; }
+.reader-music-picker .music-local-track-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.reader-music-picker .music-local-track-art > i { position: absolute; inset: 0; display: grid; place-items: center; color: #c9b69c; }
+.reader-music-picker .music-local-track-art svg { width: 24px; height: 24px; }
+.reader-music-picker .music-local-track > span { min-width: 0; }
+.reader-music-picker .music-local-track b { display: block; color: #fbf9d1; font: 700 16px/1.35 Arial, sans-serif; overflow-wrap: anywhere; }
+.reader-music-picker .music-local-track small { display: block; margin-top: 4px; color: #c9b69c; font: 14px/1.4 Arial, sans-serif; overflow-wrap: anywhere; }
+.reader-music-picker .music-local-track button { display: grid; place-items: center; width: 44px; height: 44px; padding: 10px; border: 0; border-radius: 8px; background: #e6cfa9; color: #170b0d; }
+.reader-music-picker .music-local-track button svg { width: 24px; height: 24px; }
+.reader-music-picker .music-local-list-empty { color: #c9b69c; font: 14px/1.5 Arial, sans-serif; margin: 16px 4px 4px; }

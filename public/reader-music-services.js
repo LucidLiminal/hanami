@@ -69,6 +69,8 @@ const widgetState = {
   statePollToken: 0,
   statePollPaused: null,
   statePollEnded: false,
+  finishedToken: -1,
+  starting: false,
 };
 
 function readLyricsCache() {
@@ -310,7 +312,7 @@ function completeWidgetPending({
   refreshDuration = true,
 } = {}) {
   const pending = widgetState.pending;
-  if (!pending) return false;
+  if (!pending || pending.token !== widgetState.token) return false;
   clearTimeout(pending.timer);
   clearTimeout(pending.pollTimer);
   widgetState.pending = null;
@@ -322,11 +324,9 @@ function completeWidgetPending({
   if (refreshDuration) refreshWidgetDuration();
   else widgetState.durationRefreshPending = true;
   const position = Math.max(0, Number(pending.position) || 0);
-  if (position) {
-    widgetState.widget?.seekTo?.(position * 1_000);
-    widgetState.position = position;
-  }
-  if (startPlayback && pending.autoplay) {
+  widgetState.widget?.seekTo?.(position * 1_000);
+  widgetState.position = position;
+  if (startPlayback && pending.autoplay && !widgetState.pauseRequested) {
     widgetState.paused = false;
     armWidgetPlayProbe();
     widgetState.widget?.play?.();
@@ -338,6 +338,29 @@ function completeWidgetPending({
     playing,
     duration: widgetState.duration,
   });
+  return true;
+}
+
+function confirmWidgetReady(pending = widgetState.pending) {
+  if (!pending || widgetState.pending !== pending || pending.token !== widgetState.token) return;
+  widgetState.widget?.getCurrentSound?.((sound) => {
+    if (widgetState.pending !== pending || pending.token !== widgetState.token || !pendingMatchesSound(pending, sound)) return;
+    completeWidgetPending({ playing: !!pending.autoplay, startPlayback: !!pending.autoplay });
+  });
+}
+
+function finishWidgetTrack(token = widgetState.token) {
+  if (token !== widgetState.token || widgetState.pending || widgetState.pauseRequested ||
+    widgetState.finishedToken === token) return false;
+  // FINISH/PAUSE for the old sound can arrive after seek/load has started.
+  if (widgetState.starting && (!widgetState.duration || widgetState.position < widgetState.duration - 0.75)) return false;
+  widgetState.finishedToken = token;
+  clearWidgetPlayProbe();
+  // Stop the old poll before the callback starts the next song's poll.
+  stopWidgetStatePolling();
+  widgetState.paused = true;
+  widgetState.position = widgetState.duration;
+  widgetUpdate({ reason: "finish", playing: false, ended: true });
   return true;
 }
 
@@ -381,7 +404,10 @@ function startWidgetStatePolling() {
     widgetState.widget.getPosition?.((milliseconds) => {
       if (token !== widgetState.statePollToken) return;
       const position = Math.max(0, Number(milliseconds) || 0) / 1_000;
-      if (Number.isFinite(position)) widgetState.position = position;
+      if (Number.isFinite(position)) {
+        widgetState.position = position;
+        if (position > 0.2) widgetState.starting = false;
+      }
       widgetState.widget.getDuration?.((durationMilliseconds) => {
         if (token !== widgetState.statePollToken) return;
         const duration =
@@ -397,13 +423,7 @@ function startWidgetStatePolling() {
           widgetState.position >= widgetState.duration - 0.75;
         if (ended && !widgetState.statePollEnded) {
           widgetState.statePollEnded = true;
-          widgetState.paused = true;
-          widgetUpdate({
-            reason: "finish",
-            playing: false,
-            ended: true,
-          });
-          stopWidgetStatePolling();
+          finishWidgetTrack();
           return;
         }
         if (
@@ -420,7 +440,7 @@ function startWidgetStatePolling() {
         widgetState.statePollPaused = isPaused;
       });
     });
-    widgetState.statePollTimer = setTimeout(tick, 900);
+    if (token === widgetState.statePollToken) widgetState.statePollTimer = setTimeout(tick, 900);
   };
   widgetState.statePollTimer = setTimeout(tick, 700);
 }
@@ -479,11 +499,7 @@ function bindWidgetEvents(widget) {
   widget.bind(events.READY, () => {
     const pending = widgetState.pending;
     widgetState.ready = true;
-    if (pending)
-      completeWidgetPending({
-        playing: !!pending.autoplay,
-        startPlayback: true,
-      });
+    if (pending) confirmWidgetReady(pending);
     else
       refreshWidgetDuration();
   });
@@ -492,15 +508,13 @@ function bindWidgetEvents(widget) {
       widgetState.widget?.pause?.();
       return;
     }
-    const transitioning = !!widgetState.pending;
-    if (transitioning)
-      completeWidgetPending({ playing: true, refreshDuration: false });
+    if (widgetState.pending) { confirmWidgetReady(); return; }
     widgetState.paused = false;
-    if (transitioning && !widgetState.playProbeTimer) armWidgetPlayProbe();
     startWidgetStatePolling();
     widgetUpdate({ reason: "play", playing: true });
   });
   widget.bind(events.PAUSE, () => {
+    if (widgetState.pending || widgetState.starting && !widgetState.pauseRequested) return;
     widgetState.paused = true;
     if (widgetState.pauseRequested) {
       clearWidgetPlayProbe();
@@ -510,25 +524,31 @@ function bindWidgetEvents(widget) {
   });
   widget.bind(events.PLAY_PROGRESS, (progress = {}) => {
     if (widgetState.pauseRequested) return;
-    if (widgetState.pending)
-      completeWidgetPending({ playing: true, refreshDuration: false });
+    if (widgetState.pending) { confirmWidgetReady(); return; }
     if (widgetState.durationRefreshPending) {
       widgetState.durationRefreshPending = false;
       refreshWidgetDuration();
     }
+    const position = Math.max(0, Number(progress.currentPosition) || 0) / 1_000;
+    // A last progress message from the previous sound must not end its replacement.
+    if (widgetState.starting && widgetState.duration > 0 && position >= widgetState.duration - 0.75) return;
     widgetState.playProbeProgress = true;
     clearWidgetPlayProbe();
     ui.playbackError = "";
     ui.playbackErrorKey = "";
-    widgetState.position = Math.max(0, Number(progress.currentPosition) || 0) / 1_000;
+    widgetState.position = position;
+    if (widgetState.position > 0.2) widgetState.starting = false;
     widgetUpdate({ reason: "progress", playing: true });
   });
   widget.bind(events.FINISH, () => {
-    clearWidgetPlayProbe();
-    stopWidgetStatePolling();
-    widgetState.paused = true;
-    widgetState.position = widgetState.duration;
-    widgetUpdate({ reason: "finish", playing: false, ended: true });
+    const token = widgetState.token;
+    if (!widgetState.starting) { finishWidgetTrack(token); return; }
+    // Confirm an immediate FINISH against the current iframe, not a stale message.
+    widgetState.widget?.getPosition?.((milliseconds) => {
+      if (token !== widgetState.token || widgetState.pending || widgetState.pauseRequested) return;
+      widgetState.position = Math.max(0, Number(milliseconds) || 0) / 1_000;
+      finishWidgetTrack(token);
+    });
   });
   widget.bind(events.ERROR, () => {
     clearWidgetPlayProbe();
@@ -595,18 +615,32 @@ async function loadPlayback(
   const permalinkUrl = canonicalSoundCloudUrl(
     track.permalinkUrl || track.url,
   );
-  await loadSoundCloudWidgetApi();
+  const reuse = !!widgetState.widget && widgetState.ready && !widgetState.pending &&
+    comparableSoundCloudUrl(widgetState.permalinkUrl) === comparableSoundCloudUrl(permalinkUrl);
   cancelWidgetPending(false);
   clearWidgetPlayProbe();
   stopWidgetStatePolling();
   const token = ++widgetState.token;
-  widgetState.ready = false;
+  widgetState.ready = reuse;
   widgetState.paused = !autoplay;
   widgetState.pauseRequested = !autoplay;
   widgetState.position = Math.max(0, Number(position) || 0);
   widgetState.duration = Math.max(0, Number(track.duration) || 0);
   widgetState.durationRefreshPending = false;
   widgetState.permalinkUrl = permalinkUrl;
+  widgetState.starting = !!autoplay;
+  if (reuse) {
+    // Repeating never calls load(): keep the already-authorized SoundCloud iframe.
+    widgetState.widget.seekTo(widgetState.position * 1_000);
+    if (autoplay) {
+      armWidgetPlayProbe();
+      widgetState.widget.play();
+      startWidgetStatePolling();
+    } else widgetState.widget.pause();
+    return { ready: true, playing: autoplay, duration: widgetState.duration };
+  }
+  await loadSoundCloudWidgetApi();
+  if (token !== widgetState.token || autoplay && widgetState.pauseRequested) return false;
   const promise = new Promise((resolve, reject) => {
     widgetState.pending = {
       token,
@@ -636,6 +670,9 @@ async function loadPlayback(
       sharing: false,
       download: false,
       visual: false,
+      callback: () => {
+        if (token === widgetState.token) confirmWidgetReady();
+      },
     });
   }
   pollPendingSound(widgetState.pending);
@@ -671,6 +708,7 @@ async function togglePlayback(track, { position = 0, playing: requestedPlaying }
 }
 
 function pausePlayback() {
+  widgetState.token++;
   widgetState.pauseRequested = true;
   cancelWidgetPending(false);
   widgetState.playProbeToken++;
@@ -758,13 +796,34 @@ function discoveryCardContent(track, source, key, label, busy, assigning) {
   return `<div class="music-discovery-card-content"><span><b>${esc(track.title || "Sin título")}</b><em>${esc(track.artist || "Artista desconocido")}</em></span><button type="button" data-music-picker-pick="${esc(key)}" data-music-picker-source="${source}" aria-label="${esc(label)}" title="${esc(label)}" ${pickerSelecting ? "disabled" : ""}>${busy ? "…" : assigning ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>' : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 4 13 8-13 8Z"/></svg>'}</button></div>`;
 }
 
+function localPlaylistsHtml() {
+  const lists = window.HanamiReaderPlayer?.snapshot?.().playlists || [];
+  const tracks = window.HanamiReaderMusic?.listTracks?.() || [];
+  const assigning = !!picker?.context;
+  return `<section class="music-discovery-section music-local-playlists" aria-labelledby="musicPickerLists"><header><div><small>EN ESTE DISPOSITIVO</small><h3 id="musicPickerLists">Tus listas <span class="music-discovery-count">${lists.length}</span></h3></div></header>
+    <p class="music-discovery-note">Abre una lista y elige una canción. Tus listas son personales y no se publican en el grupo.</p>
+    ${lists.length ? lists.map((list) => {
+      const available = list.trackIds.map((id) => tracks.find((track) => track.id === id)).filter(Boolean);
+      const missing = list.trackIds.length - available.length;
+      return `<details class="music-local-playlist" data-music-picker-list="${esc(list.id)}"><summary><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h12M4 18h12"/></svg><span><b>${esc(list.name)}</b><small>${available.length} canción${available.length === 1 ? "" : "es"}${missing ? ` · ${missing} no disponible${missing === 1 ? "" : "s"}` : ""}</small></span><svg class="music-local-list-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary><div class="music-local-list-tracks">
+        ${available.length ? available.map((track) => {
+          const artwork = /^https:\/\//i.test(track.artwork || "") ? track.artwork : "";
+          const busy = pickerSelecting === `local:${track.id}`;
+          const label = `${assigning ? "Instanciar" : "Reproducir"} ${track.title}`;
+          return `<article class="music-local-track"><div class="music-local-track-art">${artwork ? `<img src="${esc(artwork)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<i aria-hidden="true">${discoveryMusicIcon}</i>`}</div><span><b>${esc(track.title || "Sin título")}</b><small>${esc(track.artist || "Artista desconocido")}</small></span><button type="button" data-music-picker-pick="${esc(track.id)}" data-music-picker-source="local" data-music-picker-playlist="${esc(list.id)}" aria-label="${esc(label)}" title="${esc(label)}" ${pickerSelecting ? "disabled" : ""}>${busy ? "…" : assigning ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>' : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 4 12 8-12 8Z"/></svg>'}</button></article>`;
+        }).join("") : '<p class="music-local-list-empty">Esta lista no tiene canciones disponibles en este navegador.</p>'}
+      </div></details>`;
+    }).join("") : '<div class="music-discovery-empty"><b>Todavía no tienes listas</b><p>Crea una desde el reproductor → Listas. Aparecerá aquí con las canciones que hayas guardado.</p></div>'}
+  </section>`;
+}
+
 function pickerHtml() {
   const discovery = discoverySnapshot();
   const recent = recentTracks();
   const assigning = !!picker?.context;
   return `<header class="music-discovery-top"><button type="button" class="music-discovery-back" data-music-picker-close aria-label="Volver a la lectura"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5-7 7 7 7"/></svg></button><div><small>MÚSICA PARA TU LECTURA</small><h2>Música</h2></div></header>
   <main class="music-discovery-content">
-    ${assigning ? `<p class="music-discovery-context">Elige una pista para la página ${Number(picker.context.pageIndex || 0) + 1}. Se colocará en el punto que has mantenido presionado.</p>` : ""}
+    ${assigning ? `<p class="music-discovery-context">Elige una pista para la página ${Number(picker.context.pageIndex || 0) + 1}. Su tarjeta aparecerá en el lateral al llegar a ese punto de lectura.</p>` : ""}
     <form class="music-url-search" data-music-picker-form novalidate>
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg>
       <input type="url" inputmode="url" autocomplete="off" spellcheck="false" data-music-picker-query value="${esc(ui.query)}" placeholder="Pega la URL de una canción…" aria-label="URL de una canción de SoundCloud" aria-describedby="musicPickerUrlWarning">
@@ -773,6 +832,7 @@ function pickerHtml() {
     <p id="musicPickerUrlWarning" class="music-url-warning">Por ahora, solo se aceptan URL de canciones de SoundCloud; no nombres de canciones ni artistas.</p>
     <p class="music-picker-status ${pickerError ? "error" : ""}" data-music-picker-status role="status" aria-live="polite">${esc(pickerError || (ui.searchBusy || ui.query ? ui.searchStatus : ""))}</p>
     ${ui.results.length ? `<section class="music-discovery-section" aria-labelledby="musicPickerResults"><header><div><small>ENLACE ENCONTRADO</small><h3 id="musicPickerResults">${ui.results.length === 1 ? "Tu canción" : "Resultados"}</h3></div></header><div class="music-discovery-carousel" data-music-carousel="results">${ui.results.map((track) => discoveryCard(track, "result")).join("")}</div></section>` : ""}
+    ${localPlaylistsHtml()}
     <section class="music-discovery-section" aria-labelledby="musicPickerRecent"><header><div><small>PARA TI</small><h3 id="musicPickerRecent">Escuchado recientemente <span class="music-discovery-count">${recent.length}</span></h3></div>${recent.length > 1 ? '<button type="button" data-music-picker-more="recent" aria-label="Ver más canciones recientes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button>' : ""}</header>
       ${recent.length ? `<div class="music-discovery-carousel" data-music-carousel="recent">${recent.map((track) => discoveryCard(track, "recent")).join("")}</div>` : '<div class="music-discovery-empty"><b>Tu próxima lectura puede tener banda sonora</b><p>Las canciones que escuches en Hanami aparecerán aquí. Pega un enlace para empezar.</p></div>'}
     </section>
@@ -788,8 +848,21 @@ function renderPicker() {
   const scrollTop = node.scrollTop;
   const carousels = [...node.querySelectorAll("[data-music-carousel]")].map((item) => [item.dataset.musicCarousel, item.scrollLeft]);
   const inputFocused = document.activeElement?.matches("[data-music-picker-query]");
+  const active = node.contains(document.activeElement) ? document.activeElement : null;
+  const focusedList = active?.closest("[data-music-picker-list]")?.dataset.musicPickerList;
+  let focusSelector = active?.matches("[data-music-picker-close]") ? "[data-music-picker-close]" : "";
+  if (active?.matches("summary") && focusedList) focusSelector = `[data-music-picker-list="${CSS.escape(focusedList)}"] > summary`;
+  else if (active?.matches("[data-music-picker-pick]")) {
+    const scope = focusedList ? `[data-music-picker-list="${CSS.escape(focusedList)}"] ` : "";
+    focusSelector = `${scope}[data-music-picker-source="${CSS.escape(active.dataset.musicPickerSource)}"][data-music-picker-pick="${CSS.escape(active.dataset.musicPickerPick)}"]`;
+  }
+  const openLists = [...node.querySelectorAll("[data-music-picker-list][open]")].map((list) => list.dataset.musicPickerList);
   const selection = inputFocused ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null;
   node.innerHTML = pickerHtml();
+  for (const id of openLists) {
+    const list = node.querySelector(`[data-music-picker-list="${CSS.escape(id)}"]`);
+    if (list) list.open = true;
+  }
   node.scrollTop = scrollTop;
   for (const [name, left] of carousels) {
     const carousel = node.querySelector(`[data-music-carousel="${name}"]`);
@@ -802,6 +875,11 @@ function renderPicker() {
     if (selection?.[0] != null) {
       try { input.setSelectionRange(...selection); } catch {}
     }
+  } else if (focusSelector) {
+    const control = node.querySelector(focusSelector);
+    if (control && !control.disabled) control.focus({ preventScroll: true });
+    else if (focusedList) node.querySelector(`[data-music-picker-list="${CSS.escape(focusedList)}"] > summary`)?.focus({ preventScroll: true });
+    else node.focus({ preventScroll: true });
   }
 }
 
@@ -899,11 +977,11 @@ function openPicker({ context = null, restoring = false } = {}) {
         behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
       });
     }
-    if (button.dataset.musicPickerPick) void selectPickerTrack(button.dataset.musicPickerSource, button.dataset.musicPickerPick);
+    if (button.dataset.musicPickerPick) void selectPickerTrack(button.dataset.musicPickerSource, button.dataset.musicPickerPick, button.dataset.musicPickerPlaylist);
   });
   node.addEventListener("error", (event) => {
     const image = event.target;
-    if (!image.matches?.(".music-discovery-art > img")) return;
+    if (!image.matches?.(".music-discovery-art > img,.music-local-track-art > img")) return;
     image.insertAdjacentHTML("beforebegin", `<i aria-hidden="true">${discoveryMusicIcon}</i>`);
     image.remove();
   }, true);
@@ -911,7 +989,7 @@ function openPicker({ context = null, restoring = false } = {}) {
     if (event.key === "Escape") {
       event.preventDefault(); event.stopPropagation(); closePicker();
     } else if (event.key === "Tab") {
-      const controls = [...node.querySelectorAll("button:not([disabled]),input")].filter((item) => item.getClientRects().length);
+      const controls = [...node.querySelectorAll("button:not([disabled]),input,summary")].filter((item) => item.getClientRects().length && !item.closest("details:not([open]) .music-local-list-tracks"));
       const first = controls[0], last = controls.at(-1);
       if (event.shiftKey && [node, first].includes(document.activeElement)) {
         event.preventDefault(); last?.focus();
@@ -926,11 +1004,12 @@ function openPicker({ context = null, restoring = false } = {}) {
   return true;
 }
 
-async function selectPickerTrack(source, key) {
+async function selectPickerTrack(source, key, playlistId) {
   if (!picker || pickerSelecting) return;
   const instance = picker;
   const track = source === "recent" ? recentTracks().find((item) => item.id === key) :
     source === "trend" ? discoverySnapshot().trends.find((item) => item.permalinkUrl === key) :
+    source === "local" ? window.HanamiReaderMusic?.listTracks?.().find((item) => item.id === key) :
     ui.results.find((item) => resultKey(item) === key);
   if (!track) return;
   pickerSelecting = `${source}:${key}`;
@@ -942,7 +1021,7 @@ async function selectPickerTrack(source, key) {
     await music.ready;
     const url = canonicalMusicUrl(track.permalinkUrl || track.url);
     let remote = music.snapshot().tracks.find((item) =>
-      source === "recent" ? item.id === track.id :
+      source === "recent" || source === "local" ? item.id === track.id :
       !!url && canonicalMusicUrl(item.permalinkUrl || item.url) === url,
     );
     if (!remote) {
@@ -958,7 +1037,7 @@ async function selectPickerTrack(source, key) {
     const binding = instance.context ? assignTrack(remote, instance.context) : null;
     const started = binding
       ? await music.playPin(remote.id, { id: binding.id, groupId: binding.groupId, title: remote.title })
-      : await music.play(remote.id);
+      : source === "local" && playlistId ? await window.HanamiReaderPlayer.playList(playlistId, remote.id) : await music.play(remote.id);
     if (instance !== picker) return;
     if (!started) {
       pickerError = `${instance.context ? "La pista quedó guardada en esta página. " : ""}${adapter?.getStatus?.() || "No se pudo iniciar la reproducción. Puedes intentarlo desde el reproductor."}`;
@@ -1336,6 +1415,7 @@ const service = {
 
 if (typeof document !== "undefined") {
   addEventListener("hanami-music-discovery-change", renderPicker);
+  addEventListener("hanami-reader-player-personal-change", renderPicker);
   addEventListener("resize", updatePickerNavigation);
   document.addEventListener("input", (event) => {
     const target = event.target;

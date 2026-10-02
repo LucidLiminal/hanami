@@ -474,10 +474,19 @@ function waitMetadata(audio) {
   ]);
 }
 async function loadAudio(audio, track, position = 0, autoplay = false) {
+  const sourceKey = `${track.id}|${track.type === "file" ? "local" : track.url || ""}`;
+  if (audio.dataset.musicSource === sourceKey && audio.src && audio.readyState >= 1) {
+    // A repeat keeps the authorized media element and its source alive.
+    audio.currentTime = clamp(position, 0, Math.max(0, Number.isFinite(audio.duration) ? audio.duration - 0.15 : position));
+    if (autoplay) await audio.play();
+    else audio.pause();
+    return;
+  }
   audio.pause();
   audio.preload = "auto";
   audio.volume = FIXED_VOLUME;
   audio.src = sourceFor(track, audio);
+  audio.dataset.musicSource = sourceKey;
   audio.load();
   // Start inside the originating click task. Waiting for loadedmetadata first
   // loses transient user activation in Safari/iOS and some installed PWAs.
@@ -508,7 +517,8 @@ function queueNextIndex({ ended = false } = {}) {
       const candidates = state.queue.map((_, index) => index).filter((index) => state.queue.length === 1 || index !== state.index);
       return state.shuffle ? candidates[Math.floor(Math.random() * candidates.length)] : 0;
     }
-    return state.shuffle ? unvisited[Math.floor(Math.random() * unvisited.length)].index : unvisited[0].index;
+    const nextInOrder = unvisited.find((item) => item.index > state.index) || unvisited[0];
+    return state.shuffle ? unvisited[Math.floor(Math.random() * unvisited.length)].index : nextInOrder.index;
   }
   const next = state.index + 1;
   if (next < state.queue.length) return next;
@@ -1124,9 +1134,19 @@ function moveQueue(from, to) {
   renderPanel();
 }
 async function removeQueueIndex(index) {
-  if (index < 0 || index >= state.queue.length) return;
+  if (index < 0 || index >= state.queue.length) return false;
+  const wasPlaying = playing;
   const wasCurrent = index === state.index;
+  const removedId = state.queue[index];
+  if (wasCurrent) {
+    ++loadToken;
+    currentPin = null;
+    waitingForPin = false;
+    queueFinished = false;
+  }
   state.queue.splice(index, 1);
+  state.queueVisited = state.queueVisited.filter((id) => id !== removedId);
+  shuffleHistory.length = 0;
   if (!state.queue.length) {
     active.pause();
     externalServices?.stopPlayback?.();
@@ -1135,14 +1155,19 @@ async function removeQueueIndex(index) {
     state.index = -1;
     state.position = 0;
     playing = false;
+    statusMessage = "La cola está vacía.";
   } else if (index < state.index) state.index--;
   else if (wasCurrent) {
     state.index = Math.min(index, state.queue.length - 1);
-    await selectIndex(state.index, { autoplay: playing });
+    await selectIndex(state.index, { autoplay: wasPlaying });
   }
   persist();
   renderPanel();
   emit("queue");
+  return true;
+}
+function removeFromQueue(id) {
+  return removeQueueIndex(state.queue.indexOf(id));
 }
 async function deleteTrack(id) {
   const track = trackById(id);
@@ -1350,12 +1375,12 @@ installPlayerUI({
   render: renderPanel,
   sync: syncUi,
   setMode: setReadingMode,
-  playList: async (ids) => {
+  playList: async (ids, startId = ids[0]) => {
     await setReadingMode("queue-once", { restart: false });
     readingSuspended = false;
     currentPin = null;
-    setQueue(ids, ids[0]);
-    return selectIndex(0, { autoplay: true });
+    setQueue(ids, startId);
+    return selectIndex(state.index, { autoplay: true });
   },
 });
 
@@ -1432,6 +1457,7 @@ window.HanamiReaderMusic = {
   previous,
   seek,
   remove: deleteTrack,
+  removeFromQueue,
   registerExternalServices,
   listTracks: () => tracks.map(({ blob, ...track }) => ({ ...track, hasBlob: !!blob })),
   snapshot: () => ({

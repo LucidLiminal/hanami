@@ -2,6 +2,26 @@
 
 Primer port manual del catálogo TypeScript de Hanami. Funciona como un único proyecto de Vercel: no usa Docker, Java, Miwayomi ni APK.
 
+## Nuevo en v138: tarjetas laterales, listas locales y reproducción continua
+
+- Se elimina `span#readerIndicator`.
+- Los marcadores de música son tarjetas plegables en el lateral del lector.
+  Cerradas muestran únicamente el botón de desplegar; abiertas muestran
+  carátula, título, artista, play/pausa, eliminar y minimizar.
+- Eliminar un marcador también retira su canción de la cola activa, sin
+  borrar el archivo de la biblioteca ni las listas personales.
+- El selector de música incluye **Tus listas**, con las listas reales
+  guardadas en este dispositivo. Las listas creadas en v137 se conservan.
+- Se corrige el avance automático al terminar una canción y la repetición
+  sin otro clic, tanto para archivos locales como para el widget de SoundCloud.
+- SoundCloud muestra **Abrir canción en su fuente original**. Los archivos
+  locales mantienen una acción distinta y real: **Guardar archivo original**.
+
+Versión `5.12.0` · caché PWA `hanami-crimson-knot-v138`.
+No hay una migración SQL nueva: si v137 ya estaba configurada, basta con
+desplegar este proyecto y recargar o reabrir la PWA.
+Detalles y pruebas: `READER_MUSIC_V138.md`.
+
 ## Nuevo en v137: reproductor completo y música compartida
 
 - `reader-music` es una pantalla completa: carátula grande, título y artista,

@@ -40,7 +40,7 @@ const markup = playerHtml({
   tracks: [], queue: ["fixture"], position: 3, duration: 334, positionText: "00:03", durationText: "05:34",
   playing: true, readingMode: "pin-loop", shuffle: false, status: "",
 });
-for (const token of ["player-header", "btn-collapse", "player-status", "header-actions", "player-main", "album-art-container", "track-info-section", "track-title", "track-artist", "btn-add-playlist", "btn-favorite", "progress-bar", "time-indicators", "btn-prev", "btn-play-pause", "btn-next", "secondary-controls", "btn-mode", "btn-repeat", "player-footer", "btn-share", "btn-download"]) assert(markup.includes(token), token);
+for (const token of ["player-header", "btn-collapse", "player-status", "header-actions", "player-main", "album-art-container", "track-info-section", "track-title", "track-artist", "btn-add-playlist", "btn-favorite", "progress-bar", "time-indicators", "btn-prev", "btn-play-pause", "btn-next", "secondary-controls", "btn-mode", "btn-repeat", "player-footer", "btn-share", "btn-source"]) assert(markup.includes(token), token);
 assert(!markup.includes('<script>alert'));
 assert(markup.includes("&lt;script&gt;"));
 assert(!markup.includes("reader-music-library"));

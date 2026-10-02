@@ -117,7 +117,7 @@ assert.equal(fileShare.name, "Luna - Moonlight.wav");
 assert.equal(fileShare.size, wav({ frequency: 220 }).length);
 assert.equal(fileShare.type, "audio/wav");
 const downloaded = page.waitForEvent("download");
-await page.locator("[data-player-download]").click();
+await page.locator("[data-player-save-file]").click();
 const savedAudio = await downloaded;
 assert.equal(savedAudio.suggestedFilename(), "Luna - Moonlight.wav");
 assert.deepEqual(await readFile(await savedAudio.path()), wav({ frequency: 220 }), "Download must contain the original audio bytes");

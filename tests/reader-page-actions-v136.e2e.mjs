@@ -287,7 +287,7 @@ try {
   await picker.locator('[data-music-picker-source="result"]').click();
   await picker.waitFor({ state: "hidden", timeout: 20000 });
   await page.waitForFunction(() => window.HanamiScreens.is("reader"));
-  await page.locator(".reader-music-pin").waitFor({ state: "visible" });
+  await page.locator(".reader-music-pin").waitFor({ state: "visible", timeout: 5000 });
   await page.waitForFunction(() => window.HanamiMusicDiscovery.snapshot().recent.length === 1);
   await page.waitForFunction(() => window.HanamiMusicDiscovery.snapshot().pendingCount === 0);
   await proof("music-pin-mobile");
@@ -382,6 +382,17 @@ try {
   assert.equal(await page.evaluate(() => window.HanamiMusicDiscovery.snapshot().recent.length), 2);
   assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("hanami-library"))[0].customThumbnailUrl), cover.customThumbnailUrl);
   console.log("PASS: mobile/desktop v136 six actions, image clipboard/share/download, confirmed persistent cover, coordinate comment, URL-only independent picker, listening history, music pin, community RPCs and Back retain reader position");
+} catch(error) {
+  console.error("Reader diagnostic",JSON.stringify(await browser.contexts()[0].pages()[0].evaluate(()=>{
+    const viewport=document.querySelector("#readerViewport");
+    const rect=node=>{const r=node?.getBoundingClientRect();return r?{x:r.x,y:r.y,width:r.width,height:r.height}:null};
+    return {screen:window.HanamiScreens?.current()?.type,reader:document.querySelector("#reader")?.className,inert:viewport?.inert,viewport:rect(viewport),
+      children:[...document.querySelector("#reader").children].map(n=>({id:n.id,cls:n.className,inert:n.inert})),
+      bindings:window.HanamiMusicDiscovery?.snapshot()?.bindings.map(b=>({id:b.id,pageKey:b.pageKey,x:b.x,y:b.y,shareState:b.shareState})),
+      anchors:[...document.querySelectorAll("[data-reader-music-anchor]")].map(n=>({id:n.dataset.readerMusicAnchor,rect:rect(n)})),
+      figures:[...document.querySelectorAll("figure[data-comment-context]")].map(n=>({context:n.dataset.commentContext,rect:rect(n)}))};
+  })));
+  throw error;
 } finally {
   await browser.close();
 }

@@ -58,8 +58,8 @@ assert(css.includes("@media(max-width:600px)"));
 assert(gitignore.includes("node_modules/"));
 assert(gitignore.includes(".env.*"));
 assert(gitignore.includes(".vercel/"));
-assert(sw.includes("hanami-crimson-knot-v137"));
-assert.equal(pkg.version, "5.11.0");
+assert(sw.includes("hanami-crimson-knot-v138"));
+assert.equal(pkg.version, "5.12.0");
 assert(
   pkg.scripts.test.includes(
     "node tests/invite-only-anonymous-access-v120.test.mjs",

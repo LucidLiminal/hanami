@@ -19,6 +19,7 @@ const paths = {
   repeat: '<path d="m17 2 4 4-4 4M3 10V8a2 2 0 0 1 2-2h16M7 22l-4-4 4-4m14 0v2a2 2 0 0 1-2 2H3"/>',
   share: '<circle cx="18" cy="4" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="20" r="3"/><path d="m8.6 10.5 6.8-5M8.6 13.5l6.8 5"/>',
   download: '<path d="M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4"/>',
+  source: '<path d="M14 3h7v7m0-7L10 14M11 3H4v17h17v-7"/>',
   disc: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2"/><path d="M5 12a7 7 0 0 1 7-7m7 7a7 7 0 0 1-7 7"/>',
   close: '<path d="m6 6 12 12M18 6 6 18"/>',
 };
@@ -40,7 +41,11 @@ let toolMessage = "";
 let shareBusy = false;
 const favorite = (id) => !!id && personal.favorites.includes(id);
 function savePersonal() {
-  try { localStorage.setItem(PERSONAL_KEY, JSON.stringify(personal)); return true; }
+  try {
+    localStorage.setItem(PERSONAL_KEY, JSON.stringify(personal));
+    dispatchEvent(new CustomEvent("hanami-reader-player-personal-change"));
+    return true;
+  }
   catch { notify("No queda espacio para guardar tus listas y favoritos."); return false; }
 }
 function notify(message) { window.HanamiToast?.(message); }
@@ -78,6 +83,7 @@ export function playerHtml(model, extras = {}) {
   const mode = readingModeInfo(model.readingMode);
   const art = /^https:\/\//i.test(track?.artwork || "") ? track.artwork : "";
   const hasFile = !!track?.blob;
+  const sourceUrl = /^https:\/\//i.test(track?.permalinkUrl || track?.url || "") ? track.permalinkUrl || track.url : "";
   const locked = tool ? " inert" : "";
   return `<div class="reader-music player-screen${track ? "" : " is-empty"}" data-music-root>
     <div class="player-dynamic-background" aria-hidden="true"><img data-player-background-art ${art ? `src="${esc(art)}"` : "hidden"} alt="" referrerpolicy="no-referrer"><i></i></div>
@@ -101,7 +107,7 @@ export function playerHtml(model, extras = {}) {
         ${track ? "" : '<button class="player-choose-music" data-player-search>Elegir una canción</button>'}
       </div>
     </main>
-    <footer class="player-footer audio-output-bar"${locked}><button class="btn-share" data-player-share ${track ? "" : "disabled"}>${playerIcon("share")}<span>Compartir</span></button><button class="btn-download" data-player-download ${track ? "" : "disabled"} title="${hasFile ? "Guardar el archivo original" : "Consultar la descarga en la fuente original"}">${playerIcon("download")}<span>Descargar</span></button></footer>
+    <footer class="player-footer audio-output-bar"${locked}><button class="btn-share" data-player-share ${track ? "" : "disabled"}>${playerIcon("share")}<span>Compartir</span></button>${hasFile ? `<button class="btn-save-file" data-player-save-file title="Guardar el archivo de audio importado">${playerIcon("download")}<span>Guardar archivo original</span></button>` : `<a class="btn-source" data-player-source ${sourceUrl ? `href="${esc(sourceUrl)}" target="_blank" rel="noopener noreferrer"` : 'aria-disabled="true" tabindex="-1"'} title="Abrir canción en su fuente original">${playerIcon("source")}<span>Abrir canción en su fuente original</span></a>`}</footer>
     ${toolHtml(model, extras)}
   </div>`;
 }
@@ -135,7 +141,7 @@ export function syncPlayer(model) {
     fav.setAttribute("aria-label", favorite(track?.id) ? "Quitar de favoritos" : "Añadir a favoritos");
     fav.disabled = !track;
   }
-  root.querySelectorAll(".btn-prev,.btn-next,.btn-share,.btn-download,.btn-add-playlist,[data-player-tool='lyrics']").forEach((button) => { button.disabled = !track; });
+  root.querySelectorAll(".btn-prev,.btn-next,.btn-share,.btn-save-file,.btn-add-playlist,[data-player-tool='lyrics']").forEach((button) => { button.disabled = !track; });
   const info = readingModeInfo(model.readingMode);
   root.querySelector("[data-player-mode-number]").textContent = String(info.number);
   root.querySelector("[data-player-mode-label]").textContent = info.short;
@@ -196,15 +202,10 @@ async function shareTrack() {
   } catch (error) { if (error?.name !== "AbortError") notify(error.message || "No se pudo compartir la canción."); }
   finally { shareBusy = false; }
 }
-function downloadTrack() {
+function saveLocalFile() {
   const track = adapter.track();
   if (!track) return;
-  if (!(track.blob instanceof Blob)) {
-    notify(track.provider === "soundcloud" ? "La descarga de SoundCloud depende del permiso del artista. Abre la canción original para comprobar si ofrece Descargar." : "Abre la fuente original para guardar el audio si está disponible.");
-    const url = track.permalinkUrl || track.url;
-    if (/^https:\/\//i.test(url || "")) window.open(url, "_blank", "noopener,noreferrer");
-    return;
-  }
+  if (!(track.blob instanceof Blob)) return;
   const url = URL.createObjectURL(track.blob);
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -270,7 +271,7 @@ export function installPlayerUI(api) {
     } else if (button.hasAttribute("data-player-search")) {
       void window.HanamiReaderMusicServices?.openPicker?.();
     } else if (button.hasAttribute("data-player-share")) void shareTrack();
-    else if (button.hasAttribute("data-player-download")) downloadTrack();
+    else if (button.hasAttribute("data-player-save-file")) saveLocalFile();
   }, true);
   document.addEventListener("input", (event) => {
     if (event.target.id === "playerPlaylistName") draftName = event.target.value;
@@ -305,6 +306,13 @@ export function installPlayerUI(api) {
   window.HanamiReaderPlayer = {
     openTool,
     closeTool,
+    playList: (id, startId) => {
+      const list = personal.playlists.find((entry) => entry.id === id);
+      if (!list) return Promise.resolve(false);
+      const available = window.HanamiReaderMusic?.listTracks?.() || [];
+      const ids = list.trackIds.filter((trackId) => available.some((track) => track.id === trackId));
+      return ids.length ? adapter.playList(ids, ids.includes(startId) ? startId : ids[0]) : Promise.resolve(false);
+    },
     snapshot: () => ({ tool, favorites: [...personal.favorites], playlists: personal.playlists.map((list) => ({ ...list, trackIds: [...list.trackIds] })) }),
   };
 }

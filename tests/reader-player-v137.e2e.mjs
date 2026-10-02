@@ -183,8 +183,8 @@ try {
   await page.keyboard.press("Escape");await page.waitForFunction(()=>window.HanamiScreens.is("reader-music"));
   await page.locator('[data-player-tool="modes"]').click();assert.equal(await page.locator("[data-player-mode]").count(),4);
   await proof(page,"player-modes-mobile");await page.keyboard.press("Escape");await page.waitForFunction(()=>window.HanamiScreens.is("reader-music"));
-  const beforeLoads=await page.evaluate(()=>window.__SC_WIDGET_TELEMETRY__.loads.length);
-  await finish(page);await page.waitForFunction(before=>window.__SC_WIDGET_TELEMETRY__.loads.length>before,beforeLoads);
+  const beforePlays=await page.evaluate(()=>window.__SC_WIDGET_TELEMETRY__.plays);
+  await finish(page);await page.waitForFunction(before=>window.__SC_WIDGET_TELEMETRY__.plays>before,beforePlays);
   await waitTrack(page,tracks[0].permalinkUrl);
   await page.evaluate(()=>window.HanamiReaderMusic.setReadingMode("pin-once"));await finish(page);
   await page.waitForFunction(()=>window.HanamiReaderMusic.snapshot().waitingForPin&&!window.HanamiReaderMusic.snapshot().playing);
@@ -201,13 +201,13 @@ try {
   await page.locator(`[data-reader-music-pin="${bindings[0].id}"]`).waitFor();
   await waitTrack(page,tracks[0].permalinkUrl);
   await finish(page);await page.waitForFunction(()=>window.HanamiReaderMusic.snapshot().waitingForPin);
-  await page.locator(`[data-reader-music-pin="${bindings[1].id}"]`).evaluate(node=>node.scrollIntoView({block:"center"}));
+  await page.locator(`[data-reader-music-anchor="${bindings[1].id}"]`).evaluate(node=>node.scrollIntoView({block:"center"}));
   await waitTrack(page,tracks[1].permalinkUrl);
   assert.equal(await page.evaluate(()=>window.HanamiReaderMusic.snapshot().waitingForPin),false);
   await proof(page,"shared-pin-mobile");
   await page.evaluate(()=>window.HanamiReaderMusic.setReadingMode("queue-loop"));
   await waitTrack(page,tracks[0].permalinkUrl);assert.equal((await page.evaluate(()=>window.HanamiReaderMusic.snapshot())).queue.length,2);
-  await page.locator(`[data-reader-music-pin="${bindings[1].id}"]`).evaluate(node=>node.scrollIntoView({block:"center"}));await page.waitForTimeout(150);assert.equal(await currentUrl(page),tracks[0].permalinkUrl);
+  await page.locator(`[data-reader-music-anchor="${bindings[1].id}"]`).evaluate(node=>node.scrollIntoView({block:"center"}));await page.waitForTimeout(150);assert.equal(await currentUrl(page),tracks[0].permalinkUrl);
   await finish(page);await waitTrack(page,tracks[1].permalinkUrl);await finish(page);await waitTrack(page,tracks[0].permalinkUrl);
   await page.evaluate(()=>window.HanamiReaderMusic.setReadingMode("queue-once"));await waitTrack(page,tracks[0].permalinkUrl);
   await finish(page);await waitTrack(page,tracks[1].permalinkUrl);await finish(page);
@@ -220,7 +220,7 @@ try {
   await proof(page,"player-finished-mobile");
   await page.setViewportSize({width:1280,height:900});await proof(page,"player-desktop");await page.setViewportSize({width:390,height:844});
   await page.locator("[data-player-share]").click();assert((await page.evaluate(()=>window.__V137_SHARES__))[0].url.startsWith("https://soundcloud.com/"));
-  const popup=page.waitForEvent("popup");await page.locator("[data-player-download]").click();const source=await popup;await source.close();
+  const popup=page.waitForEvent("popup");await page.locator("[data-player-source]").click();const source=await popup;await source.close();
   await page.locator('[data-player-tool="playlists"]').click();
   const restoredToolId=await page.evaluate(()=>window.HanamiScreens.current().id);
   await page.reload();await page.waitForFunction(()=>window.HanamiScreens.is("reader-player-tool")&&!!document.querySelector(".player-tool-sheet"));
@@ -234,15 +234,15 @@ try {
   await page.keyboard.press("Escape");await page.waitForFunction(()=>window.HanamiScreens.is("reader-music"));
   await page.evaluate(()=>window.HanamiReaderMusic.close());await page.waitForFunction(()=>window.HanamiScreens.is("reader"));
   await page.evaluate(()=>window.HanamiGroupMusic.sync());
-  assert.equal(await page.locator('[data-share-state="shared"]').count(),2,"shared pages retain their stable book URL after a library-reader reload");
+  assert.equal(await page.locator('[data-reader-music-anchor][data-share-state="shared"]').count(),2,"shared pages retain their stable book URL after a library-reader reload");
 
   const second=await setup(member), receiver=second.page;
-  await receiver.evaluate(()=>window.HanamiGroupMusic.sync());await receiver.waitForFunction(()=>document.querySelectorAll('[data-share-state="shared"]').length===2);
+  await receiver.evaluate(()=>window.HanamiGroupMusic.sync());await receiver.waitForFunction(()=>document.querySelectorAll('[data-reader-music-anchor][data-share-state="shared"]').length===2);
   await waitTrack(receiver,tracks[0].permalinkUrl);
-  await receiver.locator(`[data-reader-music-pin="${bindings[1].id}"]`).evaluate(node=>node.scrollIntoView({block:"center"}));
+  await receiver.locator(`[data-reader-music-anchor="${bindings[1].id}"]`).evaluate(node=>node.scrollIntoView({block:"center"}));
   await waitTrack(receiver,tracks[1].permalinkUrl);
   await receiver.evaluate(()=>window.HanamiReaderMusic.toggle());
-  await receiver.locator(`[data-reader-music-pin="${bindings[0].id}"]`).evaluate(node=>node.scrollIntoView({block:"center"}));
+  await receiver.locator(`[data-reader-music-anchor="${bindings[0].id}"]`).evaluate(node=>node.scrollIntoView({block:"center"}));
   await receiver.waitForTimeout(200);assert.equal(await receiver.evaluate(()=>window.HanamiReaderMusic.snapshot().playing),false,"manual pause must suppress automatic pins");
   assert.equal(await receiver.evaluate(()=>window.HanamiReaderMusic.snapshot().readingSuspended),true);
 
@@ -263,7 +263,7 @@ try {
   assert(publicActivity.every(body=>!JSON.stringify(body).includes("/fixture/chapter")&&!JSON.stringify(body).includes("p_page_key")));
   denyReads=true;await receiver.evaluate(()=>window.HanamiGroupMusic.sync());
   assert.equal(await receiver.evaluate(()=>window.HanamiGroupMusic.snapshot().readDenied),true);
-  assert.equal(await receiver.locator('[data-share-state="shared"]').count(),0);
+  assert.equal(await receiver.locator('[data-reader-music-anchor][data-share-state="shared"]').count(),0);
   await receiver.evaluate(()=>window.HanamiReaderMusic.open());
   await receiver.locator('[data-player-tool="group"]').click();await proof(receiver,"player-group-denied-mobile");
   assert.deepEqual(errors,[]);
