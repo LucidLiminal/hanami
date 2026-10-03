@@ -64,5 +64,5 @@ assert(cardsCss.includes('data-dragging="true"'));
 assert(cardsCss.includes('touch-action: none'));
 assert(cardsCss.includes(".reader-music-pin-change"));
 for (const asset of ["reader-music-pin-cards.js", "reader-music-pin-cards.css", "reader-music-local-lists.css"]) assert(sw.includes(asset), asset);
-assert(sw.includes("hanami-crimson-knot-v142"));
+assert(sw.includes("hanami-crimson-knot-v143"));
 console.log("PASS: v141 repairs unsafe shared-track metadata, drains every compatible pending pin, and preserves pin replacement, drag, and queue behavior");

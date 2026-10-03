@@ -7,6 +7,6 @@ assert(nav.includes('if(window.HanamiMoreTab)return window.HanamiMoreTab.render(
 assert(app.includes("b.dataset.tab==='more'")&&app.includes('HanamiMoreTab?.onReselect?.()'));
 assert(lib.includes("get('hanami-downloaded-only',false)"));
 assert(html.includes('/more-tab.css')&&html.includes('/more-tab.js'));
-assert(sw.includes('hanami-crimson-knot-v142')&&sw.includes("'/more-tab.css'")&&sw.includes("'/more-tab.js'"));
-const p=JSON.parse(pkg);assert.equal(p.version,'5.16.0');assert(p.scripts.test.includes('more-tab-port-v91.test.mjs'));
+assert(sw.includes('hanami-crimson-knot-v143')&&sw.includes("'/more-tab.css'")&&sw.includes("'/more-tab.js'"));
+const p=JSON.parse(pkg);assert.equal(p.version,'5.17.0');assert(p.scripts.test.includes('more-tab-port-v91.test.mjs'));
 console.log('PASS: MoreTab ports root switches, queue, categories, stats, data, settings, support, about, help, itemOverflow, dialogs, animations and gestures');

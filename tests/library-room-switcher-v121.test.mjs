@@ -58,8 +58,8 @@ assert(app.includes("const root=$('#libraryRoot')"));
 assert(deep.includes("['/groups','library']"));
 assert(sw.includes("'/library-groups.css'"));
 assert(sw.includes("'/library-groups.js'"));
-assert(sw.includes("hanami-crimson-knot-v142"));
-assert.equal(pkg.version, "5.16.0");
+assert(sw.includes("hanami-crimson-knot-v143"));
+assert.equal(pkg.version, "5.17.0");
 assert(
   pkg.scripts.test.includes(
     "node tests/reader-music-v128.test.mjs",

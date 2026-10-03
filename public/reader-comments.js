@@ -366,19 +366,6 @@ function positionCard(card, figure, comment) {
 }
 const pendingGeometry = new Set();
 let geometryFrame = 0;
-const observedGeometry = new Map();
-const geometryObserver =
-  typeof ResizeObserver === "undefined"
-    ? null
-    : new ResizeObserver((entries) => {
-        for (const entry of entries) {
-          const target = entry.target;
-          const figure = target.matches?.("figure[data-comment-context]")
-            ? target
-            : target.closest?.("figure[data-comment-context]");
-          if (figure) scheduleFigureGeometry(figure);
-        }
-      });
 function relayoutFigure(figure) {
   if (!figure?.isConnected) return;
   const context = contextFromFigure(figure);
@@ -403,34 +390,8 @@ function scheduleFigureGeometry(figure) {
     }),
   );
 }
-function scheduleAllGeometry() {
-  document
-    .querySelectorAll("#readerViewport figure[data-comment-context]")
-    .forEach(scheduleFigureGeometry);
-}
-function watchFigureGeometry(figure) {
-  const image = pageImage(figure);
-  if (!image) return;
-  const previous = observedGeometry.get(figure);
-  if (previous !== image) {
-    if (previous) geometryObserver?.unobserve(previous);
-    observedGeometry.set(figure, image);
-    geometryObserver?.observe(figure);
-    geometryObserver?.observe(image);
-  }
-  scheduleFigureGeometry(figure);
-}
-function unwatchFigureGeometry(figure) {
-  const image = observedGeometry.get(figure);
-  if (!image) return;
-  geometryObserver?.unobserve(figure);
-  geometryObserver?.unobserve(image);
-  observedGeometry.delete(figure);
-  pendingGeometry.delete(figure);
-}
 function renderFigure(figure) {
   if (!figure?.dataset.commentContext || figure.dataset.kind === "pdf") return;
-  watchFigureGeometry(figure);
   figure.querySelector(".reader-comment-layer")?.remove();
   const context = contextFromFigure(figure);
   const comments = list(context);
@@ -676,13 +637,6 @@ document.addEventListener(
   },
   true,
 );
-const readerGeometryRoot = document.querySelector("#reader");
-if (readerGeometryRoot) {
-  new MutationObserver(scheduleAllGeometry).observe(readerGeometryRoot, {
-    attributes: true,
-    attributeFilter: ["class", "style"],
-  });
-}
 window.addEventListener(
   "keydown",
   (event) => {
@@ -701,26 +655,18 @@ window.addEventListener("hanami-screen-change", (event) => {
   )
     destroyEditor();
 });
-function eachCommentFigure(node, callback) {
-  if (node?.nodeType !== 1) return;
-  if (node.matches?.("figure[data-comment-context]")) callback(node);
-  node.querySelectorAll?.("figure[data-comment-context]").forEach(callback);
-}
 const observer = new MutationObserver((records) => {
-  const removed = new Set();
-  let hasFigure = false;
-  for (const record of records) {
-    for (const node of record.addedNodes) {
-      eachCommentFigure(node, () => {
-        hasFigure = true;
-      });
-    }
-    for (const node of record.removedNodes)
-      eachCommentFigure(node, (figure) => removed.add(figure));
-  }
-  for (const figure of removed)
-    if (!figure.isConnected) unwatchFigureGeometry(figure);
-  if (hasFigure) requestAnimationFrame(renderAll);
+  if (
+    records.some((record) =>
+      [...record.addedNodes].some(
+        (node) =>
+          node.nodeType === 1 &&
+          (node.matches?.("figure[data-comment-context]") ||
+            node.querySelector?.("figure[data-comment-context]")),
+      ),
+    )
+  )
+    requestAnimationFrame(renderAll);
 });
 observer.observe(document.documentElement, { childList: true, subtree: true });
 window.HanamiReaderComments = {

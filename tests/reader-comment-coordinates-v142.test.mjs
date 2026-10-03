@@ -10,14 +10,12 @@ const pkg = JSON.parse(packageText);
 
 for (const token of [
   "pageImage",
-  "ResizeObserver",
   "scheduleFigureGeometry",
   "relayoutFigure",
-  "readerGeometryRoot",
   'document.addEventListener(\n  "load"',
   "temporary min-height",
 ]) assert(comments.includes(token), token);
-assert.equal(pkg.version, "5.16.0");
-assert(sw.includes("hanami-crimson-knot-v142"));
+assert.equal(pkg.version, "5.17.0");
+assert(sw.includes("hanami-crimson-knot-v143"));
 
-console.log("PASS: reader comments re-anchor after an image settles, reloads, resizes, or changes reader geometry");
+console.log("PASS: reader comments re-anchor after a page image settles or reloads");

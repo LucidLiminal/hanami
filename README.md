@@ -2,6 +2,20 @@
 
 Primer port manual del catálogo TypeScript de Hanami. Funciona como un único proyecto de Vercel: no usa Docker, Java, Miwayomi ni APK.
 
+## Nuevo en v143: capas visibles y estables en el lector
+
+- El reanclaje de comentarios queda limitado a la carga real de la imagen de
+  página, sin observadores globales que puedan competir con el renderizado del
+  lector.
+- Los comentarios y las tarjetas laterales de música vuelven a renderizarse de
+  forma independiente y pueden coexistir en la misma lectura.
+- Se mantiene la corrección de coordenadas de v142: al cargar la imagen final,
+  un comentario creado o movido conserva su punto guardado tras recargar.
+
+Versión `5.17.0` · caché PWA `hanami-crimson-knot-v143`.
+No hay una migración SQL nueva. Detalles y pruebas:
+`READER_OVERLAY_STABILITY_V143.md`.
+
 ## Nuevo en v142: comentarios anclados tras recargar
 
 - Un comentario vuelve a calcular su posición cuando termina de cargar la

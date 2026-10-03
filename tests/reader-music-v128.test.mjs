@@ -58,7 +58,7 @@ assert(reader.includes("data-r-music"));
 assert(reader.includes("HanamiReaderMusic?.attach?.()"));
 assert(reader.includes("HanamiReaderMusic?.open?.()"));
 assert(html.includes('src="/reader-music.js"'));
-assert(sw.includes("hanami-crimson-knot-v142"));
+assert(sw.includes("hanami-crimson-knot-v143"));
 assert(sw.includes("'/reader-music.js'"));
 assert(!sw.includes("music-equalizer.js"));
 assert(css.includes(".reader-music-mini"));
@@ -69,7 +69,7 @@ assert(!css.includes(".reader-music-eq-top"));
 assert(notices.includes("TSuki music player"));
 assert(notices.includes("GNU General Public License v3.0"));
 assert(readme.includes("## Música durante la lectura"));
-assert.equal(pkg.version, "5.16.0");
+assert.equal(pkg.version, "5.17.0");
 assert(
   pkg.scripts.test.includes("node tests/reader-music-v128.test.mjs"),
 );
