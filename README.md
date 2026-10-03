@@ -2,6 +2,19 @@
 
 Primer port manual del catálogo TypeScript de Hanami. Funciona como un único proyecto de Vercel: no usa Docker, Java, Miwayomi ni APK.
 
+## Nuevo en v142: comentarios anclados tras recargar
+
+- Un comentario vuelve a calcular su posición cuando termina de cargar la
+  imagen real de la página; ya no conserva el rectángulo temporal de carga.
+- Crear o mover un comentario mantiene las mismas coordenadas normalizadas al
+  recargar, reabrir una página descargada o volver a mostrarla en el lector.
+- Los cambios de tamaño de la página, orientación o zoom vuelven a alinear la
+  tarjeta con la imagen sin alterar el comentario guardado.
+
+Versión `5.16.0` · caché PWA `hanami-crimson-knot-v142`.
+No hay una migración SQL nueva. Detalles y pruebas:
+`READER_COMMENT_COORDINATES_V142.md`.
+
 ## Nuevo en v141: arrastre de pins estable en táctil
 
 - El pin musical ya no vuelve a su posición original cuando el navegador
