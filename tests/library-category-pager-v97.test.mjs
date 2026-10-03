@@ -11,7 +11,7 @@ assert(library.includes("e.detail?.reason==='library-save'"),'Los guardados prop
 assert(css.includes('@keyframes libraryPageNext'));
 assert(css.includes('@keyframes libraryPagePrev'));
 assert(css.includes('@media(prefers-reduced-motion:reduce)'));
-assert(sw.includes('hanami-crimson-knot-v140'));
-assert.equal(pkg.version,'5.14.0');
+assert(sw.includes('hanami-crimson-knot-v141'));
+assert.equal(pkg.version,'5.15.0');
 assert(pkg.scripts.test.includes('library-category-pager-v97.test.mjs'));
 console.log('PASS: Library pager contains only real categories and supports swipe, tabs, keyboard, empty states and legacy migration');

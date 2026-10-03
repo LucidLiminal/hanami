@@ -151,20 +151,21 @@ function beginDrag(event) {
   const rect = card.getBoundingClientRect();
   drag = {
     card, id, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
-    startTop: rect.top, cardHeight: rect.height, active: false,
+    lastClientY: event.clientY, startTop: rect.top, cardHeight: rect.height, active: false,
   };
 }
 
 function moveDrag(event) {
   const current = drag;
   if (!current || event.pointerId !== current.pointerId) return;
-  const delta = event.clientY - current.startY;
+  if (Number.isFinite(Number(event.clientY))) current.lastClientY = Number(event.clientY);
+  const delta = current.lastClientY - current.startY;
   if (!current.active && Math.abs(delta) < 7) return;
   if (!current.active) {
     current.active = true;
     try { current.card.setPointerCapture(event.pointerId); } catch {}
   }
-  event.preventDefault();
+  if (event.cancelable) event.preventDefault();
   event.stopImmediatePropagation();
   const top = Number(current.card.closest(".reader-music-pin-dock")?.style.top.replace("px", "")) || lastBounds?.top || 8;
   const bottom = lastBounds?.bottom || innerHeight;
@@ -173,17 +174,22 @@ function moveDrag(event) {
   current.card.style.transform = `translateY(${targetTop - current.startTop}px)`;
 }
 
-function finishDrag(event, cancelled = false) {
+function finishDrag(event) {
   const current = drag;
   if (!current || event.pointerId !== current.pointerId) return;
   const moved = current.active;
+  // `pointercancel` and `lostpointercapture` can report (0, 0), rather than
+  // the last finger location. Only pointerup is a reliable final coordinate.
+  const clientY = event.type === "pointerup" && Number.isFinite(Number(event.clientY))
+    ? Number(event.clientY) : current.lastClientY;
+  // A touch pointer can be cancelled when its captured card is re-rendered.
+  // Its last delivered coordinate is still the user's intended drop point.
+  const y = moved ? targetCoordinate(current.id, clientY) : null;
   clearDrag(current);
-  if (!moved || cancelled) return;
-  event.preventDefault();
+  if (!moved || y == null) return;
+  if (event.cancelable) event.preventDefault();
   event.stopImmediatePropagation();
   suppressClick(current.id);
-  const y = targetCoordinate(current.id, event.clientY);
-  if (y == null) return;
   Promise.resolve(api?.move?.(current.id, y)).catch((error) =>
     window.HanamiToast?.(error?.message || "No se pudo mover el pin."));
 }
@@ -192,9 +198,9 @@ export function installPinCards(callbacks) {
   api = callbacks;
   document.addEventListener("pointerdown", beginDrag, true);
   document.addEventListener("pointermove", moveDrag, true);
-  document.addEventListener("pointerup", (event) => finishDrag(event), true);
-  document.addEventListener("pointercancel", (event) => finishDrag(event, true), true);
-  document.addEventListener("lostpointercapture", (event) => finishDrag(event, true), true);
+  document.addEventListener("pointerup", finishDrag, true);
+  document.addEventListener("pointercancel", finishDrag, true);
+  document.addEventListener("lostpointercapture", finishDrag, true);
   document.addEventListener("click", (event) => {
     const button = event.target.closest("button");
     const card = button?.closest(".reader-music-pin[data-reader-music-pin]");

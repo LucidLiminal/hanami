@@ -2,6 +2,21 @@
 
 Primer port manual del catálogo TypeScript de Hanami. Funciona como un único proyecto de Vercel: no usa Docker, Java, Miwayomi ni APK.
 
+## Nuevo en v141: arrastre de pins estable en táctil
+
+- El pin musical ya no vuelve a su posición original cuando el navegador
+  cancela un gesto táctil tras haberlo movido.
+- Los botones de un pin plegado conservan el gesto de arrastre vertical:
+  moverlos no abre la tarjeta por accidente y tocar sin moverlos sigue
+  desplegándola.
+- La coordenada final se toma del último punto del gesto, por lo que se
+  conserva al mover el pin tanto hacia arriba como hacia abajo. La cola de
+  lectura y la sincronización de grupo mantienen el mismo pin y canción.
+
+Versión `5.15.0` · caché PWA `hanami-crimson-knot-v141`.
+No hay una migración SQL nueva. Detalles y pruebas:
+`READER_MUSIC_V141.md`.
+
 ## Nuevo en v140: sincronización completa de música de grupo
 
 - La cola de pins compartidos ya no se bloquea si una pista tiene una

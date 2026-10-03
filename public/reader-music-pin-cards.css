@@ -21,7 +21,7 @@
 #reader .reader-music-pin.is-expanded { width: 100%; border-radius: 16px 0 0 16px; }
 #reader .reader-music-pin button {
   font: 14px/1.4 Arial, sans-serif; color: inherit; cursor: pointer;
-  min-width: 44px; min-height: 44px; border: 0; box-sizing: border-box; touch-action: manipulation;
+  min-width: 44px; min-height: 44px; border: 0; box-sizing: border-box; touch-action: none;
 }
 #reader .reader-music-pin button:disabled { cursor: default; opacity: .45; }
 #reader .reader-music-pin button:focus-visible { outline: 2px solid #fbf9d1; outline-offset: -4px; }
