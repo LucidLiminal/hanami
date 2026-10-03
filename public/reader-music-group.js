@@ -2,10 +2,39 @@
 const KEY = "hanami-reader-music-group-outbox-v137";
 const MAX_PENDING = 500;
 export const isRemoteMusicGroup = (value) => /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(String(value || ""));
+const sharedUrl = (value) => /^https:\/\/soundcloud\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(String(value || "").trim())
+  ? String(value).trim() : "";
+const sharedArtwork = (value) => /^https:\/\/i[0-9]*\.sndcdn\.com\//i.test(String(value || "").trim())
+  ? String(value).trim().slice(0, 2048) : "";
+function normalizeSharedTrack(track) {
+  if (!track || typeof track !== "object") return null;
+  const url = sharedUrl(track.url) || sharedUrl(track.permalinkUrl);
+  if (!url) return null;
+  const duration = Number(track.duration);
+  const soundcloudId = String(track.soundcloudId || "");
+  return {
+    ...track,
+    url,
+    permalinkUrl: url,
+    provider: "soundcloud",
+    title: String(track.title || "Pista de SoundCloud").trim().slice(0, 200) || "Pista de SoundCloud",
+    artist: String(track.artist || "SoundCloud").trim().slice(0, 160) || "SoundCloud",
+    artwork: sharedArtwork(track.artwork),
+    duration: Number.isFinite(duration) && duration >= 0 && duration <= 86400 ? duration : 0,
+    soundcloudId: /^[0-9]{1,20}$/.test(soundcloudId) ? soundcloudId : "",
+  };
+}
 function read() {
   try {
     const value = JSON.parse(localStorage.getItem(KEY) || "[]");
-    return Array.isArray(value) ? value.filter((item) => item?.id && item.actorId && isRemoteMusicGroup(item.groupId) && item.record?.id).slice(0, MAX_PENDING) : [];
+    return Array.isArray(value) ? value
+      .filter((item) => item?.id && item.actorId && isRemoteMusicGroup(item.groupId) && item.record?.id)
+      .map((item) => {
+        if (item.kind === "delete") return item;
+        const track = normalizeSharedTrack(item.record.track);
+        return track ? { ...item, kind: "upsert", record: { ...item.record, track } } : item;
+      })
+      .slice(0, MAX_PENDING) : [];
   } catch { return []; }
 }
 let pending = read();
@@ -52,11 +81,12 @@ export function hasPendingMusicPin(id) {
 export function queueSharedPin(binding, metadata, kind = "upsert") {
   const connection = social();
   if (incognito() || !connection.configured || !connection.authenticated || !connection.user?.id || !isRemoteMusicGroup(binding.groupId)) return false;
-  if (kind === "upsert" && (!metadata || !/^https:\/\/soundcloud\.com\/[^/]+\/[^/]+$/.test(metadata.url || ""))) return false;
+  const track = kind === "upsert" ? normalizeSharedTrack(metadata) : null;
+  if (kind === "upsert" && !track) return false;
   const previous = pending;
   const operation = { id: crypto.randomUUID(), actorId: connection.user.id, groupId: binding.groupId, kind, record: {
     id: binding.id, groupId: binding.groupId, pageKey: binding.pageKey, x: binding.x, y: binding.y,
-    revision: binding.revision || 1, track: metadata,
+    revision: binding.revision || 1, track,
   } };
   const remaining = pending.filter((item) => !(item.actorId === operation.actorId && item.groupId === operation.groupId && item.record.id === binding.id));
   if (remaining.length >= MAX_PENDING) { message = "Hay demasiadas pistas pendientes. Espera a que vuelva la conexión."; status = "error"; emit(); return false; }
@@ -81,8 +111,25 @@ export async function flushSharedPins() {
   flushing = (async () => {
     for (;;) {
       if (incognito() || social().user?.id !== actor) break;
-      const operation = pending.find((item) => item.actorId === actor);
+      let operation = pending.find((item) => item.actorId === actor);
       if (!operation) break;
+      if (operation.kind !== "delete") {
+        const track = normalizeSharedTrack(operation.record.track);
+        if (!track) {
+          pending = pending.filter((item) => item.id !== operation.id);
+          save();
+          ack(operation, null, "local", "Esta pista no cumple los requisitos para compartirse y quedó solo en este dispositivo.");
+          status = "error";
+          message = "Se omitió una pista no compatible; las demás pistas pendientes siguen sincronizándose.";
+          emit();
+          continue;
+        }
+        if (JSON.stringify(track) !== JSON.stringify(operation.record.track)) {
+          operation = { ...operation, kind: "upsert", record: { ...operation.record, track } };
+          pending = pending.map((item) => item.id === operation.id ? operation : item);
+          save();
+        }
+      }
       try {
         const result = operation.kind === "delete"
           ? await window.HanamiSocialSync.deleteGroupMusicPin(operation)
@@ -104,6 +151,16 @@ export async function flushSharedPins() {
           status = "denied"; message = "El grupo no permite publicar con tu cuenta actual."; emit();
           continue;
         }
+        const invalid = error.code === "22023" || error.status === 400 || error.status === 422;
+        if (invalid) {
+          pending = pending.filter((item) => item.id !== operation.id);
+          save();
+          ack(operation, null, "local", "Esta pista no pudo compartirse. Se conservó solo en este dispositivo.");
+          status = "error";
+          message = "Se omitió una pista no compatible; las demás pistas pendientes siguen sincronizándose.";
+          emit();
+          continue;
+        }
         status = error.code === "PGRST202" || error.status === 404 ? "unavailable" : "error";
         message = status === "unavailable" ? "Activa las pistas compartidas con la migración hanami-group-reader-music-v137.sql." : error.message || "No se pudieron compartir las pistas. Se conservarán para reintentar.";
         emit();
@@ -116,7 +173,7 @@ export async function flushSharedPins() {
 }
 function mapRow(row) {
   const pageKey = canonicalPage(row.page_key);
-  if (!pageKey || !isRemoteMusicGroup(row.id) || !/^https:\/\/soundcloud\.com\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(row.track?.url || "") || row.deleted_at ||
+  if (!pageKey || !isRemoteMusicGroup(row.group_id) || !/^https:\/\/soundcloud\.com\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(row.track?.url || "") || row.deleted_at ||
     !Number.isFinite(Number(row.x)) || !Number.isFinite(Number(row.y)) || Number(row.x) < 0 || Number(row.x) > 1 || Number(row.y) < 0 || Number(row.y) > 1) return null;
   const track = { ...row.track, provider: "soundcloud", permalinkUrl: row.track.url, type: "external" };
   return { id: row.id, pageKey, groupId: row.group_id, actorId: row.author_id, x: Number(row.x), y: Number(row.y), revision: Number(row.revision), trackId: "", track, createdAt: Date.parse(row.created_at) || 0, shareState: "shared", remote: true };

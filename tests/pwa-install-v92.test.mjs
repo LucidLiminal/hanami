@@ -5,6 +5,6 @@ for(const x of ['beforeinstallprompt','preventDefault()','installEvent','event.p
 for(const x of ['.mt-install-card','.mt-install-action','.mt-install-dialog','.mt-install-done'])assert(css.includes(x),x);
 const manifest=JSON.parse(manifestText);assert.equal(manifest.id,'/');assert.equal(manifest.scope,'/');assert.equal(manifest.display,'standalone');assert.equal(manifest.prefer_related_applications,false);assert(manifest.icons.some(x=>x.sizes==='192x192'));assert(manifest.icons.some(x=>x.sizes==='512x512'&&x.purpose==='any'));assert(manifest.icons.some(x=>x.purpose==='maskable'));
 assert(html.includes('apple-mobile-web-app-capable')&&html.includes('hanami-apple-touch-180.png'));
-for(const x of ['hanami-crimson-knot-v139','hanami-pwa-192.png','hanami-pwa-512.png','hanami-pwa-maskable-512.png','hanami-apple-touch-180.png'])assert(sw.includes(x),x);
-const p=JSON.parse(pkg);assert.equal(p.version,'5.13.0');assert(p.scripts.test.includes('pwa-install-v92.test.mjs'));
+for(const x of ['hanami-crimson-knot-v140','hanami-pwa-192.png','hanami-pwa-512.png','hanami-pwa-maskable-512.png','hanami-apple-touch-180.png'])assert(sw.includes(x),x);
+const p=JSON.parse(pkg);assert.equal(p.version,'5.14.0');assert(p.scripts.test.includes('pwa-install-v92.test.mjs'));
 console.log('PASS: MoreTab offers professional PWA installation with native prompt, iOS/manual guides, installed state and complete manifest icons');

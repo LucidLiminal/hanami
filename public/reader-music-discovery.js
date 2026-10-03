@@ -118,11 +118,14 @@ migrateLegacyMusicBindings();
 function publicMetadata(track) {
   const url = canonicalMusicUrl(track.permalinkUrl || track.url);
   if (!url || track.provider !== "soundcloud") return null;
+  const artwork = String(track.artwork || "").trim();
   return {
     url,
     title: String(track.title || "Pista de SoundCloud").slice(0, 200),
     artist: String(track.artist || "SoundCloud").slice(0, 160),
-    artwork: /^https:\/\//i.test(track.artwork || "") ? String(track.artwork).slice(0, 2048) : "",
+    // The shared-pin RPC deliberately accepts only SoundCloud's image CDN.
+    // Other cover sources stay visible locally but must not block the outbox.
+    artwork: /^https:\/\/i[0-9]*\.sndcdn\.com\//i.test(artwork) ? artwork.slice(0, 2048) : "",
     duration: Math.max(0, Math.min(86400, Number(track.duration) || 0)),
   };
 }

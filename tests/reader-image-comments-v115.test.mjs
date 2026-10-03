@@ -32,9 +32,9 @@ assert(css.includes(".reader-comment-layer"));
 assert(css.includes(".reader-comment-editor"));
 assert(css.includes("touch-action:none"));
 assert(html.includes('src="/reader-comments.js"'));
-assert(sw.includes("hanami-crimson-knot-v139"));
+assert(sw.includes("hanami-crimson-knot-v140"));
 assert(sw.includes("'/reader-comments.js'"));
-assert.equal(pkg.version, "5.13.0");
+assert.equal(pkg.version, "5.14.0");
 assert(
   pkg.scripts.test.includes(
     "node tests/reader-image-comments-v115.test.mjs",

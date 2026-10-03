@@ -10,6 +10,6 @@ assert(a.includes('window.HanamiOverlays.close()'));
 assert(a.includes("if(b.hasAttribute('data-extension-stores'))closeExtensionMenuThen(()=>extensionStoresDialog())"));
 assert(a.includes("showBrowseChild('extension-stores'"));
 assert(!a.includes("if(b.hasAttribute('data-extension-stores')){$('#extensionMenu').classList.add('hidden');extensionStoresDialog()}"));
-assert(s.includes('hanami-crimson-knot-v139'));
-const pkg=JSON.parse(p);assert.equal(pkg.version,'5.13.0');assert(pkg.scripts.test.includes('extension-stores-open-v86.test.mjs'));
+assert(s.includes('hanami-crimson-knot-v140'));
+const pkg=JSON.parse(p);assert.equal(pkg.version,'5.14.0');assert(pkg.scripts.test.includes('extension-stores-open-v86.test.mjs'));
 console.log('PASS: extension repository waits for itemOverflow history closure before opening its child screen');

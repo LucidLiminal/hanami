@@ -2,6 +2,21 @@
 
 Primer port manual del catálogo TypeScript de Hanami. Funciona como un único proyecto de Vercel: no usa Docker, Java, Miwayomi ni APK.
 
+## Nuevo en v140: sincronización completa de música de grupo
+
+- La cola de pins compartidos ya no se bloquea si una pista tiene una
+  carátula que Supabase no admite.
+- Los pins pendientes guardados por versiones anteriores se reparan
+  automáticamente antes de sincronizarse.
+- Una pista no compatible queda como personal en lugar de mantener el resto
+  de la cola en **Pendiente**.
+- Los miembros del grupo reciben todas las pistas compatibles de las páginas
+  sincronizadas, no solo la primera.
+
+Versión `5.14.0` · caché PWA `hanami-crimson-knot-v140`.
+No hay una migración SQL nueva. Detalles y pruebas:
+`READER_MUSIC_V140.md`.
+
 ## Nuevo en v139: cambiar y recolocar los pins musicales
 
 - La tarjeta expandida de cada pin tiene una acción **Cambiar canción**.
