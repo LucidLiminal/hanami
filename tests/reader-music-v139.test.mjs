@@ -60,5 +60,5 @@ for (const token of ["data-music-pin-change", "pointerdown", "targetCoordinate"]
 assert(cardsCss.includes('data-dragging="true"'));
 assert(cardsCss.includes(".reader-music-pin-change"));
 for (const asset of ["reader-music-pin-cards.js", "reader-music-pin-cards.css", "reader-music-local-lists.css"]) assert(sw.includes(asset), asset);
-assert(sw.includes("hanami-crimson-knot-v143"));
+assert(sw.includes("hanami-crimson-knot-v144"));
 console.log("PASS: v139 lets an editable pin open the picker to replace its song and drag vertically to persist its reading coordinate while keeping the queue in sync");

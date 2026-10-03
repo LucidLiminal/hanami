@@ -1,3 +1,4 @@
+import "./chapter-identity.js";
 import { followsReadingPins, chooseVisiblePin } from "./reader-music-policy.js";
 import { isRemoteMusicGroup, queueSharedPin, sharedBindingsFor, sharedMusicSnapshot, scheduleGroupPins, hasPendingMusicPin } from "./reader-music-group.js";
 import { installPinCards, renderPinCards, syncPinCards } from "./reader-music-pin-cards.js";
@@ -99,11 +100,15 @@ function migrateLegacyMusicBindings() {
   const original = state.bindings;
   let changed = false;
   state.bindings = original.map((binding) => {
-    if (binding.shareState && binding.shareState !== "local") return binding;
-    const pageKey = canonicalLibraryPageKey(binding.pageKey, savedLibrary());
-    if (pageKey === binding.pageKey) return binding;
+    const identity = window.HanamiChapterIdentity;
+    const context = identity?.musicContext(binding.pageKey);
+    if (!context) return binding;
+    const resolved = identity.withIdentity(context, { create: true });
+    if (!resolved.chapterId || binding.chapterId === resolved.chapterId) return binding;
     changed = true;
-    return { ...binding, pageKey };
+    // Add IDs, never rewrite pageKey or references already in the group outbox.
+    return { ...binding, chapterId: resolved.chapterId, workId: resolved.workId,
+      pageId: resolved.pageId, identityVersion: 2 };
   });
   if (changed && !save()) state.bindings = original;
 }
@@ -114,7 +119,21 @@ function scope(context = {}) {
     item.id === context.mangaId && item.sourceId === context.sourceId) : null;
   return { ...context, mangaUrl: context.mangaUrl || work?.url || "", groupId: context.groupId || window.HanamiReadingGroups?.activeId?.() || "local-room" };
 }
-migrateLegacyMusicBindings();
+if (typeof window !== "undefined" && window.HanamiChapterIdentity) {
+  window.HanamiIdentityBackup.ready.then(migrateLegacyMusicBindings).catch(() => {});
+}
+function sameBindingPage(left, right) {
+  return left === right || !!globalThis.window?.HanamiChapterIdentity?.sameMusicPage(left, right);
+}
+function bindingMatchesPage(binding, pageKey) {
+  const api = globalThis.window?.HanamiChapterIdentity;
+  if (!api) return binding.pageKey === pageKey;
+  return api.samePage(
+    { ...api.musicContext(binding.pageKey), chapterId: binding.chapterId || "",
+      recordIdentity: !!binding.chapterId },
+    api.musicContext(pageKey),
+  );
+}
 function publicMetadata(track) {
   const url = canonicalMusicUrl(track.permalinkUrl || track.url);
   if (!url || track.provider !== "soundcloud") return null;
@@ -200,19 +219,20 @@ export function assignTrack(track, context, { replaceBindingId = "" } = {}) {
   const replacement = requestedId ? state.bindings.find((item) => item.id === requestedId && !item.deletedAt) : null;
   if (requestedId && (!replacement || !canChangeBinding(replacement)))
     throw new Error("Ya no puedes cambiar esta pista.");
-  if (replacement && replacement.pageKey !== pageKey)
+  if (replacement && !bindingMatchesPage(replacement, pageKey))
     throw new Error("La pista ya no pertenece a esta página.");
   if (replacement && ["shared", "pending"].includes(replacement.shareState) &&
     isRemoteMusicGroup(replacement.groupId) && !metadata)
     throw new Error("Una pista compartida solo puede cambiarse por una canción de SoundCloud.");
-  const previous = replacement || state.bindings.find((item) => item.pageKey === pageKey &&
+  const previous = replacement || state.bindings.find((item) => bindingMatchesPage(item, pageKey) &&
     (!item.actorId || item.actorId === actorId) && !item.deletedAt &&
     Math.hypot(item.x - x, item.y - y) < 0.03);
   if (!previous && state.bindings.length >= MAX_BINDINGS)
     throw new Error("Has alcanzado el límite de pistas guardadas en páginas.");
   const binding = {
+    ...window.HanamiChapterIdentity?.withIdentity(scoped, { create: true }),
     id: previous?.id || crypto.randomUUID(),
-    pageKey, x, y, groupId: scoped.groupId, actorId,
+    pageKey: previous?.pageKey || pageKey, x, y, groupId: scoped.groupId, actorId,
     revision: (Number(previous?.revision) || 0) + 1,
     shareState: shouldShare ? "pending" : "local",
     trackId: track.id,
@@ -315,21 +335,24 @@ function figureContext(figure) {
   catch { return scope({}); }
 }
 export function sharedPageKeys(groupId = window.HanamiReadingGroups?.activeId?.() || "local-room") {
-  return [...new Set([...document.querySelectorAll("#readerViewport figure[data-comment-context]")].map((figure) =>
-    instancePageKey({ ...figureContext(figure), groupId }),
-  ))];
+  return [...new Set([...document.querySelectorAll("#readerViewport figure[data-comment-context]")].flatMap((figure) => {
+    const key = instancePageKey({ ...figureContext(figure), groupId });
+    return window.HanamiChapterIdentity?.musicAliases(key) || [key];
+  }))];
 }
 function bindingsForPage(pageKey) {
   const actor = window.HanamiSocialSync?.state?.().user?.id || "";
   const sharedState = sharedMusicSnapshot();
-  const local = state.bindings.filter((item) => item.pageKey === pageKey &&
+  const local = state.bindings.filter((item) => bindingMatchesPage(item, pageKey) &&
     (!item.actorId || !isRemoteMusicGroup(item.groupId) || item.actorId === actor) &&
     !(item.shareState === "shared" && sharedState.readDenied));
   return [...new Map([...sharedBindingsFor(pageKey), ...local].map((item) => [item.id, item])).values()].filter((item) => !item.deletedAt);
 }
 function renderFigure(figure) {
   if (!figure?.isConnected) return;
-  const bindings = bindingsForPage(instancePageKey(figureContext(figure)));
+  const context = figureContext(figure);
+  const bindings = window.HanamiChapterIdentity?.anchorsAllowed(context) === false
+    ? [] : bindingsForPage(instancePageKey(context));
   const image = figure.querySelector("img,iframe");
   if (!bindings.length || !image) { figure.querySelector(".reader-music-anchor-layer")?.remove(); delete figure.dataset.musicSignature; return; }
   const rect = image.getBoundingClientRect(), parent = figure.getBoundingClientRect();
@@ -618,7 +641,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
   });
   addEventListener("hanami-music-pins-reconciled", (event) => {
     const { pageKeys, ids, actorId } = event.detail;
-    state.bindings = state.bindings.filter((item) => !(item.actorId === actorId && item.shareState === "shared" && pageKeys.includes(item.pageKey) && !ids.includes(item.id) && !hasPendingMusicPin(item.id)));
+    state.bindings = state.bindings.filter((item) => !(item.actorId === actorId && item.shareState === "shared" && pageKeys.some((key) => sameBindingPage(key, item.pageKey)) && !ids.includes(item.id) && !hasPendingMusicPin(item.id)));
     save();
   });
   addEventListener("hanami-reader-player-visibility", (event) => { if (!event.detail.open) scheduleFollow(); });
@@ -627,6 +650,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
   addEventListener("online", () => { void flushActivity(); });
   addEventListener("hanami-social-state", () => { void flushActivity(); });
   addEventListener("resize", renderAll);
+  addEventListener("hanami-chapter-identity-change", () => { renderAll(); scheduleGroupPins(true); });
   document.addEventListener("load", (event) => {
     if (event.target.matches?.("#readerViewport figure > img,#readerViewport figure > iframe")) renderFigure(event.target.closest("figure"));
   }, true);

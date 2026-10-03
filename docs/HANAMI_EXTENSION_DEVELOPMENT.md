@@ -312,3 +312,19 @@ Si el archivo cambia y el hash no coincide, Hanami no lo habilita. Se recomienda
 ### Actualizaciones
 
 Hanami compara la versión del catálogo con la guardada en IndexedDB. Si cambia, muestra **Actualización**. La actualización descarga y valida el nuevo bundle, sustituye el Worker y conserva los datos de Biblioteca.
+
+
+## Identidad persistente (v144)
+
+Los campos históricos `id` y `url` siguen admitidos. Añade campos opcionales
+cuando la fuente tenga claves primarias estables:
+
+- Obra: `remoteWorkId` (string).
+- Capítulo: `remoteId` (string) y `remoteIdScope: "work"` por defecto.
+- Usa `remoteIdScope: "source"` solamente si el proveedor garantiza que el ID
+  es único en toda la fuente, incluyendo traducciones y ediciones.
+
+No inventes un ID remoto a partir del número, título, slug o URL. Si no existe
+una clave persistente, omite el campo: Hanami emite un UUID interno y conserva
+el registro de alias. Los cambios de dirección sin evidencia inequívoca
+requieren una equivalencia revisada. Las ediciones no se fusionan por número.

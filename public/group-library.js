@@ -1,3 +1,4 @@
+import "./chapter-identity.js";
 const LIBRARY_KEY = "hanami-group-libraries-v1";
 const PROGRESS_KEY = "hanami-group-progress-v1";
 const CONTEXT_KEY = "hanami-group-reading-context-v1";
@@ -549,6 +550,8 @@ function localProgress(detail) {
     userName: user.name,
     initials: user.initials,
     chapterUrl: detail.chapterUrl,
+    chapterId: detail.chapterId || "",
+    workId: detail.workId || "",
     chapterNumber: detail.chapterNumber,
     chapterName: detail.chapterName,
     pageIndex: detail.pageIndex,

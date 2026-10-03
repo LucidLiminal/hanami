@@ -24,7 +24,7 @@ globalThis.fetch = async url => {
 
 const { default: olympus, manifest } = await import('../extensions/olympus/index.mjs?migrate-search-v72');
 const result = await olympus.search({ query: 'mecanico', page: 1 });
-assert.equal(manifest.version, '1.3.5');
+assert.equal(manifest.version, '1.4.0');
 assert.equal(calls.length, 1);
 assert.equal(calls[0], 'https://olympusxyz.com/api/series/list');
 assert.deepEqual(result.mangas.map(x => x.title), ['El mecánico legendario']);

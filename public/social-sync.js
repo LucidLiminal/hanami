@@ -1,3 +1,4 @@
+import "./chapter-identity.js";
 const CONFIG_KEY = "hanami-supabase-config-v1";
 const SESSION_KEY = "hanami-supabase-session-v1";
 let config = null;
@@ -587,6 +588,9 @@ async function pushOperation(operation) {
     await window.HanamiReaderComments?.markOperation?.(operation.id);
     return;
   }
+  const identityContext = record.originalContext ||
+    window.HanamiChapterIdentity?.commentContext(record.pageKey,record.groupId);
+  if (identityContext) await registerChapterIdentities(record.groupId,[identityContext]);
   const mediaPath = await uploadMedia(record);
   const rows = await jsonRequest(
     "/rest/v1/reader_comments?on_conflict=id&select=*",
@@ -623,9 +627,15 @@ async function signedMediaUrl(path) {
     : "";
 }
 async function pullComments(groupId) {
-  const rows = await jsonRequest(
-    `/rest/v1/reader_comments?group_id=eq.${encodeURIComponent(groupId)}&select=*&order=updated_at.asc`,
-  );
+  await pullChapterAliases(groupId);
+  const rows = [];
+  for (let offset = 0; ; offset += 500) {
+    const batch = await jsonRequest(
+      `/rest/v1/reader_comments?group_id=eq.${encodeURIComponent(groupId)}&select=*&order=updated_at.asc,id.asc&limit=500&offset=${offset}`,
+    );
+    rows.push(...(batch || []));
+    if (!Array.isArray(batch) || batch.length < 500) break;
+  }
   await Promise.all(
     (rows || []).map(async (row) => {
       if (row.media_path) row.media_url = await signedMediaUrl(row.media_path);
@@ -707,7 +717,128 @@ async function groupMusicRequest(actorId, path, payload) {
   if (actorId !== session?.user?.id) throw new Error("La cuenta ha cambiado durante la sincronización.");
   return result;
 }
+let identityBackend = null;
+let identityError = "";
+const identityRegistrations = new Map();
+const missingIdentity = (error) => error.code === "PGRST202" || error.status === 404;
+const remoteIdentityGroup = (value) => /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(String(value || ""));
+function identityStatus() { return { available: identityBackend, error: identityError }; }
+async function registerChapterIdentities(groupId, contexts = []) {
+  if (identityBackend === false || !session?.user?.id || !remoteIdentityGroup(groupId)) return [];
+  await window.HanamiIdentityBackup?.ready;
+  const api = window.HanamiChapterIdentity, actorId = session.user.id;
+  if (!api) return [];
+  const results = [];
+  for (const original of contexts) {
+    if (!original?.sourceId || original.sourceId === "hanami.local" || !original.chapterUrl ||
+      !(original.mangaUrl || original.mangaId)) continue;
+    const context = { ...original, groupId };
+    const pending = api.pendingVerifiedAliases(groupId).some((row) =>
+      row.sourceId === context.sourceId && row.workRef === (context.mangaUrl || context.mangaId) &&
+      row.chapterRef === context.chapterUrl);
+    if (pending) continue; // never publish a manually chosen local repair implicitly
+    const resolved = api.withIdentity(context, { create: true });
+    if (!resolved.chapterId || !resolved.workId) continue;
+    const key = JSON.stringify([actorId,groupId,context.sourceId,context.mangaUrl || context.mangaId,context.chapterUrl]);
+    if (!identityRegistrations.has(key)) {
+      const request = groupMusicRequest(actorId,"/rest/v1/rpc/register_group_chapter_identity", {
+        p_group: groupId, p_source_id: context.sourceId,
+        p_work_ref: context.mangaUrl || context.mangaId, p_chapter_ref: context.chapterUrl,
+        p_chapter_id: resolved.chapterId, p_work_id: resolved.workId,
+        p_remote_chapter_id: String(context.remoteChapterId || ""),
+        p_remote_scope: context.remoteChapterIdScope || "work",
+      }).then((row) => {
+        identityBackend = true; identityError = "";
+        const value = Array.isArray(row) ? row[0] : row;
+        api.acceptRemoteAlias(value);
+        return value;
+      }).catch((error) => {
+        identityRegistrations.delete(key);
+        if (missingIdentity(error)) { identityBackend = false; return null; }
+        identityError = error.message; throw error;
+      });
+      identityRegistrations.set(key, request);
+    }
+    const row = await identityRegistrations.get(key);
+    if (row) results.push(row);
+    if (identityBackend === false) break;
+  }
+  return results;
+}
+async function pullChapterAliases(groupId) {
+  if (identityBackend === false || !session?.user?.id || !remoteIdentityGroup(groupId)) return [];
+  await window.HanamiIdentityBackup?.ready;
+  const actorId = session.user.id, rows = [];
+  try {
+    for (let offset = 0; ; offset += 250) {
+      const batch = await groupMusicRequest(actorId,"/rest/v1/rpc/list_group_chapter_aliases", {
+        p_group: groupId, p_offset: offset, p_limit: 250,
+      });
+      rows.push(...(Array.isArray(batch) ? batch : []));
+      if (!Array.isArray(batch) || batch.length < 250) break;
+    }
+    identityBackend = true; identityError = "";
+    window.HanamiChapterIdentity?.acceptRemoteAliases(rows);
+    return rows;
+  } catch (error) {
+    if (missingIdentity(error)) { identityBackend = false; return []; }
+    identityError = error.message; throw error;
+  }
+}
+async function publishVerifiedAlias(groupId, alias) {
+  identityBackend = null;
+  await registerChapterIdentities(groupId, [{
+    sourceId: alias.sourceId, mangaUrl: alias.targetWorkRef, chapterUrl: alias.targetChapterRef,
+  }]);
+  if (identityBackend === false) throw new Error("Aplica hanami-chapter-identity-v144.sql para compartir esta equivalencia.");
+  const row = await groupMusicRequest(session?.user?.id,"/rest/v1/rpc/verify_group_chapter_alias", {
+    p_group: groupId, p_source_id: alias.sourceId, p_old_work_ref: alias.workRef,
+    p_old_chapter_ref: alias.chapterRef, p_target_work_ref: alias.targetWorkRef,
+    p_target_chapter_ref: alias.targetChapterRef, p_pages_equivalent: true,
+    p_evidence: alias.evidence || "",
+  });
+  window.HanamiChapterIdentity?.markAliasPublished(alias);
+  window.HanamiChapterIdentity?.acceptRemoteAlias(Array.isArray(row) ? row[0] : row);
+  return row;
+}
+async function musicIdentityInventory(groupId) {
+  if (!session?.user?.id || !remoteIdentityGroup(groupId)) return [];
+  const actorId = session.user.id, rows = [];
+  try {
+    for (let offset = 0; ; offset += 250) {
+      const batch = await groupMusicRequest(actorId,"/rest/v1/rpc/list_group_music_identity_inventory", {
+        p_group: groupId, p_offset: offset, p_limit: 250,
+      });
+      rows.push(...(Array.isArray(batch) ? batch : []));
+      if (!Array.isArray(batch) || batch.length < 250) break;
+    }
+    identityBackend = true;
+    return rows;
+  } catch (error) {
+    if (missingIdentity(error)) { identityBackend = false; return []; }
+    throw error;
+  }
+}
+async function retryIdentitySupport(groupId) {
+  identityBackend = null; identityError = ""; identityRegistrations.clear();
+  return pullChapterAliases(groupId);
+}
 async function listGroupMusicPins(groupId, pageKeys, actorId = session?.user?.id) {
+  const contexts = [...document.querySelectorAll("#readerViewport figure[data-comment-context]")]
+    .map((node) => { try { return JSON.parse(node.dataset.commentContext); } catch { return null; } })
+    .filter(Boolean);
+  await registerChapterIdentities(groupId, contexts);
+  if (identityBackend !== false) {
+    try {
+      const result = await groupMusicRequest(actorId,"/rest/v1/rpc/list_group_reader_music_pins_v144", {
+        p_group: groupId, p_page_keys: pageKeys,
+      });
+      identityBackend = true; return result;
+    } catch (error) {
+      if (!missingIdentity(error)) throw error;
+      identityBackend = false;
+    }
+  }
   return groupMusicRequest(actorId, "/rest/v1/rpc/list_group_reader_music_pins", {
     p_group: groupId, p_page_keys: pageKeys,
   });
@@ -784,5 +915,11 @@ window.HanamiSocialSync = {
   deleteGroupMusicPin,
   sync,
   pullComments,
+  registerChapterIdentities,
+  pullChapterAliases,
+  publishVerifiedAlias,
+  musicIdentityInventory,
+  retryIdentitySupport,
+  identityStatus,
   cachedGroups: () => [...groupCache],
 };

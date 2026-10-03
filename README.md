@@ -2,6 +2,25 @@
 
 Primer port manual del catálogo TypeScript de Hanami. Funciona como un único proyecto de Vercel: no usa Docker, Java, Miwayomi ni APK.
 
+## Nuevo en v144: identidad estable y recuperación segura
+
+- Comentarios, pins musicales y progreso se reconocen por una identidad interna
+  estable, con las URLs conservadas como referencias y alias de compatibilidad.
+- Olympus mantiene la identidad cuando conserva su ID de capítulo aunque cambie
+  el dominio o el slug. Los casos ambiguos exigen confirmar la equivalencia.
+- Se conserva una copia local previa con comentarios, colas y archivos de audio;
+  la migración SQL conserva también los registros remotos previos.
+- **Más → Datos y almacenamiento → Identidad y recuperación** permite revisar
+  asociaciones, descargar las copias y resolver estados de lectura contradictorios.
+- No se renumeran ni borran los comentarios, pins ni operaciones pendientes.
+
+Versión `5.18.0` · caché PWA `hanami-crimson-knot-v144` · Olympus `1.4.0`.
+**Esta versión sí incluye una migración SQL nueva:** aplica
+`supabase/hanami-chapter-identity-v144.sql` antes de desplegar en el mismo
+proyecto y dominio de Vercel. No borres los datos del navegador ni cambies de
+origen para hacer la migración. Guía, compatibilidad y límites:
+`CHAPTER_IDENTITY_V144.md`.
+
 ## Nuevo en v143: capas visibles y estables en el lector
 
 - El reanclaje de comentarios queda limitado a la carga real de la imagen de

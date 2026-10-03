@@ -78,8 +78,8 @@ for (const path of ["/reader-actions.css", "/reader-page-actions.js", "/reader-m
 }
 assert(files["public/index.html"].includes('src="/reader-page-actions.js"'));
 assert(files["public/index.html"].includes('href="/reader-actions.css"'));
-assert(files["public/sw.js"].includes("hanami-crimson-knot-v143"));
-assert.equal(JSON.parse(files["package.json"]).version, "5.17.0");
+assert(files["public/sw.js"].includes("hanami-crimson-knot-v144"));
+assert.equal(JSON.parse(files["package.json"]).version, "5.18.0");
 
 // Isolated storage and public-track telemetry tests, without a browser or SDK.
 const values = new Map();

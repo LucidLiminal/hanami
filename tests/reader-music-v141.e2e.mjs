@@ -9,6 +9,8 @@ const group = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const pins = new Map();
 const writes = [];
 const publicActivity = [];
+const chapterAliases = new Map();
+const identityRequests = [];
 let failWrites = false;
 let denyReads = false;
 const tracks = [
@@ -24,7 +26,7 @@ const art = [
 const browser = await chromium.launch({ executablePath:process.env.CHROMIUM_PATH || "/usr/local/bin/chromium", headless:true, args:["--no-sandbox","--mute-audio"] });
 const errors = [];
 const json = (route,data,status=200) => route.fulfill({status,contentType:"application/json",body:JSON.stringify(data)});
-async function setup(user, scConfig = {}, { outbox = null } = {}) {
+async function setup(user, scConfig = {}, { outbox = null, identitySupport = true } = {}) {
   const context = await browser.newContext({viewport:{width:390,height:844},hasTouch:true,serviceWorkers:"block",acceptDownloads:true});
   await context.addInitScript({content:"window.__SC_V138_CONFIG__="+JSON.stringify(scConfig)+";"+String.fromCharCode(10)+await readFile(new URL("fixtures/soundcloud-widget-v138.js",import.meta.url),"utf8")});
   await context.addInitScript(({user,outbox})=>{
@@ -67,6 +69,31 @@ async function setup(user, scConfig = {}, { outbox = null } = {}) {
   await context.route("https://v137.supabase.test/**",route=>{
     const url=new URL(route.request().url());
     const actor=(route.request().headers().authorization||"").replace("Bearer fixture-","");
+    const identityRpc = /\/rpc\/(register_group_chapter_identity|list_group_chapter_aliases|list_group_reader_music_pins_v144|list_group_music_identity_inventory|verify_group_chapter_alias)$/.test(url.pathname);
+    if (identityRpc) {
+      identityRequests.push({ path:url.pathname, supported:identitySupport });
+      if (!identitySupport) return json(route,{code:"PGRST202",message:"Function not installed"},404);
+      if (denyReads) return json(route,{code:"42501",message:"Not a member"},403);
+      const body=route.request().postDataJSON();
+      if (url.pathname.endsWith("/rpc/register_group_chapter_identity")) {
+        const key=JSON.stringify([body.p_group,body.p_source_id,body.p_work_ref,body.p_chapter_ref]);
+        let row=chapterAliases.get(key);
+        if (!row) {
+          row={group_id:body.p_group,source_id:body.p_source_id,work_ref:body.p_work_ref,chapter_ref:body.p_chapter_ref,
+            chapter_id:body.p_chapter_id,work_id:body.p_work_id,remote_id:body.p_remote_chapter_id||"",
+            verified:false,pages_equivalent:true,updated_at:"2026-01-01T00:00:00Z"};
+          chapterAliases.set(key,row);
+        }
+        return json(route,row);
+      }
+      if (url.pathname.endsWith("/rpc/list_group_chapter_aliases"))
+        return json(route,[...chapterAliases.values()].filter(row=>row.group_id===body.p_group).slice(body.p_offset,body.p_offset+body.p_limit));
+      if (url.pathname.endsWith("/rpc/list_group_reader_music_pins_v144"))
+        return json(route,[...pins.values()].filter(pin=>!pin.deleted_at&&pin.group_id===body.p_group&&body.p_page_keys.includes(pin.page_key)));
+      if (url.pathname.endsWith("/rpc/list_group_music_identity_inventory"))
+        return json(route,[...pins.values()].filter(pin=>pin.group_id===body.p_group).slice(body.p_offset,body.p_offset+body.p_limit));
+      return json(route,{code:"42501",message:"Moderator review required"},403);
+    }
     if(url.pathname.endsWith("/auth/v1/user")) return json(route,{id:actor,is_anonymous:true,user_metadata:{display_name:"Fixture reader"}});
     if(url.pathname.endsWith("/auth/v1/logout")) return json(route,{});
     if(url.pathname.endsWith("/rpc/list_my_reading_groups")) return json(route,[{id:group,name:"Lectura compartida",owner_id:owner,members:[{id:owner,role:"owner",state:"active"},{id:member,role:"member",state:"active"}],member_count:2}]);
@@ -80,7 +107,10 @@ async function setup(user, scConfig = {}, { outbox = null } = {}) {
       const previous=pins.get(body.p_pin_id);
       if(previous && previous.author_id!==actor) return json(route,{code:"42501",message:"Another author"},403);
       if(previous && body.p_revision<=previous.revision) return json(route,previous);
-      const row={id:body.p_pin_id,group_id:body.p_group,author_id:actor,page_key:body.p_page_key,x:body.p_x,y:body.p_y,track:{...body.p_track,provider:"soundcloud",permalinkUrl:body.p_track.url},revision:body.p_revision,created_at:previous?.created_at||new Date().toISOString(),updated_at:new Date().toISOString(),deleted_at:null};
+      const locator=JSON.parse(body.p_page_key);
+      const identityRow=identitySupport&&chapterAliases.get(JSON.stringify(locator.slice(0,4)));
+      const row={id:body.p_pin_id,group_id:body.p_group,author_id:actor,page_key:body.p_page_key,x:body.p_x,y:body.p_y,track:{...body.p_track,provider:"soundcloud",permalinkUrl:body.p_track.url},revision:body.p_revision,created_at:previous?.created_at||new Date().toISOString(),updated_at:new Date().toISOString(),deleted_at:null,
+        ...(identityRow?{chapter_id:identityRow.chapter_id,work_id:identityRow.work_id}:{})};
       pins.set(row.id,row); return json(route,row);
     }
     if(url.pathname.endsWith("/rpc/list_group_reader_music_pins")) {
@@ -253,13 +283,15 @@ try {
       track: { ...tracks[0], url: tracks[0].permalinkUrl, artwork: "https://covers.example.invalid/legacy.jpg" },
     },
   }];
-  const recovered = await setup(owner, {}, { outbox: legacyOutbox });
+  const recovered = await setup(owner, {}, { outbox: legacyOutbox, identitySupport:false });
   await recovered.page.evaluate(() => window.HanamiGroupMusic.flush());
   await recovered.page.waitForFunction(() => window.HanamiGroupMusic.snapshot().pendingCount === 0);
   assert.equal(pins.get(repairedPin)?.track.artwork, "", "an old pending pin is repaired before it reaches the RPC");
-  const recoveredMember = await setup(member);
+  const recoveredMember = await setup(member, {}, {identitySupport:false});
   await recoveredMember.page.evaluate(() => window.HanamiGroupMusic.sync());
   await recoveredMember.page.waitForFunction(() => document.querySelectorAll(".reader-music-pin").length === 1);
+  assert.equal(await recoveredMember.page.evaluate(()=>window.HanamiSocialSync.identityStatus().available),false,
+    "the old server is detected explicitly and music falls back to the legacy RPC");
   await recoveredMember.context.close();
   await recovered.context.close();
   pins.clear(); writes.length = 0;
@@ -283,6 +315,10 @@ try {
   const batchMember = await setup(member);
   await batchMember.page.evaluate(() => window.HanamiGroupMusic.sync());
   await batchMember.page.waitForFunction(() => document.querySelectorAll(".reader-music-pin").length === 3);
+  assert.equal(await batchMember.page.evaluate(()=>window.HanamiSocialSync.identityStatus().available),true);
+  assert([...pins.values()].every(pin=>pin.chapter_id),"v144 preserves authoritative chapter metadata on shared pins");
+  assert(identityRequests.some(row=>row.path.endsWith("/list_group_reader_music_pins_v144")&&row.supported),
+    "the new shared-music RPC is exercised rather than treated as an empty legacy fixture");
   await batchMember.context.close();
   await batch.context.close();
   pins.clear(); writes.length = 0;

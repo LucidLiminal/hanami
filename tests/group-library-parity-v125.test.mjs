@@ -54,8 +54,8 @@ assert(!css.includes(".group-library-categories button"));
 assert(social.includes("reorderGroupCategories"));
 assert(sql.includes("reorder_group_library_categories"));
 
-assert(sw.includes("hanami-crimson-knot-v143"));
-assert.equal(pkg.version, "5.17.0");
+assert(sw.includes("hanami-crimson-knot-v144"));
+assert.equal(pkg.version, "5.18.0");
 assert(
   pkg.scripts.test.includes(
     "node tests/reader-music-v128.test.mjs",

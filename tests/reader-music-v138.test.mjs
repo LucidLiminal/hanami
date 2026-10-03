@@ -50,5 +50,5 @@ assert(services.includes("openLists"));
 assert(discovery.includes('data-reader-music-anchor='));
 assert(discovery.includes("music.removeFromQueue"));
 for (const asset of ["reader-music-pin-cards.js", "reader-music-pin-cards.css", "reader-music-local-lists.css"]) assert(sw.includes(asset), asset);
-assert(sw.includes("hanami-crimson-knot-v143"));
+assert(sw.includes("hanami-crimson-knot-v144"));
 console.log("PASS: v138 removes the floating indicator, adds accessible side cards and real personal lists, keeps local files, opens true source URLs, and protects continuous-playback boundaries");

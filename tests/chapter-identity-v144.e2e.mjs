@@ -1,0 +1,172 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import { chromium } from 'playwright';
+import sharp from 'sharp';
+const base=process.env.HANAMI_TEST_URL||'http://127.0.0.1:4184';
+const source='hanami.es.olympus',oldWork='https://old.example/series/book',newWork='https://new.example/series/book';
+const oldUrl='https://old.example/capitulo/123/old',newUrl='https://new.example/capitulo/123/new';
+const orphan='https://old.example/capitulo/999/old';
+const commentId='11111111-1111-4111-8111-111111111111',orphanId='22222222-2222-4222-8222-222222222222',pinId='33333333-3333-4333-8333-333333333333';
+const otherGroup='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const commentKey=`${source}|${oldWork}|${oldUrl}|0`,orphanKey=`${source}|${oldWork}|${orphan}|0`;
+const musicKey=JSON.stringify(['local-room',source,oldWork,oldUrl,0]);
+const image=await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="780" height="1200"><rect width="780" height="1200" fill="#514639"/></svg>')).png().toBuffer();
+const browser=await chromium.launch({headless:true,executablePath:process.env.CHROMIUM_PATH||'/usr/local/bin/chromium',args:['--no-sandbox']});
+const context=await browser.newContext({viewport:{width:390,height:844},serviceWorkers:'block'});
+const page=await context.newPage();const errors=[];
+page.on('pageerror',e=>errors.push(e.message));
+async function mockRoutes(context){await context.route('**/*',async route=>{
+ const url=new URL(route.request().url());
+ if(url.pathname==='/seed')return route.fulfill({contentType:'text/html',body:'<html><body>Fixture seed</body></html>'});
+ if(url.pathname.startsWith('/fixture/'))return route.fulfill({contentType:'image/png',body:image});
+ if(url.pathname==='/api/social-config')return route.fulfill({json:{enabled:false}});
+ if(url.pathname==='/api/status')return route.fulfill({json:{online:true,runtime:'vercel-serverless',sources:1}});
+ if(url.pathname==='/api/sources')return route.fulfill({json:[{id:source,name:'Olympus',lang:'es',runtime:'vercel-js',version:'1.4.0',status:'beta'}]});
+ if(url.pathname==='/api/extensions')return route.fulfill({json:{items:[],total:0}});
+ if(url.pathname.endsWith('/chapters'))return route.fulfill({json:[{url:newUrl,name:'Capítulo 1',number:1,remoteId:'123',remoteIdScope:'source'}]});
+ if(url.pathname.endsWith('/details'))return route.fulfill({json:{id:'/series/book',url:newWork,title:'Obra de prueba',remoteWorkId:'book-1',genre:[]}});
+ if(url.pathname.endsWith('/pages'))return route.fulfill({json:[{imageUrl:base+'/fixture/0.png'},{imageUrl:base+'/fixture/1.png'}]});
+ if(url.pathname.startsWith('/api/'))return route.fulfill({json:{mangas:[],hasNextPage:false}});
+ if(url.origin!==base)return route.abort();
+ return route.continue();
+});}
+await mockRoutes(context);
+try{
+ await page.goto(base+'/seed');
+ await page.evaluate(async data=>{
+  const {source,oldWork,newUrl,oldUrl,orphan,commentId,orphanId,pinId,commentKey,orphanKey,musicKey,otherGroup}=data;
+  localStorage.setItem('hanami-library',JSON.stringify([{id:'fixture-book',sourceId:source,url:oldWork,title:'Obra de prueba',favorite:true,categoryIds:['default'],totalChapters:1,readCount:0,unreadCount:1,_chapters:[{url:newUrl,name:'Capítulo 1',number:1,remoteId:'123',remoteIdScope:'source'}],_chapterMeta:{[oldUrl]:{read:true,bookmark:true,lastPageRead:1},[orphan]:{read:true,bookmark:false}}}]));
+  localStorage.setItem('hanami-reading-profile-v1',JSON.stringify({id:'local-user',name:'Pruebas',initials:'P'}));
+  localStorage.setItem('hanami-active-reading-group','local-room');
+  localStorage.setItem('hanami-supabase-session-v1',JSON.stringify('AUTH_SENTINEL'));
+  localStorage.setItem('hanami-supabase-config-v1',JSON.stringify('CONFIG_SENTINEL'));
+  const track={id:'fixture-track',title:'Canción conservada',artist:'Pruebas',type:'external',provider:'soundcloud',url:'https://soundcloud.com/fixture/track',permalinkUrl:'https://soundcloud.com/fixture/track'};
+  localStorage.setItem('hanami-reader-music-discovery-v1',JSON.stringify({bindings:[{id:pinId,pageKey:musicKey,x:.4,y:.5,groupId:'local-room',actorId:'',shareState:'local',revision:1,trackId:track.id,track,createdAt:1}],history:[],pending:[]}));
+  localStorage.setItem('hanami-reader-music-group-outbox-v137',JSON.stringify([{id:'existing-operation',actorId:commentId,groupId:otherGroup,kind:'upsert',record:{id:pinId,pageKey:JSON.stringify([otherGroup,source,oldWork,oldUrl,0]),revision:1,track:{url:track.url,title:track.title,artist:track.artist,artwork:'',duration:10}}}]));
+  const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('hanami-reader-comments-v2',1);r.onupgradeneeded=()=>{const s=r.result.createObjectStore('comments',{keyPath:'_key'});s.createIndex('groupId','groupId');s.createIndex('pageKey','pageKey');r.result.createObjectStore('syncQueue',{keyPath:'id'});};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
+  await new Promise((resolve,reject)=>{const t=db.transaction(['comments','syncQueue'],'readwrite');const key=`local-room|${commentKey}|${commentId}`;t.objectStore('comments').put({_key:key,id:commentId,groupId:'local-room',authorId:'local-user',pageKey:commentKey,x:.2,y:.3,width:.3,text:'Comentario conservado',revision:6,syncState:'pending',createdAt:1,updatedAt:2});t.objectStore('comments').put({_key:`local-room|${orphanKey}|${orphanId}`,id:orphanId,groupId:'local-room',authorId:'local-user',pageKey:orphanKey,x:.55,y:.65,width:.3,text:'Comentario pendiente de equivalencia',revision:1,syncState:'synced',createdAt:1,updatedAt:2});t.objectStore('comments').put({_key:`${otherGroup}|${commentKey}|foreign`,id:'foreign',groupId:otherGroup,authorId:'foreign-user',pageKey:commentKey,x:.2,y:.3,width:.3,text:'FOREIGN_ROOM_SENTINEL',revision:1,syncState:'synced'});for(let i=0;i<6;i++)t.objectStore('syncQueue').put({id:'pending-'+i,operation:'update',recordKey:key,groupId:'local-room',revision:i+1,createdAt:i,state:'pending'});t.oncomplete=resolve;t.onerror=()=>reject(t.error);});db.close();
+  const audio=await new Promise((resolve,reject)=>{const r=indexedDB.open('hanami-reader-music-v1',1);r.onupgradeneeded=()=>{const s=r.result.createObjectStore('tracks',{keyPath:'id'});s.createIndex('addedAt','addedAt');s.createIndex('title','title');};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
+  await new Promise((resolve,reject)=>{const t=audio.transaction('tracks','readwrite');t.objectStore('tracks').put({id:'local-audio',type:'local',title:'Audio local conservado',artist:'Pruebas',addedAt:1,blob:new Blob(['audio-fixture'],{type:'audio/wav'})});t.oncomplete=resolve;t.onerror=()=>reject(t.error);});audio.close();
+ },{source,oldWork,newUrl,oldUrl,orphan,commentId,orphanId,pinId,commentKey,orphanKey,musicKey,otherGroup});
+ await page.goto(base);
+ await page.waitForFunction(()=>window.HanamiIdentityBackup?.status().ready&&window.HanamiReaderComments&&window.HanamiReaderMusic);
+ await page.evaluate(async()=>{await window.HanamiReaderComments.ready;});
+ const protectedCopy=await page.evaluate(async()=>{
+  const copy=(await window.HanamiIdentityBackup.checkpoints()).find(x=>x.id==='before-v144');
+  return {comments:copy.databases['hanami-reader-comments-v2'].stores.comments.values.length,pending:copy.databases['hanami-reader-comments-v2'].stores.syncQueue.values.length,audio:await copy.databases['hanami-reader-music-v1'].stores.tracks.values[0].blob.text(),keys:Object.keys(copy.localStorage),text:JSON.stringify(copy.localStorage)};
+ });
+ assert.equal(protectedCopy.comments,3);assert.equal(protectedCopy.pending,6);assert.equal(protectedCopy.audio,'audio-fixture');assert(!protectedCopy.text.includes('AUTH_SENTINEL'));assert(!protectedCopy.text.includes('CONFIG_SENTINEL'));
+ await page.evaluate(async data=>{
+  const {source,newWork,newUrl,base}=data;const {mergeFetchedChapterMetadata}=await import('/library-progress.js');
+  const library=JSON.parse(localStorage.getItem('hanami-library'));mergeFetchedChapterMetadata(library[0],[{url:newUrl,name:'Capítulo 1',number:1,remoteId:'123',remoteIdScope:'source'}]);localStorage.setItem('hanami-library',JSON.stringify(library));
+  window.HanamiReader.open({title:'Obra de prueba',mangaId:'fixture-book',sourceId:source,mangaUrl:newWork,chapter:library[0]._chapters[0],chapterList:library[0]._chapters,chapterIndex:0,pages:[{imageUrl:base+'/fixture/0.png'},{imageUrl:base+'/fixture/1.png'}]});
+ },{source,newWork,newUrl,base});
+ await page.waitForFunction(()=>document.querySelectorAll('[data-reader-comment]').length===1&&document.querySelectorAll('[data-reader-music-anchor]').length===1);
+ assert.equal(await page.locator(`[data-reader-comment="${commentId}"]`).count(),1);
+ assert.equal(await page.locator('[data-reader-comment="foreign"]').count(),0);
+ const before=await page.evaluate(async()=>({comments:await window.HanamiReaderComments.recoverySnapshot(),music:window.HanamiMusicDiscovery.snapshot(),library:JSON.parse(localStorage.getItem('hanami-library'))}));
+ assert.equal(before.comments.pending.length,6);assert.equal(before.library[0].readCount,1);assert(before.library[0]._chapterMeta[newUrl].bookmark);
+ await page.evaluate(({pinId})=>{const c=JSON.parse(document.querySelector('#readerViewport figure').dataset.commentContext);window.HanamiMusicDiscovery.assignTrack({id:'new-track',title:'Canción sustituida',artist:'Pruebas',type:'external',provider:'soundcloud',url:'https://soundcloud.com/fixture/new-track',permalinkUrl:'https://soundcloud.com/fixture/new-track'},{...c,x:.4,y:.5},{replaceBindingId:pinId});},{pinId});
+ const replaced=await page.evaluate(()=>window.HanamiMusicDiscovery.snapshot().bindings[0]);assert.equal(replaced.id,pinId);assert.equal(replaced.pageKey,musicKey);
+ await page.evaluate(()=>window.HanamiReader.close());
+ await page.locator('[data-tab="more"]').click();await page.locator('[data-mt-open="data"]').click();await page.locator('[data-identity-recovery]').click();
+ await page.waitForSelector('[data-identity-row]');
+ assert(!(await page.locator('#identityRecoveryDialog').innerText()).includes('FOREIGN_ROOM_SENTINEL'));
+ const pendingRow=page.locator('[data-identity-row]').filter({hasText:orphan});
+ await pendingRow.locator('details').evaluate(node=>node.open=true);
+ const targetOption=await pendingRow.locator('[data-identity-target] option').evaluateAll(options=>options.find(o=>o.value&&o.textContent.includes('new.example/series/book'))?.value);
+ assert(targetOption!==undefined);
+ await pendingRow.locator('[data-identity-target]').selectOption(targetOption);
+ await pendingRow.locator('[data-identity-link]').click();
+ await page.waitForFunction(()=>document.querySelector('[data-identity-message]')?.textContent.includes('Confirma'));
+ assert.equal(await page.evaluate(()=>window.HanamiReaderComments.pendingCount()),6);
+ await pendingRow.locator('[data-identity-same-chapter]').check();await pendingRow.locator('[data-identity-same-pages]').check();
+ // Capture the actual app state as a standalone, offline preview for visual QA.
+ async function preview(name,anchor="",previewPage=page){
+  const css=await previewPage.locator('link[rel="stylesheet"]').evaluateAll(async nodes=> (await Promise.all(nodes.map(node=>fetch(node.href).then(r=>r.text())))).join('\n'));
+  const html=await previewPage.evaluate(()=>{
+   const copy=document.documentElement.cloneNode(true);
+   const liveInputs=document.querySelectorAll('input'),inputs=copy.querySelectorAll('input');
+   liveInputs.forEach((node,index)=>{inputs[index].toggleAttribute('checked',node.checked);if(node.type!=='password')inputs[index].setAttribute('value',node.value);});
+   const liveOptions=document.querySelectorAll('option'),options=copy.querySelectorAll('option');
+   liveOptions.forEach((node,index)=>options[index].toggleAttribute('selected',node.selected));
+   copy.querySelectorAll('script,link').forEach(node=>node.remove());
+   copy.querySelector('#identityRecoveryDialog')?.removeAttribute('open');
+   return '<!doctype html>'+copy.outerHTML;
+  });
+  const assetRoot=new URL('../public/assets/',import.meta.url).href;
+  const body=html.replace('</head>',`<style>${css}</style></head>`).replace(/src="\/assets\//g,`src="${assetRoot}`)+`<script>const d=document.querySelector('#identityRecoveryDialog');if(d){d.showModal();d.scrollTop=0;const s=${JSON.stringify(anchor)};if(s){const n=d.querySelector(s),h=d.querySelector('.identity-recovery-head');if(n)d.scrollTop+=n.getBoundingClientRect().top-d.getBoundingClientRect().top-h.offsetHeight-16;}}</script>`;
+  await fs.writeFile(`/data/hanami-v144-${name}.html`,body);
+ }
+ await preview('recovery-mobile');
+ await preview('recovery-mobile-reference',`[data-identity-row="${await pendingRow.getAttribute('data-identity-row')}"]`);
+ await preview('recovery-mobile-confirm',`[data-identity-row="${await pendingRow.getAttribute('data-identity-row')}"] label:has([data-identity-target])`);
+ await page.setViewportSize({width:1280,height:900});await preview('recovery-desktop');
+ await preview('recovery-desktop-confirm',`[data-identity-row="${await pendingRow.getAttribute('data-identity-row')}"]`);
+ const audit=await page.evaluate(()=>{const d=document.querySelector('#identityRecoveryDialog');return {width:d.getBoundingClientRect().width,viewport:innerWidth,scrollWidth:d.scrollWidth,clientWidth:d.clientWidth,colors:{background:getComputedStyle(d).backgroundColor,text:getComputedStyle(d).color,muted:getComputedStyle(d.querySelector('small')).color}};});
+ assert(audit.width<=audit.viewport);assert(audit.scrollWidth<=audit.clientWidth+1);
+ const controlsAudit=await page.evaluate(()=>{
+  const d=document.querySelector('#identityRecoveryDialog');d.scrollTop=d.scrollHeight;
+  const head=d.querySelector('.identity-recovery-head').getBoundingClientRect(),bounds=d.getBoundingClientRect();
+  return {stickyHeader:Math.abs(head.top-bounds.top)<=2,checkboxLabels:[...d.querySelectorAll('.identity-check')].every(node=>node.getBoundingClientRect().height>=44)};
+ });
+ assert(controlsAudit.stickyHeader);assert(controlsAudit.checkboxLabels);
+ await pendingRow.locator('[data-identity-link]').click();
+ await page.waitForFunction(()=>document.querySelector('[data-identity-message]')?.textContent.includes('Equivalencia guardada'));
+ await page.locator('[data-identity-close]').click();
+ await page.evaluate(()=>{const p=window.HanamiReader.state?.();});
+ await page.evaluate(async data=>{const library=JSON.parse(localStorage.getItem('hanami-library'));window.HanamiReader.open({title:'Obra de prueba',mangaId:'fixture-book',sourceId:data.source,mangaUrl:data.newWork,chapter:library[0]._chapters[0],pages:[{imageUrl:data.base+'/fixture/0.png'},{imageUrl:data.base+'/fixture/1.png'}]});},{source,newWork,base});
+ await page.waitForFunction(()=>document.querySelectorAll('[data-reader-comment]').length===2);
+ const after=await page.evaluate(async()=>window.HanamiReaderComments.recoverySnapshot());
+ assert.equal(after.pending.length,6);assert(after.comments.some(c=>c.id===orphanId&&c.pageKey===orphanKey));assert(after.comments.some(c=>c.id===commentId&&c._key===`local-room|${commentKey}|${commentId}`));
+ // Conflicting legacy flags are shown for review rather than silently OR-ed.
+ await page.evaluate(async({oldUrl,newUrl})=>{
+  window.HanamiReader.close();
+  const {mergeFetchedChapterMetadata}=await import('/library-progress.js');
+  const list=JSON.parse(localStorage.getItem('hanami-library')),item=list[0],id=item._chapters[0].chapterId;
+  for(const value of Object.values(item._chapterMeta)){delete value.readStateUpdatedAt;delete value.bookmarkStateUpdatedAt;delete value._identityDefault;}
+  item._chapterMeta[oldUrl].read=true;item._chapterMeta[oldUrl].bookmark=true;
+  item._chapterMeta[newUrl].read=false;item._chapterMeta[newUrl].bookmark=false;
+  delete item._chapterMetaById[id];item._identityConflicts={};
+  mergeFetchedChapterMetadata(item,item._chapters);localStorage.setItem('hanami-library',JSON.stringify(list));
+  await window.HanamiIdentityRecovery.open();
+ },{oldUrl,newUrl});
+ await page.waitForSelector('[data-identity-conflict]');
+ await preview('recovery-desktop-conflict','section:has([data-identity-conflict])');
+ await page.setViewportSize({width:390,height:844});
+ await preview('recovery-mobile-conflict','[data-identity-conflict="0"]');
+ const conflict=page.locator('[data-identity-conflict="0"]');
+ await conflict.locator('[data-identity-read-choice]').selectOption('no');
+ await conflict.locator('[data-identity-resolve-state]').click();
+ await page.waitForFunction(()=>document.querySelector('[data-identity-message]')?.textContent.includes('tanto el estado'));
+ assert.equal(await page.locator('[data-identity-conflict]').count(),1,"both flags require an explicit choice");
+ await conflict.locator('[data-identity-bookmark-choice]').selectOption('yes');
+ await conflict.locator('[data-identity-resolve-state]').click();
+ await page.waitForFunction(()=>document.querySelector('[data-identity-message]')?.textContent.includes('Estado confirmado'));
+ const confirmed=await page.evaluate(()=>JSON.parse(localStorage.getItem('hanami-library'))[0]);
+ assert.equal(confirmed.readCount,0);assert.equal(confirmed._chapterMeta[newUrl].bookmark,true);
+ assert.equal(await page.locator('[data-identity-conflict]').count(),0);
+ // Undo only alias decisions; retain permanent IDs and later read decisions.
+ await page.setViewportSize({width:1280,height:900});
+ await page.locator('#identityRecoveryDialog summary').filter({hasText:'Deshacer equivalencias'}).click();
+ await preview('recovery-desktop-undo','.identity-recovery-backup');
+ const issuedIds=await page.evaluate(()=>window.HanamiChapterIdentity.registrySnapshot().chapters.map(row=>row.id));
+ await page.locator('[data-identity-checkpoint]').selectOption('before-v144');
+ page.once('dialog',dialog=>dialog.accept());
+ await page.locator('[data-identity-undo]').click();
+ await page.waitForFunction(()=>!window.HanamiChapterIdentity.pendingVerifiedAliases('local-room').length);
+ const undo=await page.evaluate(async()=>({ids:window.HanamiChapterIdentity.registrySnapshot().chapters.map(row=>row.id),library:JSON.parse(localStorage.getItem('hanami-library'))[0],comments:await window.HanamiReaderComments.recoverySnapshot()}));
+ assert(issuedIds.every(id=>undo.ids.includes(id)));assert.equal(undo.library.readCount,0);assert.equal(undo.library._chapterMeta[newUrl].bookmark,true);assert.equal(undo.comments.pending.length,6);
+ const emptyContext=await browser.newContext({viewport:{width:390,height:844},serviceWorkers:'block'});
+ await mockRoutes(emptyContext);
+ const emptyPage=await emptyContext.newPage();emptyPage.on('pageerror',e=>errors.push(e.message));
+ await emptyPage.goto(base);
+ await emptyPage.waitForFunction(()=>window.HanamiIdentityRecovery&&window.HanamiIdentityBackup?.status().ready);
+ await emptyPage.evaluate(()=>window.HanamiIdentityRecovery.open());
+ await emptyPage.waitForSelector('.identity-recovery-empty');
+ await preview('recovery-mobile-empty','section:has(.identity-recovery-empty)',emptyPage);
+ await emptyContext.close();
+ assert.deepEqual(errors,[]);
+ await fs.writeFile('/data/hanami-v144-identity-e2e-results.json',JSON.stringify({pass:true,protectedCopy:{comments:protectedCopy.comments,pending:protectedCopy.pending,audioPreserved:true,authExcluded:true},automaticComments:1,automaticMusic:1,manualComments:2,pendingCommentsPreserved:6,pinIdAndTransportPreserved:true,roomIsolation:true,conflictChoicesProtected:true,undoPreservesIdsAndNewReadChoices:true,emptyInventory:true,audit,controlsAudit},null,2));
+ console.log('PASS: real Chromium backup (audio/media/outboxes), automatic comment/music/read recovery, reviewed alias, unchanged 6 pending operations, immutable pin transport, room isolation, explicit conflict choices and safe alias undo; mobile/desktop previews generated');
+}finally{await context.close();await browser.close();}

@@ -21,7 +21,7 @@ assert(!comments.includes("ResizeObserver"));
 assert(!comments.includes("readerGeometryRoot"));
 for (const token of ["renderPinCards", "syncPinState", "scheduleFollow"]) assert(discovery.includes(token), token);
 for (const token of ["reader-music-pin-dock", "renderPinCards", "syncPinCards"]) assert(cards.includes(token), token);
-assert.equal(pkg.version, "5.17.0");
-assert(sw.includes("hanami-crimson-knot-v143"));
+assert(Number(pkg.version.split(".")[0]) > 5 || Number(pkg.version.split(".")[1]) >= 17);
+assert(Number(sw.match(/hanami-crimson-knot-v(\d+)/)?.[1]) >= 143);
 
 console.log("PASS: comment re-anchoring stays scoped to page-image load and preserves the reader music overlay");

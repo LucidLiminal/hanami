@@ -1,3 +1,4 @@
+import "./chapter-identity.js";
 /* Private group markers are separate from anonymous/community trend aggregates. */
 const KEY = "hanami-reader-music-group-outbox-v137";
 const MAX_PENDING = 500;
@@ -73,7 +74,10 @@ export function sharedMusicSnapshot() {
 }
 export function sharedBindingsFor(pageKey) {
   if (!social().authenticated) return [];
-  return [...shared.values()].filter((item) => item.pageKey === pageKey);
+  const api = window.HanamiChapterIdentity;
+  return [...shared.values()].filter((item) => !api ? item.pageKey === pageKey :
+    api.samePage({ ...api.musicContext(item.pageKey),chapterId:item.chapterId || "",
+      recordIdentity:!!item.chapterId },api.musicContext(pageKey)));
 }
 export function hasPendingMusicPin(id) {
   return pending.some((item) => item.actorId === social().user?.id && item.record.id === id);
@@ -105,6 +109,7 @@ export async function flushSharedPins() {
   if (flushing) return flushing;
   if (incognito() || navigator.onLine === false) return;
   await window.HanamiSocialSync?.ready;
+  await window.HanamiIdentityBackup?.ready;
   if (flushing) return flushing;
   const actor = social().user?.id;
   if (!social().authenticated || !actor) return;
@@ -176,7 +181,8 @@ function mapRow(row) {
   if (!pageKey || !isRemoteMusicGroup(row.group_id) || !/^https:\/\/soundcloud\.com\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(row.track?.url || "") || row.deleted_at ||
     !Number.isFinite(Number(row.x)) || !Number.isFinite(Number(row.y)) || Number(row.x) < 0 || Number(row.x) > 1 || Number(row.y) < 0 || Number(row.y) > 1) return null;
   const track = { ...row.track, provider: "soundcloud", permalinkUrl: row.track.url, type: "external" };
-  return { id: row.id, pageKey, groupId: row.group_id, actorId: row.author_id, x: Number(row.x), y: Number(row.y), revision: Number(row.revision), trackId: "", track, createdAt: Date.parse(row.created_at) || 0, shareState: "shared", remote: true };
+  return { id: row.id, pageKey, chapterId:row.chapter_id || "",workId:row.work_id || "",
+    groupId: row.group_id, actorId: row.author_id, x: Number(row.x), y: Number(row.y), revision: Number(row.revision), trackId: "", track, createdAt: Date.parse(row.created_at) || 0, shareState: "shared", remote: true };
 }
 export async function syncVisibleGroupPins(force = false) {
   if (pulling) return pulling;
@@ -202,7 +208,8 @@ export async function syncVisibleGroupPins(force = false) {
         rows.push(...(Array.isArray(batch) ? batch : []));
       }
       const requested = new Set(pageKeys);
-      for (const [id, value] of shared) if (requested.has(value.pageKey)) shared.delete(id);
+      for (const [id, value] of shared) if (requested.has(value.pageKey) ||
+        pageKeys.some((key) => window.HanamiChapterIdentity?.sameMusicPage(key, value.pageKey))) shared.delete(id);
       rows.map(mapRow).filter(Boolean).forEach((item) => shared.set(item.id, item));
       dispatchEvent(new CustomEvent("hanami-music-pins-reconciled", {
         detail: { groupId: group, actorId: actor, pageKeys, ids: rows.filter((row) => !row.deleted_at).map((row) => row.id) },

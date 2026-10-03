@@ -1,3 +1,4 @@
+import "./chapter-identity.js";
 const LEGACY_STORE = "hanami-reader-comments-v1";
 const DB_NAME = "hanami-reader-comments-v2";
 const DB_VERSION = 1;
@@ -123,22 +124,40 @@ function queue(operation, record) {
 function list(context) {
   const key = pageKey(context);
   const group = groupId(context);
+  const identity = window.HanamiChapterIdentity;
+  if (identity && !identity.anchorsAllowed({ ...context, groupId: group })) return [];
   return cache.filter(
     (comment) =>
       comment.groupId === group &&
-      comment.pageKey === key &&
+      (!identity ? comment.pageKey === key : identity.samePage(
+        { ...context, groupId: group },
+        { ...identity.commentContext(comment.pageKey, comment.groupId),
+          chapterId: comment.chapterId || "", recordIdentity: !!comment.chapterId },
+      )) &&
       !comment.deletedAt,
   );
 }
 function persist(context, comment) {
+  const identity = window.HanamiChapterIdentity;
+  const scoped = { ...context, groupId: groupId(context) };
   const previous = cache.find(
-    (item) => item._key === recordKey(context, comment.id),
+    (item) => item.groupId === scoped.groupId && item.id === comment.id &&
+      (item._key === recordKey(context, comment.id) ||
+        identity?.samePage(scoped, identity.commentContext(item.pageKey, item.groupId))),
   );
+  if (!previous && cache.some((item) => item.id === comment.id && item.groupId === scoped.groupId))
+    throw new Error("Este comentario pertenece a otra página. No se ha modificado.");
+  const resolved = identity?.withIdentity(scoped, { create: true });
   const record = {
     ...previous,
     ...comment,
-    _key: recordKey(context, comment.id),
-    pageKey: pageKey(context),
+    ...(resolved?.chapterId ? { chapterId: resolved.chapterId, workId: resolved.workId,
+      pageId: resolved.pageId, identityVersion: 2 } : {}),
+    originalContext: previous?.originalContext || { ...scoped },
+    // Updating a recovered comment must retain the original key referenced by
+    // all pending operations. Remote rows keep their IDs and transport keys.
+    _key: previous?._key || recordKey(context, comment.id),
+    pageKey: previous?.pageKey || pageKey(context),
     groupId: groupId(context),
     authorId: authorId(comment),
     authorName:
@@ -158,7 +177,10 @@ function persist(context, comment) {
 }
 function remove(context, id) {
   const key = recordKey(context, id);
-  const previous = cache.find((item) => item._key === key);
+  const identity = window.HanamiChapterIdentity;
+  const previous = cache.find((item) => item._key === key ||
+    item.id === id && item.groupId === groupId(context) &&
+      identity?.samePage({ ...context, groupId: groupId(context) }, identity.commentContext(item.pageKey, item.groupId)));
   if (!previous) return;
   const record = {
     ...previous,
@@ -273,6 +295,10 @@ function fromRemote(row) {
     id: row.id,
     _key: `${row.group_id}|${row.page_key}|${row.id}`,
     pageKey: row.page_key,
+    chapterId: row.chapter_id || "",
+    workId: row.work_id || "",
+    pageId: row.page_id || "",
+    identityVersion: Number(row.identity_version) || 1,
     groupId: row.group_id,
     authorId: row.author_id,
     authorName: row.author?.display_name || "Lector",
@@ -314,9 +340,14 @@ async function mergeRemote(rows = []) {
   return cache;
 }
 const ready = (async () => {
+  await window.HanamiIdentityBackup?.ready;
   cache = await allFrom("comments");
   queueCache = await allFrom("syncQueue");
   await migrateLegacy();
+  for (const comment of cache) {
+    const context = window.HanamiChapterIdentity?.commentContext(comment.pageKey, comment.groupId);
+    if (context) window.HanamiChapterIdentity.withIdentity(context, { create: true });
+  }
   dispatchEvent(
     new CustomEvent("hanami-reader-comments-ready", {
       detail: { comments: cache.length, pending: queueCache.length },
@@ -328,6 +359,10 @@ const ready = (async () => {
   console.error("[Hanami comments]", error);
   return false;
 });
+async function recoverySnapshot() {
+  if (await ready === false) throw new Error("No se pudo leer la base de comentarios.");
+  return { comments: structuredClone(cache), pending: structuredClone(queueCache) };
+}
 function contextFromFigure(figure) {
   try {
     return JSON.parse(figure.dataset.commentContext || "{}");
@@ -678,6 +713,7 @@ window.HanamiReaderComments = {
   closeEditor,
   ready,
   exportBundle,
+  recoverySnapshot,
   importBundle,
   pendingOperations,
   markOperation,
@@ -687,3 +723,4 @@ window.HanamiReaderComments = {
     queueCache.filter((item) => item.state === "pending").length,
   database: DB_NAME,
 };
+window.addEventListener("hanami-chapter-identity-change", renderAll);
