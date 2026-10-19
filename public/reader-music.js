@@ -1085,7 +1085,7 @@ function updateMediaSession() {
         ? [{ src: track.artwork, sizes: "512x512" }]
         : [],
     });
-  }
+  } else if ("metadata" in navigator.mediaSession) navigator.mediaSession.metadata = null;
   navigator.mediaSession.playbackState = playing ? "playing" : "paused";
   updatePositionState();
 }
@@ -1201,21 +1201,45 @@ async function deleteTrack(id) {
   renderPanel();
   emit("library");
 }
-function clearQueue() {
+function clearQueue({ status = "La cola está vacía." } = {}) {
+  // A chapter/reader boundary must also invalidate a pending async load. Without
+  // this token, a late load can resume audio after the queue has been emptied.
+  ++loadToken;
   readingSuspended = true;
   waitingForPin = false;
+  queueFinished = false;
   currentPin = null;
   active.pause();
   externalServices?.stopPlayback?.();
   revokeAudioUrl(active);
   active.removeAttribute("src");
+  delete active.dataset.musicSource;
+  try { active.load?.(); } catch {}
   state.queue = [];
+  state.queueVisited = [];
   state.index = -1;
   state.position = 0;
+  shuffleHistory.length = 0;
   playing = false;
+  playbackSessionId = "";
+  confirmedPlaybackSessionId = "";
+  statusMessage = status;
   persist();
+  updateMediaSession();
   renderPanel();
   emit("queue");
+}
+function endReaderSession(reason = "reader-closed") {
+  // This is deliberately a session reset, not a music-library reset: imported
+  // tracks and the user's saved playlists stay available for the next reading.
+  window.HanamiReaderMusicServices?.closePicker?.(true);
+  // #readerSheet is also used by reader settings. Only hide it when the music
+  // player actually owns it; a chapter transition must not dismiss settings.
+  if (panelOpen) closePanel(true);
+  else closeTool(true);
+  clearQueue({ status: "" });
+  dispatchEvent(new CustomEvent("hanami-reader-music-session-end", { detail: { reason } }));
+  return true;
 }
 function shuffleQueue() {
   if (state.queue.length < 2) return;
@@ -1477,6 +1501,8 @@ window.HanamiReaderMusic = {
   seek,
   remove: deleteTrack,
   removeFromQueue,
+  clearQueue,
+  endSession: endReaderSession,
   registerExternalServices,
   listTracks: () => tracks.map(({ blob, ...track }) => ({ ...track, hasBlob: !!blob })),
   snapshot: () => ({

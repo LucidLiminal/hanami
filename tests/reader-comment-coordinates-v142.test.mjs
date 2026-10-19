@@ -15,7 +15,7 @@ for (const token of [
   'document.addEventListener(\n  "load"',
   "temporary min-height",
 ]) assert(comments.includes(token), token);
-assert.equal(pkg.version, "5.22.0");
-assert(sw.includes("hanami-crimson-knot-v148"));
+assert.equal(pkg.version, "5.23.0");
+assert(sw.includes("hanami-crimson-knot-v149"));
 
 console.log("PASS: reader comments re-anchor after a page image settles or reloads");
