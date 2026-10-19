@@ -1,4 +1,11 @@
+import { prepareGroupCover, validateGroupCoverFile } from "./group-cover.js";
+
 const GROUPS_KEY = "hanami-reading-groups-v1";
+let groupCoverPreviewUrl = "";
+function releaseGroupCoverPreview() {
+  if (groupCoverPreviewUrl) URL.revokeObjectURL(groupCoverPreviewUrl);
+  groupCoverPreviewUrl = "";
+}
 const PROFILE_KEY = "hanami-reading-profile-v1";
 const ACTIVE_KEY = "hanami-active-reading-group";
 const esc = (value) =>
@@ -200,9 +207,10 @@ function detail(group, restoring = false) {
 }
 function editGroupDialog(group = active()) {
   if (!group) return;
+  releaseGroupCoverPreview();
   const modal = document.querySelector("#modal");
   const body = document.querySelector("#modalBody");
-  body.innerHTML = `<form class="dialog-section reading-group-edit-dialog" data-group-edit-form="${esc(group.id)}"><small class="eyebrow">ADMINISTRAR SALA</small><h3>Editar grupo</h3><label>Nombre<input name="name" required minlength="1" maxlength="80" value="${esc(group.name)}"></label><label>Cita<textarea name="quote" maxlength="240">${esc(group.quote || "")}</textarea></label><label>Imagen del grupo<input name="coverFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif"><small>JPG, PNG, WebP o GIF · máximo 4 MB.</small></label><label>URL alternativa<input name="cover" type="url" value="${esc(group.cover || "")}" placeholder="https://…"></label><img class="reading-group-cover-preview" src="${esc(group.cover || coverFor(0))}" alt="Vista previa"><button class="btn acid" type="submit">Guardar cambios</button></form>`;
+  body.innerHTML = `<form class="dialog-section reading-group-edit-dialog" data-group-edit-form="${esc(group.id)}"><small class="eyebrow">ADMINISTRAR SALA</small><h3>Editar grupo</h3><label>Nombre<input name="name" required minlength="1" maxlength="80" value="${esc(group.name)}"></label><label>Cita<textarea name="quote" maxlength="240">${esc(group.quote || "")}</textarea></label><label>Imagen del grupo<input name="coverFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif"><small class="reading-group-cover-help">Original hasta 10 MB (JPG, PNG, WebP o GIF). WebP optimizado: máximo 1 MB y 1280 px. GIF como imagen estática.</small></label><label>URL alternativa<input name="cover" type="url" value="${esc(group.cover || "")}" placeholder="https://…"></label><img class="reading-group-cover-preview" src="${esc(group.cover || coverFor(0))}" alt="Vista previa"><button class="btn acid" type="submit">Guardar cambios</button></form>`;
   if (!modal.open) modal.showModal();
 }
 function memberManageDialog(group, member) {
@@ -573,23 +581,29 @@ document.addEventListener("submit", async (event) => {
     );
     if (!group) return;
     const submit = editForm.querySelector('[type="submit"]');
+    if (submit.disabled) return;
     const values = new FormData(editForm);
     const name = String(values.get("name") || "").trim();
     const quote = String(values.get("quote") || "").trim();
     const file = values.get("coverFile");
     let cover = String(values.get("cover") || "").trim() || group.cover;
     submit.disabled = true;
+    submit.setAttribute("aria-busy", "true");
+    const submitLabel = submit.textContent;
+    submit.textContent = file?.size ? "Optimizando y guardando…" : "Guardando…";
     try {
       if (file?.size) {
         if (group.remote)
           cover = await window.HanamiSocialSync.uploadGroupCover(group.id, file);
-        else
+        else {
+          const optimized = await prepareGroupCover(file);
           cover = await new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => resolve(reader.result);
             reader.onerror = () => reject(new Error("No se pudo leer la imagen."));
-            reader.readAsDataURL(file);
+            reader.readAsDataURL(optimized);
           });
+        }
       }
       let updated;
       if (group.remote)
@@ -613,12 +627,16 @@ document.addEventListener("submit", async (event) => {
         );
       document.querySelector("#modal")?.close();
       detail(groups().find((item) => item.id === group.id), true);
-      window.HanamiSnackbar?.show?.("Datos del grupo actualizados", {
-        kind: "success",
-      });
+      window.HanamiSnackbar?.show?.(
+        updated.coverCleanupWarning || "Datos del grupo actualizados",
+        { kind: updated.coverCleanupWarning ? "error" : "success" },
+      );
     } catch (error) {
-      submit.disabled = false;
       window.HanamiSnackbar?.show?.(error.message, { kind: "error" });
+    } finally {
+      submit.disabled = false;
+      submit.removeAttribute("aria-busy");
+      submit.textContent = submitLabel;
     }
     return;
   }
@@ -675,10 +693,19 @@ document.addEventListener("change", async (event) => {
   if (
     event.target.name === "coverFile" &&
     event.target.files?.[0] &&
-    root()?.querySelector(".reading-group-cover-preview")
+    event.target.closest("[data-group-edit-form]")
   ) {
-    const preview = document.querySelector(".reading-group-cover-preview");
-    preview.src = URL.createObjectURL(event.target.files[0]);
+    const form = event.target.closest("[data-group-edit-form]");
+    const preview = form.querySelector(".reading-group-cover-preview");
+    try {
+      validateGroupCoverFile(event.target.files[0]);
+      releaseGroupCoverPreview();
+      groupCoverPreviewUrl = URL.createObjectURL(event.target.files[0]);
+      if (preview) preview.src = groupCoverPreviewUrl;
+    } catch (error) {
+      event.target.value = "";
+      window.HanamiSnackbar?.show?.(error.message, { kind: "error" });
+    }
     return;
   }
   if (!event.target.matches("[data-group-import-file]") || !event.target.files?.[0])
@@ -691,6 +718,13 @@ document.addEventListener("change", async (event) => {
   }
   event.target.value = "";
 });
+document.addEventListener(
+  "close",
+  (event) => {
+    if (event.target.id === "modal") releaseGroupCoverPreview();
+  },
+  true,
+);
 addEventListener("hanami-reader-comments-ready", () => {
   if (!root()?.querySelector(".reading-group-detail")) render();
 });

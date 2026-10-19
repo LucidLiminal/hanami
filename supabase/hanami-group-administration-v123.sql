@@ -157,8 +157,8 @@ begin
   update public.reading_groups
   set
     name = trim(group_name),
-    quote = coalesce(nullif(trim(group_quote), ''), quote),
-    cover = coalesce(nullif(trim(group_cover), ''), cover),
+    quote = coalesce(nullif(trim(group_quote), ''), reading_groups.quote),
+    cover = coalesce(nullif(trim(group_cover), ''), reading_groups.cover),
     updated_at = now()
   where reading_groups.id = target_group;
 
@@ -544,23 +544,40 @@ on conflict (id) do update set
   allowed_mime_types = excluded.allowed_mime_types;
 
 drop policy if exists "group covers owner insert" on storage.objects;
+drop policy if exists "group covers owner select" on storage.objects;
 drop policy if exists "group covers owner update" on storage.objects;
+create policy "group covers owner select" on storage.objects
+  for select using (
+    bucket_id = 'group-covers'
+    and exists (
+      select 1 from public.reading_groups as cover_group
+      where cover_group.id::text = (storage.foldername(storage.objects.name))[1]
+        and cover_group.owner_id = auth.uid()
+    )
+  );
 create policy "group covers owner insert" on storage.objects
   for insert with check (
     bucket_id = 'group-covers'
     and exists (
-      select 1 from public.reading_groups
-      where id = (storage.foldername(name))[1]::uuid
-        and owner_id = auth.uid()
+      select 1 from public.reading_groups as cover_group
+      where cover_group.id::text = (storage.foldername(storage.objects.name))[1]
+        and cover_group.owner_id = auth.uid()
     )
   );
 create policy "group covers owner update" on storage.objects
   for update using (
     bucket_id = 'group-covers'
     and exists (
-      select 1 from public.reading_groups
-      where id = (storage.foldername(name))[1]::uuid
-        and owner_id = auth.uid()
+      select 1 from public.reading_groups as cover_group
+      where cover_group.id::text = (storage.foldername(storage.objects.name))[1]
+        and cover_group.owner_id = auth.uid()
+    )
+  ) with check (
+    bucket_id = 'group-covers'
+    and exists (
+      select 1 from public.reading_groups as cover_group
+      where cover_group.id::text = (storage.foldername(storage.objects.name))[1]
+        and cover_group.owner_id = auth.uid()
     )
   );
 

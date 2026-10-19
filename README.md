@@ -2,6 +2,19 @@
 
 Primer port manual del catálogo TypeScript de Hanami. Funciona como un único proyecto de Vercel: no usa Docker, Java, Miwayomi ni APK.
 
+## Nuevo en v145: portadas ligeras y sin acumulación
+
+- Las portadas se optimizan a WebP, de máximo 1 MiB y 1280 px en su lado largo.
+- Cada grupo reutiliza `<uuid>/cover.webp`, aunque cambie la extensión original.
+- Supabase limita también el tamaño, el MIME y la ruta de las nuevas subidas.
+- Tras guardar la portada nueva, la app elimina las anteriores mediante Storage
+  y avisa si la limpieza queda pendiente.
+
+Versión `5.19.0` · caché PWA `hanami-crimson-knot-v145`.
+**Aplicar `supabase/hanami-group-cover-storage-v145.sql` antes de desplegar.**
+Los archivos antiguos se limpian al sustituir la portada con esta versión.
+Guía, despliegue y límites: `GROUP_COVER_STORAGE_V145.md`.
+
 ## Nuevo en v144: identidad estable y recuperación segura
 
 - Comentarios, pins musicales y progreso se reconocen por una identidad interna

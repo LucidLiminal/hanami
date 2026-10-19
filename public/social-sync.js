@@ -1,4 +1,5 @@
 import "./chapter-identity.js";
+import { groupCoverPath, prepareGroupCover } from "./group-cover.js";
 const CONFIG_KEY = "hanami-supabase-config-v1";
 const SESSION_KEY = "hanami-supabase-session-v1";
 let config = null;
@@ -232,6 +233,13 @@ async function updateGroup(groupId, { name, quote, cover }) {
     group,
     ...groupCache.filter((candidate) => candidate.id !== group.id),
   ];
+  // Delete obsolete files only after the database points to the new cover.
+  try {
+    await cleanupOldGroupCovers(group.id, group.cover);
+  } catch {
+    group.coverCleanupWarning =
+      "Cambios guardados, pero no se pudieron borrar las portadas antiguas. Vuelve a guardar el grupo para reintentar la limpieza.";
+  }
   return group;
 }
 async function leaveGroup(groupId) {
@@ -261,28 +269,20 @@ async function manageMember(groupId, userId, action) {
   return group;
 }
 async function uploadGroupCover(groupId, file) {
-  if (!file?.type?.startsWith("image/"))
-    throw new Error("Selecciona una imagen válida.");
-  if (file.size > 4 * 1024 * 1024)
-    throw new Error("La imagen no puede superar 4 MB.");
-  const extension =
-    file.type === "image/png"
-      ? "png"
-      : file.type === "image/webp"
-        ? "webp"
-        : file.type === "image/gif"
-          ? "gif"
-          : "jpg";
-  const path = `${groupId}/cover.${extension}`;
+  if (!config || !session?.access_token)
+    throw new Error("Inicia sesión antes de subir la portada.");
+  const path = groupCoverPath(groupId);
+  const cover = await prepareGroupCover(file);
   const response = await fetch(
     `${config.url}/storage/v1/object/group-covers/${path}`,
     {
       method: "POST",
       headers: headers({
-        "content-type": file.type,
+        "content-type": "image/webp",
+        "cache-control": "max-age=3600",
         "x-upsert": "true",
       }),
-      body: file,
+      body: cover,
     },
   );
   if (!response.ok) {
@@ -290,6 +290,73 @@ async function uploadGroupCover(groupId, file) {
     throw new Error(payload.message || "No se pudo subir la imagen del grupo.");
   }
   return `${config.url}/storage/v1/object/public/group-covers/${path}?v=${Date.now()}`;
+}
+async function listGroupCoverObjects(groupId) {
+  const folders = [`${groupId}/`];
+  const files = [];
+  let examined = 0;
+  for (const prefix of folders) {
+    for (let offset = 0; ; offset += 100) {
+      const rows = await jsonRequest("/storage/v1/object/list/group-covers", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          prefix: prefix.replace(/\/$/, ""),
+          limit: 100,
+          offset,
+          sortBy: { column: "name", order: "asc" },
+        }),
+      });
+      if (!Array.isArray(rows)) throw new Error("No se pudo revisar el bucket.");
+      for (const row of rows) {
+        if (
+          ++examined > 2000 ||
+          typeof row?.name !== "string" ||
+          !row.name ||
+          row.name.includes("/") ||
+          row.name === "." ||
+          row.name === ".."
+        )
+          throw new Error("La limpieza necesita una revisión manual del bucket.");
+        const path = `${prefix}${row.name}`;
+        if (row.id || row.metadata) files.push(path);
+        else folders.push(`${path}/`);
+      }
+      if (rows.length < 100) break;
+    }
+  }
+  return files;
+}
+async function cleanupOldGroupCovers(groupId, activeCover) {
+  const canonicalPath = groupCoverPath(groupId);
+  const expected = new URL(
+    `${config.url}/storage/v1/object/public/group-covers/${canonicalPath}`,
+  );
+  let current;
+  try {
+    current = new URL(activeCover);
+  } catch {
+    return; // Local or externally hosted covers are not Storage objects.
+  }
+  if (current.origin !== expected.origin || current.pathname !== expected.pathname)
+    return;
+  const files = await listGroupCoverObjects(groupId.toLowerCase());
+  if (!files.includes(canonicalPath))
+    throw new Error("La nueva portada no se ha confirmado en Storage.");
+  const obsolete = files.filter((path) => path !== canonicalPath);
+  for (let offset = 0; offset < obsolete.length; offset += 100)
+    await jsonRequest("/storage/v1/object/group-covers", {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ prefixes: obsolete.slice(offset, offset + 100) }),
+    });
+  if (
+    obsolete.length &&
+    (await listGroupCoverObjects(groupId.toLowerCase())).some(
+      (path) => path !== canonicalPath,
+    )
+  )
+    throw new Error("Todavía hay portadas antiguas pendientes de borrar.");
 }
 async function updateProfile(displayName) {
   const clean = cleanDisplayName(displayName);
