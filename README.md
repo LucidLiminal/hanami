@@ -2,6 +2,19 @@
 
 Primer port manual del catálogo TypeScript de Hanami. Funciona como un único proyecto de Vercel: no usa Docker, Java, Miwayomi ni APK.
 
+## Nuevo en v146: Olympus sin dependencia del panel averiado
+
+- Los capítulos se obtienen primero de la API pública de Olympus.
+- Un HTTP 520 del panel ya no impide usar la ruta pública disponible.
+- Se comprueba la paginación completa, sin presentar una lista parcial como
+  si fuera toda la colección, y se conservan los IDs y el progreso existentes.
+- Reintentos y tiempos de espera acotados; errores de fuente explícitos cuando
+  no se puede obtener una lista completa.
+
+Versión `5.20.0` · Olympus `1.5.0` · caché PWA `hanami-crimson-knot-v146`.
+**No hay SQL nuevo por Olympus.** Se conservan las mejoras y la migración de
+portadas v145. Detalles y despliegue: `OLYMPUS_PUBLIC_CHAPTERS_V146.md`.
+
 ## Nuevo en v145: portadas ligeras y sin acumulación
 
 - Las portadas se optimizan a WebP, de máximo 1 MiB y 1280 px en su lado largo.

@@ -21,7 +21,7 @@ async function mockRoutes(context){await context.route('**/*',async route=>{
  if(url.pathname.startsWith('/fixture/'))return route.fulfill({contentType:'image/png',body:image});
  if(url.pathname==='/api/social-config')return route.fulfill({json:{enabled:false}});
  if(url.pathname==='/api/status')return route.fulfill({json:{online:true,runtime:'vercel-serverless',sources:1}});
- if(url.pathname==='/api/sources')return route.fulfill({json:[{id:source,name:'Olympus',lang:'es',runtime:'vercel-js',version:'1.4.0',status:'beta'}]});
+ if(url.pathname==='/api/sources')return route.fulfill({json:[{id:source,name:'Olympus',lang:'es',runtime:'vercel-js',version:'1.5.0',status:'beta'}]});
  if(url.pathname==='/api/extensions')return route.fulfill({json:{items:[],total:0}});
  if(url.pathname.endsWith('/chapters'))return route.fulfill({json:[{url:newUrl,name:'Capítulo 1',number:1,remoteId:'123',remoteIdScope:'source'}]});
  if(url.pathname.endsWith('/details'))return route.fulfill({json:{id:'/series/book',url:newWork,title:'Obra de prueba',remoteWorkId:'book-1',genre:[]}});

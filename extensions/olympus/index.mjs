@@ -23,43 +23,277 @@ function searchScore(item, query) { const q = searchText(query), title = searchT
 function seriesListItem(item) { if (!item || typeof item !== 'object' || !item.slug || !item.name) return null; const prefix = item.type === 'novel' ? 'novela' : 'comic', url = absolute(`/series/${prefix}-${item.slug}`); return { id: new URL(url).pathname, url, title: cleanTitle(item.name), thumbnailUrl: absolute(item.cover) || null }; }
 async function searchSeriesList(query, page = 1) { const result = await jsonResult(`${BASE}/api/series/list`), rows = findArray(result.payload) || [], ranked = rows.map((item, index) => ({ item, index, score: searchScore(item, query) })).filter(x => Number.isFinite(x.score)).sort((a, b) => a.score - b.score || a.index - b.index), start = (Math.max(1, page) - 1) * 20, mangas = ranked.slice(start, start + 20).map(x => seriesListItem(x.item)).filter(Boolean); return { mangas, hasNextPage: start + 20 < ranked.length }; }
 
-async function text(url) { const r = await fetch(url, { headers: pageHeaders, redirect: 'follow', signal: AbortSignal.timeout(18000) }); if (!r.ok) { const error = new Error(`Olympus respondió HTTP ${r.status}`); error.status = r.status; error.url = r.url || url; throw error; } const body = await r.text(); if (/cf-chl-|just a moment|attention required|challenge-platform|cdn-cgi\/challenge/i.test(body) || (/captcha/i.test(body) && body.length < 30000 && !/<(?:main|article)\b/i.test(body))) throw new Error('Olympus exige una verificación anti-bot.'); return { body, url: r.url || url }; }
-async function jsonResult(url, referer = BASE + '/') { const r = await fetch(url, { headers: { ...apiHeaders, Referer: referer }, redirect: 'follow', signal: AbortSignal.timeout(18000) }); if (r.status === 404) return { missing: true, status: 404, url: r.url || url }; if (!r.ok) throw new Error(`Panel Olympus respondió HTTP ${r.status}`); const type = r.headers.get('content-type') || ''; if (!/json/i.test(type)) { const sample = (await r.text()).slice(0, 80); throw new Error(`Panel Olympus no devolvió JSON: ${sample}`); } return { payload: await r.json(), url: r.url || url }; }
+function sourceFailure(message, url, extra = {}) {
+  return Object.assign(new Error(message), {
+    url, kind: 'source_unavailable', statusCode: 502,
+    blocksHtmlFallback: true, retryable: false, ...extra,
+  });
+}
+function requestTimeout(options = {}) {
+  const remaining = options.deadline == null ? Infinity : options.deadline - Date.now();
+  if (remaining <= 0)
+    throw sourceFailure('Se agotó el tiempo para consultar Olympus.', '', { statusCode: 504 });
+  return Math.max(1, Math.floor(Math.min(options.timeoutMs || 18000, remaining)));
+}
+async function sourceFetch(url, headers, options = {}) {
+  const timeout = requestTimeout(options);
+  try {
+    return await fetch(url, { headers, redirect: 'follow', signal: AbortSignal.timeout(timeout) });
+  } catch (cause) {
+    const timedOut = /Timeout|Abort/.test(cause?.name || '');
+    throw sourceFailure(
+      timedOut ? 'Olympus no respondió a tiempo.' : 'No se pudo conectar con Olympus.',
+      url, { cause, retryable: true },
+    );
+  }
+}
+async function text(url, options = {}) {
+  const r = await sourceFetch(url, pageHeaders, options);
+  if (!r.ok) {
+    const error = new Error(`Olympus respondió HTTP ${r.status}`);
+    error.status = r.status; error.url = r.url || url;
+    throw error;
+  }
+  const body = await r.text();
+  if (/cf-chl-|just a moment|attention required|challenge-platform|cdn-cgi\/challenge/i.test(body) ||
+      (/captcha/i.test(body) && body.length < 30000 && !/<(?:main|article)\b/i.test(body)))
+    throw new Error('Olympus exige una verificación anti-bot.');
+  return { body, url: r.url || url };
+}
+async function jsonResult(url, referer = BASE + '/', options = {}) {
+  const r = await sourceFetch(url, { ...apiHeaders, Referer: referer }, options);
+  if (r.status === 404) return { missing: true, status: 404, url: r.url || url };
+  const service = new URL(url).origin === new URL(PANEL).origin ? 'Panel Olympus' : 'API pública de Olympus';
+  if (!r.ok) {
+    const rawRetry = r.headers.get('retry-after');
+    const retryAfterMs = rawRetry == null ? undefined : /^\d+(?:\.\d+)?$/.test(rawRetry)
+      ? Number(rawRetry) * 1000 : Math.max(0, Date.parse(rawRetry) - Date.now());
+    throw sourceFailure(`${service} respondió HTTP ${r.status}`, r.url || url, {
+      status: r.status,
+      retryable: [408, 500, 502, 503, 504, 520, 521, 522, 523, 524].includes(r.status),
+      retryAfterMs: Number.isFinite(retryAfterMs) ? retryAfterMs : undefined,
+    });
+  }
+  if (!/json/i.test(r.headers.get('content-type') || ''))
+    throw sourceFailure(`${service} no devolvió JSON.`, r.url || url, {
+      status: r.status, kind: 'source_invalid_response', blocksHtmlFallback: false,
+    });
+  let payload;
+  try { payload = await r.json(); }
+  catch (cause) {
+    const timedOut = /Timeout|Abort/.test(cause?.name || '');
+    throw sourceFailure(`${service} devolvió una respuesta incompleta o inválida.`, r.url || url, {
+      cause, status: r.status, kind: timedOut ? 'source_unavailable' : 'source_invalid_response',
+      retryable: timedOut,
+    });
+  }
+  return { payload, url: r.url || url };
+}
 
 let catalogCache = { at: 0, rows: [] };
-async function seriesCatalog() { if (catalogCache.rows.length && Date.now() - catalogCache.at < 300000) return catalogCache.rows; const result = await jsonResult(`${BASE}/api/series/list`), rows = findArray(result.payload) || []; catalogCache = { at: Date.now(), rows: rows.filter(item => item && item.slug && item.name) }; return catalogCache.rows; }
+async function seriesCatalog(options = {}) { if (catalogCache.rows.length && Date.now() - catalogCache.at < 300000) return catalogCache.rows; const result = await jsonResult(`${BASE}/api/series/list`, BASE + '/', options), rows = findArray(result.payload) || []; catalogCache = { at: Date.now(), rows: rows.filter(item => item && item.slug && item.name) }; return catalogCache.rows; }
 function slugQuery(value) { try { return decodeURIComponent(new URL(value, BASE).pathname.split('/').filter(Boolean).at(-1) || '').replace(/^(?:comic|novel|novela)-/i, '').replace(/-20\d{6}-\d{9}$/i, '').replace(/[-_]+/g, ' '); } catch { return ''; } }
-async function resolveSeriesUrl(ref, requested) { const rows = await seriesCatalog(), rawSlug = slugQuery(requested), exactSlug = (() => { try { return decodeURIComponent(new URL(requested).pathname.split('/').filter(Boolean).at(-1) || '').replace(/^(?:comic|novel|novela)-/i, ''); } catch { return ''; } })(), numericId = Number(ref?.seriesId ?? ref?.remoteId ?? (/^\d+$/.test(String(ref?.id || '')) ? ref.id : NaN)), title = cleanTitle(ref?.title || ''), queries = [title, rawSlug].filter(Boolean); let best = null, bestScore = Infinity; for (const [index, item] of rows.entries()) { let score = item.slug === exactSlug ? -100 : Number(item.id) === numericId ? -90 : Infinity; for (const query of queries) score = Math.min(score, searchScore(item, query)); if (score < bestScore) { best = item; bestScore = score + index / 100000; } } return best && Number.isFinite(bestScore) ? seriesListItem(best)?.url || null : null; }
-async function seriesPage(ref) { const requested = absolute(ref?.url || ref?.id); try { return await text(requested); } catch (error) { if (error?.status !== 404) throw error; const canonical = await resolveSeriesUrl(ref, requested); if (canonical && canonical !== requested) { const page = await text(canonical); return { ...page, recoveredFrom: requested }; } const missing = new Error('La obra de Olympus cambió de dirección o ya no está disponible. Actualiza la fuente y vuelve a buscarla.'); missing.status = 404; missing.url = requested; throw missing; } }
+async function resolveSeriesUrl(ref, requested, options = {}) { const rows = await seriesCatalog(options), rawSlug = slugQuery(requested), exactSlug = (() => { try { return decodeURIComponent(new URL(requested).pathname.split('/').filter(Boolean).at(-1) || '').replace(/^(?:comic|novel|novela)-/i, ''); } catch { return ''; } })(), numericId = Number(ref?.seriesId ?? ref?.remoteId ?? (/^\d+$/.test(String(ref?.id || '')) ? ref.id : NaN)), title = cleanTitle(ref?.title || ''), queries = [title, rawSlug].filter(Boolean); let best = null, bestScore = Infinity; for (const [index, item] of rows.entries()) { let score = item.slug === exactSlug ? -100 : Number(item.id) === numericId ? -90 : Infinity; for (const query of queries) score = Math.min(score, searchScore(item, query)); if (score < bestScore) { best = item; bestScore = score + index / 100000; } } return best && Number.isFinite(bestScore) ? seriesListItem(best)?.url || null : null; }
+async function seriesPage(ref, options = {}) {
+  const requested = absolute(ref?.url || ref?.id);
+  try { return await text(requested, options); }
+  catch (error) {
+    if (error?.status !== 404) throw error;
+    const canonical = await resolveSeriesUrl(ref, requested, options);
+    if (canonical && canonical !== requested) {
+      const page = await text(canonical, options);
+      return { ...page, recoveredFrom: requested };
+    }
+    const missing = new Error('La obra de Olympus cambió de dirección o ya no está disponible. Actualiza la fuente y vuelve a buscarla.');
+    missing.status = 404; missing.url = requested;
+    throw missing;
+  }
+}
 
 async function listing(paths, page = 1) { let last; for (const raw of paths) { const u = new URL(raw, BASE); u.searchParams.set('page', String(page)); try { const r = await text(u.href), mangas = seriesFrom(r.body, r.url); if (mangas.length) return { mangas, hasNextPage: /rel=["']next|page=\d+/i.test(r.body) }; } catch (e) { last = e; } } if (last) throw last; throw new Error('Olympus respondió, pero no se reconocieron tarjetas de series.'); }
 
 function findArray(value, depth = 0) { if (depth > 5 || value == null) return null; if (Array.isArray(value)) return value; if (typeof value !== 'object') return null; for (const key of ['chapters', 'data', 'items', 'results', 'rows']) { if (key in value) { const found = findArray(value[key], depth + 1); if (found) return found; } } for (const child of Object.values(value)) { const found = findArray(child, depth + 1); if (found?.length && typeof found[0] === 'object') return found; } return null; }
-function pageInfo(value, depth = 0) { if (depth > 5 || !value || typeof value !== 'object') return {}; const last = Number(value.last_page ?? value.lastPage ?? value.total_pages ?? value.totalPages ?? 0), current = Number(value.current_page ?? value.currentPage ?? value.page ?? 0), next = value.next_page_url ?? value.nextPageUrl ?? value.next ?? null; if (last || current || next) return { last, current, next }; for (const key of ['meta', 'pagination', 'data']) { const found = pageInfo(value[key], depth + 1); if (found.last || found.current || found.next) return found; } return {}; }
+function pageInfo(value, depth = 0) {
+  if (depth > 5 || !value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const totalValue = value.total ?? value.total_count ?? value.totalCount;
+  const total = totalValue == null ? undefined : Number(totalValue);
+  const info = {
+    last: Number(value.last_page ?? value.lastPage ?? value.total_pages ?? value.totalPages ?? 0) || 0,
+    current: Number(value.current_page ?? value.currentPage ?? value.page ?? 0) || 0,
+    next: value.next_page_url ?? value.nextPageUrl ?? value.next ?? value.links?.next ?? null,
+    total: Number.isInteger(total) && total >= 0 ? total : undefined,
+  };
+  for (const key of ['meta', 'pagination', 'data']) {
+    const nested = pageInfo(value[key], depth + 1);
+    info.last ||= nested.last || 0;
+    info.current ||= nested.current || 0;
+    info.next ||= nested.next || null;
+    if (info.total === undefined) info.total = nested.total;
+  }
+  return info;
+}
+
 function numberFrom(value) { if (typeof value === 'number') return value; const m = String(value ?? '').match(/\d+(?:\.\d+)?/); return m ? Number(m[0]) : 0; }
-function chapterFromApi(item, publicSlug) { if (!item || typeof item !== 'object') return null; const nested = item.chapter && typeof item.chapter === 'object' ? item.chapter : {}; const value = { ...item, ...nested }; const id = value.chapter_id ?? value.chapterId ?? value.id ?? value._id; const number = numberFrom(value.chapter_number ?? value.chapterNumber ?? value.number ?? value.numero ?? value.num ?? value.chapter ?? value.name ?? value.title);
+function chapterFromApi(item, publicSlug) { if (!item || typeof item !== 'object') return null; const nested = item.chapter && typeof item.chapter === 'object' ? item.chapter : {}; const value = { ...item, ...nested }; const id = value.chapter_id ?? value.chapterId ?? value.id ?? value._id; const numberValue = value.chapter_number ?? value.chapterNumber ?? value.number ?? value.numero ?? value.num ?? value.chapter ?? value.name ?? value.title; const number = numberFrom(numberValue);
  const raw = value.url ?? value.path ?? value.permalink ?? value.chapter_url ?? value.chapterUrl ?? '';
  let url = absolute(raw, BASE); if ((!url || !/\/capitulo\//i.test(url)) && id != null) url = `${BASE}/capitulo/${encodeURIComponent(String(id))}/${encodeURIComponent(publicSlug)}`;
- if (!url || !number) return null; const p = new URL(url).pathname; return { id: p, url, remoteId: id == null ? "" : String(id), remoteIdScope: "source", name: `Capítulo ${number}`, number, date: value.published_at ?? value.publishedAt ?? value.created_at ?? value.createdAt ?? null }; }
+ if (!url || !Number.isFinite(number) || number < 0 || !/\d/.test(String(numberValue ?? ''))) return null; const p = new URL(url).pathname; return { id: p, url, remoteId: id == null ? "" : String(id), remoteIdScope: "source", name: `Capítulo ${number}`, number, date: value.published_at ?? value.publishedAt ?? value.created_at ?? value.createdAt ?? null }; }
 function chapterLinksFromHtml(html, base) { const seen = new Set(), out = []; for (const l of links(html, base)) { let u; try { u = new URL(l.href); } catch { continue; } if (!/\/capitulo\//i.test(u.pathname) || seen.has(u.href)) continue; const number = numberFrom(l.text || u.pathname.split('/').filter(Boolean).at(-1)); if (!number) continue; seen.add(u.href); out.push({ id: u.pathname, url: u.href, name: `Capítulo ${number}`, number, date: null }); } return out.sort((a, b) => b.number - a.number); }
 function panelCandidates(seriesUrl, html = '', resolvedUrl = seriesUrl) { const decoded = decode(html).replace(/\\u002[fF]/g, '/').replace(/\\\//g, '/'); const urls = [seriesUrl, resolvedUrl, meta(html, 'og:url'), meta(html, 'twitter:url')].filter(Boolean); const slugs = new Set(), hosts = new Set([PANEL]); for (const value of urls) { try { const u = new URL(value, BASE), slug = u.pathname.split('/').filter(Boolean).at(-1) || ''; if (slug) { slugs.add(slug.replace(/^(?:comic|novel|novela)-/i, '')); slugs.add(slug); slugs.add(slug.replace(/-20\d{6}-\d{9}$/i, '').replace(/^(?:comic|novel|novela)-/i, '')); } } catch {} } for (const m of decoded.matchAll(/https?:\/\/[^"'<>\s]+\/api\/series\/([^\/?#"']+)\/chapters/gi)) { try { const u = new URL(m[0]); hosts.add(u.origin); slugs.add(decodeURIComponent(m[1])); } catch {} } for (const m of decoded.matchAll(/\/api\/series\/([^\/?#"']+)\/chapters/gi)) slugs.add(decodeURIComponent(m[1])); for (const m of decoded.matchAll(/["'](?:api_?slug|series_?slug|slug)["']\s*:\s*["']([^"']+)["']/gi)) { const v = decode(m[1]); if (v && !/[\/\s]/.test(v)) { slugs.add(v); slugs.add(v.replace(/^(?:comic|novel|novela)-/i, '')); } } return { slugs: [...slugs].filter(Boolean), hosts: [...hosts] }; }
 function bestSeriesObject(value) { let best = null, score = -1; const seen = new Set(), walk = node => { if (!node || typeof node !== 'object' || seen.has(node)) return; seen.add(node); if (!Array.isArray(node)) { const keys = Object.keys(node).map(x => x.toLowerCase()), n = ['title','name','description','synopsis','author','artist','status','genre','genres'].filter(x => keys.includes(x)).length; if (n > score) { score = n; best = node; } } for (const child of Object.values(node)) walk(child); }; walk(value); return score > 0 ? best : null; }
-async function seriesDataFromPanel(seriesUrl, html, resolvedUrl) { const discovered = panelCandidates(seriesUrl, html, resolvedUrl), slugs = discovered.slugs, publicOrigin = new URL(resolvedUrl || seriesUrl || BASE, BASE).origin, hosts = [...new Set([publicOrigin, BASE, ...discovered.hosts])], debug = { adapter: 'olympus-1.4.0', strategy: 'public-api-first', publicUrl: seriesUrl, resolvedUrl, htmlBytes: html.length, slugs, hosts, attempts: [] }; let fallback = null; for (const host of hosts) for (const slug of slugs) for (const suffix of ['?type=comic', '?type=novel']) { const endpoint = `${host}/api/series/${encodeURIComponent(slug)}${suffix}`; try { const result = await jsonResult(endpoint, resolvedUrl || seriesUrl); if (result.missing) { debug.attempts.push({ endpoint, status: 404 }); continue } const found = bestSeriesObject(result.payload), genres = genreValues(found), keys = found && typeof found === 'object' ? Object.keys(found) : []; debug.attempts.push({ endpoint, status: 200, rootKeys: Object.keys(result.payload || {}), selectedKeys: keys, genreCount: genres.length }); if (found && !fallback) fallback = found; if (found && genres.length) return { data: found, debug: { ...debug, selectedEndpoint: endpoint, selectedKeys: keys, genreCount: genres.length } }; } catch (error) { debug.attempts.push({ endpoint, error: String(error?.message || error).slice(0, 180) }) } } return { data: fallback, debug: { ...debug, selectedEndpoint: null, selectedKeys: fallback ? Object.keys(fallback) : [], genreCount: genreValues(fallback).length } }; }
+async function seriesDataFromPanel(seriesUrl, html, resolvedUrl) { const discovered = panelCandidates(seriesUrl, html, resolvedUrl), slugs = discovered.slugs, publicOrigin = new URL(resolvedUrl || seriesUrl || BASE, BASE).origin, hosts = [...new Set([publicOrigin, BASE, ...discovered.hosts])], debug = { adapter: 'olympus-1.5.0', strategy: 'public-api-first', publicUrl: seriesUrl, resolvedUrl, htmlBytes: html.length, slugs, hosts, attempts: [] }; let fallback = null; for (const host of hosts) for (const slug of slugs) for (const suffix of ['?type=comic', '?type=novel']) { const endpoint = `${host}/api/series/${encodeURIComponent(slug)}${suffix}`; try { const result = await jsonResult(endpoint, resolvedUrl || seriesUrl); if (result.missing) { debug.attempts.push({ endpoint, status: 404 }); continue } const found = bestSeriesObject(result.payload), genres = genreValues(found), keys = found && typeof found === 'object' ? Object.keys(found) : []; debug.attempts.push({ endpoint, status: 200, rootKeys: Object.keys(result.payload || {}), selectedKeys: keys, genreCount: genres.length }); if (found && !fallback) fallback = found; if (found && genres.length) return { data: found, debug: { ...debug, selectedEndpoint: endpoint, selectedKeys: keys, genreCount: genres.length } }; } catch (error) { debug.attempts.push({ endpoint, error: String(error?.message || error).slice(0, 180) }) } } return { data: fallback, debug: { ...debug, selectedEndpoint: null, selectedKeys: fallback ? Object.keys(fallback) : [], genreCount: genreValues(fallback).length } }; }
 function field(data, names) { if (!data || typeof data !== 'object') return ''; for (const name of names) { const value = data[name]; if (typeof value === 'string' || typeof value === 'number') return String(value); if (Array.isArray(value)) { const joined = value.map(x => typeof x === 'object' ? x.name || x.title || x.value || '' : x).filter(Boolean).join(', '); if (joined) return joined; } if (value && typeof value === 'object') { const nested = value.name || value.title || value.value; if (nested) return String(nested); } } return ''; }
 function statusValue(data, html) { const raw = field(data, ['status','state','publication_status']).toLowerCase(); return /finaliz|complet|finished|ended/.test(raw + ' ' + html) ? 'completed' : /paus|hiatus/.test(raw + ' ' + html) ? 'hiatus' : /cancel/.test(raw) ? 'cancelled' : 'ongoing'; }
-async function chaptersFromPanel(seriesUrl, html = '', resolvedUrl = seriesUrl) { const publicSlug = new URL(resolvedUrl || seriesUrl).pathname.split('/').filter(Boolean).at(-1) || ''; const preferredType = publicSlug.startsWith('novel-') || publicSlug.startsWith('novela-') ? 'novel' : 'comic'; const { slugs, hosts } = panelCandidates(seriesUrl, html, resolvedUrl); if (!slugs.length) throw new Error('No se pudo obtener el slug de Olympus.'); const diagnostics = [];
- for (const host of hosts) for (const apiSlug of slugs) for (const type of [preferredType, preferredType === 'comic' ? 'novel' : 'comic']) { const seen = new Set(), out = []; let missing = false; for (let page = 1; page <= 100; page++) { const u = new URL(`${host}/api/series/${encodeURIComponent(apiSlug)}/chapters`); u.searchParams.set('page', String(page)); u.searchParams.set('direction', 'desc'); u.searchParams.set('type', type); const result = await jsonResult(u.href, resolvedUrl || seriesUrl); if (result.missing) { diagnostics.push(`${apiSlug}:${type}=404`); missing = true; break; } const payload = result.payload, rows = findArray(payload) || []; for (const row of rows) { const c = chapterFromApi(row, publicSlug); if (c && !seen.has(c.url)) { seen.add(c.url); out.push(c); } } const info = pageInfo(payload); if (!rows.length || (info.last && page >= info.last) || (!info.last && !info.next)) break; } if (!missing && out.length) return out.sort((a, b) => b.number - a.number); }
- const fallback = chapterLinksFromHtml(html, resolvedUrl || seriesUrl); if (fallback.length) return fallback; throw new Error(`Olympus cambió la ruta de capítulos y no se pudo resolver automáticamente. Intentos: ${diagnostics.slice(0, 8).join(', ') || 'sin endpoint descubierto'}.`); }
+async function chaptersFromPanel(seriesUrl, html = '', resolvedUrl = seriesUrl, options = {}) {
+  const publicSlug = new URL(resolvedUrl || seriesUrl).pathname.split('/').filter(Boolean).at(-1) || '';
+  const preferredType = /^(?:novel|novela)-/.test(publicSlug) ? 'novel' : 'comic';
+  const discovered = panelCandidates(seriesUrl, html, resolvedUrl);
+  if (!discovered.slugs.length) throw new Error('No se pudo obtener el slug de Olympus.');
+  const publicOrigin = new URL(resolvedUrl || seriesUrl, BASE).origin;
+  const configuredHosts = new Set([publicOrigin, new URL(BASE).origin, new URL(PANEL).origin]);
+  // Use the same public route as the current upstream extension. A failing panel
+  // is a fallback, never a prerequisite. Do not query unrelated hosts from HTML.
+  const hosts = [...new Set([publicOrigin, new URL(BASE).origin, ...discovered.hosts])]
+    .filter(host => configuredHosts.has(host));
+  const request = { deadline: options.deadline || Date.now() + 26000, timeoutMs: 6000 };
+  const failures = [], diagnostics = [];
+  const incomplete = (message, url) => sourceFailure(message, url, { kind: 'source_incomplete' });
 
-function readerImages(html, base) { const seen = new Set(), out = []; const add = value => { const src = absolute(value, base); if (!src || seen.has(src)) return; let p; try { p = new URL(src).pathname; } catch { return; } if (!/\.(?:avif|jpe?g|png|webp)(?:$|\?)/i.test(src) || /(logo|avatar|favicon|banner|ads?|icon|emoji|placeholder|loading|cover|portada)/i.test(p)) return; seen.add(src); out.push({ index: out.length, imageUrl: src }); }; for (const m of html.matchAll(/<img\b[^>]*>/gi)) { const tag = m[0]; add(attr(tag, 'data-src') || attr(tag, 'data-lazy-src') || attr(tag, 'data-original') || attr(tag, 'src')); } const embedded = decode(html).replace(/\\u002[fF]/g, '/').replace(/\\\//g, '/').replace(/\\"/g, '"').replace(/\\u0026/g, '&'); for (const m of embedded.matchAll(/https?:\/\/[^"'<>\s\\]+?\.(?:avif|jpe?g|png|webp)(?:\?[^"'<>\s\\]*)?/gi)) add(m[0]); return out; }
+  async function pageResult(url) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try { return await jsonResult(url, resolvedUrl || seriesUrl, request); }
+      catch (error) {
+        const delay = error.retryAfterMs ?? 150;
+        if (attempt || !error.retryable || delay > 1000 ||
+            request.deadline - Date.now() <= delay + 500) throw error;
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
 
-export const manifest = { id: 'hanami.es.olympus', name: 'Olympus Scanlation', version: '1.4.0', lang: 'es', runtime: 'vercel-js', upstream: 'keiyoushi/extensions-source/src/es/olympusscanlation', baseUrl: BASE, status: 'beta' };
+  async function collect(host, apiSlug, type) {
+    const seen = new Set(), out = [];
+    let expectedTotal;
+    for (let page = 1; page <= 100; page++) {
+      const u = new URL(`${host}/api/series/${encodeURIComponent(apiSlug)}/chapters`);
+      u.searchParams.set('page', String(page));
+      u.searchParams.set('direction', 'desc');
+      u.searchParams.set('type', type);
+      const result = await pageResult(u.href);
+      if (result.missing) {
+        diagnostics.push({ endpoint: u.href, status: 404 });
+        if (page > 1) throw incomplete('Olympus interrumpió la paginación de capítulos.', u.href);
+        return null;
+      }
+      const rows = findArray(result.payload);
+      if (!rows) throw incomplete('Olympus no devolvió una lista de capítulos reconocible.', u.href);
+      const info = pageInfo(result.payload);
+      if (info.current && info.current !== page)
+        throw incomplete('Olympus repitió una página de capítulos.', u.href);
+      if (info.last > 100)
+        throw incomplete('La paginación de Olympus supera el límite seguro de esta consulta.', u.href);
+      if (info.total !== undefined) {
+        if (expectedTotal !== undefined && info.total !== expectedTotal)
+          throw incomplete('El listado de Olympus cambió durante la consulta. Vuelve a intentarlo.', u.href);
+        expectedTotal = info.total;
+      }
+      const previousSize = seen.size;
+      for (const row of rows) {
+        const chapter = chapterFromApi(row, publicSlug);
+        if (!chapter) throw incomplete('Olympus devolvió un capítulo con datos incompletos.', u.href);
+        if (!seen.has(chapter.url)) { seen.add(chapter.url); out.push(chapter); }
+      }
+      if (page > 1 && rows.length && seen.size === previousSize)
+        throw incomplete('Olympus repitió los capítulos de una página anterior.', u.href);
+      const done = info.last ? page >= info.last : !info.next;
+      if (!rows.length && !done)
+        throw incomplete('Olympus devolvió una página vacía antes de completar el listado.', u.href);
+      if (done) {
+        if (expectedTotal !== undefined && out.length !== expectedTotal)
+          throw incomplete('Olympus no entregó todos los capítulos anunciados.', u.href);
+        // A confirmed zero is valid; an error or an unrecognized response is not.
+        if (out.length || expectedTotal === 0) return out.sort((a, b) => b.number - a.number);
+        return null;
+      }
+    }
+    throw incomplete('No se pudo completar la paginación de Olympus.', seriesUrl);
+  }
+
+  hostLoop: for (const host of hosts) {
+    for (const slug of discovered.slugs) {
+      for (const type of [preferredType, preferredType === 'comic' ? 'novel' : 'comic']) {
+        try {
+          const chapters = await collect(host, slug, type);
+          if (chapters !== null) return chapters;
+        } catch (error) {
+          failures.push(error);
+          diagnostics.push({ endpoint: error.url, status: error.status, error: error.message });
+          // Do not hammer an unavailable host with every slug/type permutation,
+          // or combine a partial page from it with data from another endpoint.
+          continue hostLoop;
+        }
+      }
+    }
+  }
+  const fallback = chapterLinksFromHtml(html, resolvedUrl || seriesUrl);
+  if (fallback.length && !failures.some(error => error.blocksHtmlFallback)) return fallback;
+  const failure = failures.find(error => error.kind === 'source_unavailable') || failures[0];
+  if (failure) {
+    const status = failure.status && failure.status !== 200 ? ` (HTTP ${failure.status})` : '';
+    const error = sourceFailure(
+      `No se pudo obtener la lista completa de capítulos de Olympus${status}. Inténtalo de nuevo más tarde.`,
+      failure.url || seriesUrl, {
+        cause: failure, status: failure.status,
+        kind: failure.kind === 'source_unavailable' ? 'source_unavailable' : 'source_error',
+        statusCode: failure.statusCode || 502,
+      },
+    );
+    error.attempts = diagnostics.slice(-8);
+    throw error;
+  }
+  throw new Error(`Olympus cambió la ruta de capítulos y no se pudo resolver automáticamente. Intentos: ${diagnostics.slice(0, 8).map(item => `${new URL(item.endpoint).pathname}=404`).join(', ') || 'sin endpoint descubierto'}.`);
+}
+
+function readerImages(html, base) {
+  const seen = new Set(), out = [];
+  const add = (value, readerPanel = false) => {
+    const src = absolute(value, base);
+    if (!src || seen.has(src)) return;
+    let pathname;
+    try { pathname = new URL(src).pathname; } catch { return; }
+    if (!/\.(?:avif|jpe?g|png|webp)(?:$|\?)/i.test(src)) return;
+    if (!readerPanel && /(logo|avatar|favicon|banner|ads?|icon|emoji|placeholder|loading|cover|portada)/i.test(pathname)) return;
+    seen.add(src);
+    out.push({ index: out.length, imageUrl: src });
+  };
+  const imageSource = tag => attr(tag, 'data-src') || attr(tag, 'data-lazy-src') || attr(tag, 'data-original') || attr(tag, 'src');
+  const readers = [...html.matchAll(/<main\b([^>]*)>([\s\S]*?)<\/main>/gi)]
+    .filter(match => attr('<main' + match[1] + '>', 'class').split(/\s+/).includes('strip'));
+  if (readers.length) {
+    // Current upstream selector: main.strip div.panel > img. A real page can
+    // legitimately be named "portadas.webp"; recommendation covers are outside.
+    for (const reader of readers) {
+      for (const match of reader[2].matchAll(/<div\b([^>]*)>(?:\s|<!--[\s\S]*?-->)*(<img\b[^>]*>)/gi)) {
+        if (attr('<div' + match[1] + '>', 'class').split(/\s+/).includes('panel'))
+          add(imageSource(match[2]), true);
+      }
+    }
+    return out;
+  }
+  // Compatibility for older public reader layouts, retaining the ad/cover filter.
+  for (const match of html.matchAll(/<img\b[^>]*>/gi)) add(imageSource(match[0]));
+  const embedded = decode(html).replace(/\\u002[fF]/g, '/').replace(/\\\//g, '/').replace(/\\"/g, '"').replace(/\\u0026/g, '&');
+  for (const match of embedded.matchAll(/https?:\/\/[^"'<>\s\\]+?\.(?:avif|jpe?g|png|webp)(?:\?[^"'<>\s\\]*)?/gi)) add(match[0]);
+  return out;
+}
+
+export const manifest = { id: 'hanami.es.olympus', name: 'Olympus Scanlation', version: '1.5.0', lang: 'es', runtime: 'vercel-js', upstream: 'keiyoushi/extensions-source/src/es/olympusscanlation', baseUrl: BASE, status: 'beta' };
 export const olympus = { ...manifest,
  popular: ({ page = 1 } = {}) => listing(['/', '/rankings'], page),
  latest: ({ page = 1 } = {}) => listing(['/capitulos', '/'], page),
  async search({ page = 1, query = '' }) { const q = query.trim(); return q ? searchSeriesList(q, page) : listing(['/series'], page); },
  async details(ref) { const requestedUrl = absolute(ref.url || ref.id), r = await seriesPage(ref), url = r.url || requestedUrl, h = r.body, panel = await seriesDataFromPanel(url, h, r.url), data = panel.data; const title = cleanTitle(field(data, ['title','name']) || meta(h, 'og:title') || (h.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i) || [])[1] || ref.title), genre = [...new Set([...genreValues(data), ...genreList(h, r.url)])]; return { ...ref, id: new URL(url).pathname.replace(/\/$/, ''), remoteWorkId: String(data?.series_id ?? data?.seriesId ?? data?.id ?? ref.remoteWorkId ?? ""), url, title, thumbnailUrl: absolute(field(data, ['thumbnailUrl','thumbnail','cover','image']) || meta(h, 'og:image'), r.url) || ref.thumbnailUrl || null, description: field(data, ['description','synopsis','summary']) || strip(meta(h, 'description') || (h.match(/<(?:div|p)[^>]+class=["'][^"']*(?:summary|sinopsis|description)[^"']*["'][^>]*>([\s\S]*?)<\/(?:div|p)>/i) || [])[1]), author: field(data, ['author','writer','authors']) || null, artist: field(data, ['artist','artists']) || null, genre, status: statusValue(data, h), _metadataDebug: { ...panel.debug, htmlGenreCount: genreList(h, r.url).length, finalGenreCount: genre.length } }; },
- async chapters(ref) { const page = await seriesPage(ref), url = page.url || absolute(ref.url || ref.id); return chaptersFromPanel(url, page.body, page.url); },
+ async chapters(ref) { const options = { deadline: Date.now() + 26000, timeoutMs: 7000 }; const page = await seriesPage(ref, options), url = page.url || absolute(ref.url || ref.id); return chaptersFromPanel(url, page.body, page.url, options); },
  async pages(chapter) { const url = absolute(chapter.url || chapter.id), r = await text(url), items = readerImages(r.body, r.url); if (!items.length) throw new Error('Olympus respondió sin imágenes de lectura.'); return items; },
  imageHeaders() { return { Referer: BASE + '/', Origin: BASE, 'User-Agent': UA }; }
 };
