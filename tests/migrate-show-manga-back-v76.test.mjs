@@ -17,7 +17,7 @@ assert(migration.includes('showMigrateSearchSurface()'));
 assert(migration.includes("'migrate','browser'"));
 assert(migration.includes("$('#library')?.classList.remove('hidden')"));
 assert(screens.includes('parent:currentId'));
-assert(screens.includes('prevRuntime?.suspend?.()'));
-assert(screens.includes('runtime.get(destination)?.restore'));
+assert(screens.includes('await suspendDeparted(previous,destination,token)'));
+assert(screens.includes('runtime.get(r.id)?.restore||restorers.get(r.type)'));
 
 console.log('PASS: Show manga pushes one candidate-detail state whose Back restores MigrateSearchScreen instead of LibraryTab');

@@ -32,15 +32,15 @@ assert(
 
 // Atrás durante la carga: ninguna ficha asíncrona se monta sobre otra pantalla.
 assert(app.includes("window.HanamiScreens.current()?.id!==screenId"));
-assert(library.includes("window.HanamiScreens.current()?.id!==screenId"));
+assert(library.includes("const ownsDetail=()=>request===libraryDetailRequest") && library.includes("if(!ownsDetail())return"));
 assert.equal(
-  app.match(/id!==screenId/g).length >= 2,
+  app.includes("const ownsDetail=()=>request===mangaDetailRequest") && app.includes("if(!ownsDetail())return"),
   true,
   "app.js debe proteger la ficha de grupo y la de explorar",
 );
 
-assert(sw.includes("hanami-crimson-knot-v146"));
-assert.equal(pkg.version, "5.20.0");
+assert(sw.includes("hanami-crimson-knot-v147"));
+assert.equal(pkg.version, "5.21.0");
 assert(
   pkg.scripts.test.includes(
     "node tests/reader-music-v128.test.mjs",

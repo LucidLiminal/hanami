@@ -216,6 +216,6 @@ try {
 
 const pkg = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 const declared = JSON.parse(await readFile(new URL("../extensions/olympus/manifest.json", import.meta.url), "utf8"));
-assert.equal(pkg.version, "5.20.0");
+assert.equal(pkg.version, "5.21.0");
 assert.equal(declared.version, "1.5.0");
 assert.equal(declared.upstream, "keiyoushi/extensions-source/src/es/olympusscanlation");

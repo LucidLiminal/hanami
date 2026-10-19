@@ -2,16 +2,24 @@
 
 Primer port manual del catálogo TypeScript de Hanami. Funciona como un único proyecto de Vercel: no usa Docker, Java, Miwayomi ni APK.
 
-## Nuevo en v146: Olympus sin dependencia del panel averiado
+## Nuevo en v147: retroceso y ciclo de vida de pantallas
 
-- Los capítulos se obtienen primero de la API pública de Olympus.
-- Un HTTP 520 del panel ya no impide usar la ruta pública disponible.
-- Se comprueba la paginación completa, sin presentar una lista parcial como
-  si fuera toda la colección, y se conservan los IDs y el progreso existentes.
-- Reintentos y tiempos de espera acotados; errores de fuente explícitos cuando
-  no se puede obtener una lista completa.
+- Tras recargar, Atrás utiliza los mismos restauradores tipados que reconstruyen
+  la sesión; no basta con cambiar el identificador del estado.
+- El lector restaurado recupera su cierre y los saltos de historial cierran todas
+  las capas abandonadas, incluidos el reproductor y sus herramientas.
+- Actualizar una ficha no añade otra copia al historial. Las acciones del menú
+  esperan a que se cierre su entrada antes de abrir otra pantalla.
+- Las respuestas tardías, tanto correctas como fallidas, no vuelven a montar la
+  ficha o el lector después de salir. Incluye biblioteca personal y grupos.
+- Diagnóstico opcional: `HanamiScreens.debug.enable()` y
+  `HanamiScreens.debug.report()`. Desactivado por defecto; guía en
+  `NAVIGATION_BACK_V147.md` y comprobaciones en `V147_VALIDATION.md`.
 
-Versión `5.20.0` · Olympus `1.5.0` · caché PWA `hanami-crimson-knot-v146`.
+Versión `5.21.0` · Olympus `1.5.0` · caché PWA `hanami-crimson-knot-v147`.
+Se conservan la recuperación pública de Olympus v146 y las portadas v145.
+No requiere SQL nuevo ni borrar datos del navegador.
+
 **No hay SQL nuevo por Olympus.** Se conservan las mejoras y la migración de
 portadas v145. Detalles y despliegue: `OLYMPUS_PUBLIC_CHAPTERS_V146.md`.
 

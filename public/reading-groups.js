@@ -187,7 +187,8 @@ function showGroupAfterAccess(group) {
   }
 }
 function detail(group, restoring = false) {
-  if (!group || !root()) return;
+  if (!group || !root()) return false;
+  if (restoring) window.HanamiAppShowTab?.("library", false);
   document.body.classList.remove("group-access-mode");
   window.HanamiNavigation?.setChild?.(true);
   setActive(group.id);
@@ -726,7 +727,11 @@ document.addEventListener(
   true,
 );
 addEventListener("hanami-reader-comments-ready", () => {
-  if (!root()?.querySelector(".reading-group-detail")) render();
+  // IndexedDB startup must not replace a manga/reader route with the rooms home.
+  if (document.body.dataset.root === "library") {
+    if ((window.HanamiScreens?.current?.()?.type || "root") === "root")
+      window.HanamiLibrary?.render?.();
+  } else if (document.body.dataset.root === "groups" && !root()?.querySelector(".reading-group-detail")) render();
 });
 addEventListener("hanami-social-state", () => {
   const remote = window.HanamiSocialSync?.cachedGroups?.() || [];
@@ -756,6 +761,9 @@ window.HanamiSocialSync?.ready?.then(() => {
   const remote = window.HanamiSocialSync?.cachedGroups?.() || [];
   if (remote.length) mergeRemoteGroups(remote);
 });
+window.HanamiScreens?.registerType?.("reading-group", (record) =>
+  detail(groups().find((item) => item.id === record.data?.id), true),
+);
 window.HanamiScreens?.registerType?.("reading-group-access", (record) =>
   accessScreen(record.data?.mode || "join", true),
 );
