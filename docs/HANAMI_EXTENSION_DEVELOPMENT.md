@@ -107,6 +107,25 @@ Devuelven:
 
 `search` debe usar realmente `query`; no puede devolver simplemente toda la portada o catálogo.
 
+#### Paginación vertical del navegador (v148)
+
+- `page` empieza en 1. Cada operación debe respetar la página solicitada.
+- `hasNextPage` debe ser un booleano real y pasar a `false` en la última página.
+  El navegador añade páginas al acercarse al final del listado; no impone un
+  máximo de 15 ni de 200 obras.
+- Se pueden devolver `page`, `nextPage`, `lastPage` y `total` como metadatos
+  adicionales. Si están presentes, `page` debe coincidir con la solicitud y
+  `nextPage` debe ser la siguiente página, no un cursor arbitrario.
+- Conserva URLs e identificadores estables; `remoteWorkId` puede representar el
+  ID de la obra dentro de la fuente. No uses el título para deduplicar obras.
+- No marques `hasNextPage: true` en respuestas vacías ni devuelvas repetidamente
+  la primera página. El navegador detiene esos casos con un error y permite
+  reintentar sin perder las páginas anteriores.
+- No rellenes un listado con recomendaciones ajenas para aparentar más
+  resultados. El límite final pertenece al listado real de la fuente.
+- Las extensiones antiguas que omiten `hasNextPage` se tratan como una única
+  página; no se adivinan páginas adicionales.
+
 ### `details`
 
 Devuelve el manga normalizado. El único modelo de géneros permitido es:

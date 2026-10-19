@@ -2,6 +2,27 @@
 
 Primer port manual del catálogo TypeScript de Hanami. Funciona como un único proyecto de Vercel: no usa Docker, Java, Miwayomi ni APK.
 
+## Nuevo en v148: navegador de fuentes y paginación vertical
+
+- Búsqueda integrada en la toolbar. Enter envía la consulta; no hay botón de
+  búsqueda adicional.
+- Popular y Recientes son pestañas con iconos vectoriales de corazón y check.
+- Las obras de la biblioteca personal aparecen atenuadas y con un marcador de
+  guardado, pero se pueden seguir abriendo. Los registros de solo historial no
+  se confunden con favoritos.
+- Al bajar se añaden las páginas siguientes, sin sustituir las tarjetas previas,
+  sin un límite propio de 15/200 resultados y sin duplicados.
+- Olympus consulta sus listados públicos paginados reales, no las selecciones
+  limitadas de la portada. Los fallos permiten reintentar la misma página.
+- Atrás y la recarga conservan las páginas cargadas y el scroll. Los cambios de
+  pestaña, consulta o fuente descartan las respuestas que ya no pertenecen a la
+  pantalla visible.
+
+Versión `5.22.0` · Olympus `1.6.0` · caché PWA `hanami-crimson-knot-v148`.
+Se conservan los arreglos v147, los capítulos públicos v146 y las portadas v145.
+**No requiere SQL nuevo ni borrar datos.** Despliega el proyecto completo en el
+mismo dominio. Guía: `SOURCE_BROWSER_V148.md`; pruebas: `V148_VALIDATION.md`.
+
 ## Nuevo en v147: retroceso y ciclo de vida de pantallas
 
 - Tras recargar, Atrás utiliza los mismos restauradores tipados que reconstruyen

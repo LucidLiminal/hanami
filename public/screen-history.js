@@ -126,4 +126,4 @@ async function onPop(e){
 }
 addEventListener('popstate',onPop,true);
 if(!currentId){const r=spec('root',{tab:'library'});records.push(r);currentId=r.id;history.replaceState({...history.state,hanamiScreenId:r.id},'');persist()}
-window.HanamiScreens={push,replace,root,back,markClosed,updateData,registerType,restoreCurrent,needsRestore:()=>reloadPending,current:()=>record(currentId),is:type=>record(currentId)?.type===type,register(id,handlers){runtime.set(id,{...runtime.get(id),...handlers})},snapshot:()=>records.map(x=>({...x})),debug};
+window.HanamiScreens={push,replace,root,back,markClosed,updateData,registerType,restoreCurrent,needsRestore:()=>reloadPending,isTransitioning:()=>handling||backPending||reloadPending||!!rehydratingId,current:()=>record(currentId),is:type=>record(currentId)?.type===type,register(id,handlers){runtime.set(id,{...runtime.get(id),...handlers})},snapshot:()=>records.map(x=>({...x})),debug};

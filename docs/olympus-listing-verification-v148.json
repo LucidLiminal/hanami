@@ -1,0 +1,264 @@
+{
+  "verification": "Read-only public listings through Olympus 1.6.0 and the same SourcePageBuffer used by the UI",
+  "sources": {
+    "popular": "https://olympusxyz.com/api/rankings?page=1&period=total_ranking",
+    "latest": "https://olympusxyz.com/api/new-chapters?page=1"
+  },
+  "results": [
+    {
+      "mode": "popular",
+      "pages": 14,
+      "uniqueWorks": 200,
+      "announcedTotal": 200,
+      "metadata": [
+        {
+          "page": 1,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 14,
+          "total": 200
+        },
+        {
+          "page": 2,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 14,
+          "total": 200
+        },
+        {
+          "page": 3,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 14,
+          "total": 200
+        },
+        {
+          "page": 4,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 14,
+          "total": 200
+        },
+        {
+          "page": 5,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 14,
+          "total": 200
+        },
+        {
+          "page": 6,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 14,
+          "total": 200
+        },
+        {
+          "page": 7,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 14,
+          "total": 200
+        },
+        {
+          "page": 8,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 14,
+          "total": 200
+        },
+        {
+          "page": 9,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 14,
+          "total": 200
+        },
+        {
+          "page": 10,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 14,
+          "total": 200
+        },
+        {
+          "page": 11,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 14,
+          "total": 200
+        },
+        {
+          "page": 12,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 14,
+          "total": 200
+        },
+        {
+          "page": 13,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 14,
+          "total": 200
+        },
+        {
+          "page": 14,
+          "received": 5,
+          "hasNextPage": false,
+          "lastPage": 14,
+          "total": 200
+        }
+      ]
+    },
+    {
+      "mode": "latest",
+      "pages": 20,
+      "uniqueWorks": 300,
+      "announcedTotal": 300,
+      "metadata": [
+        {
+          "page": 1,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 20,
+          "total": 300
+        },
+        {
+          "page": 2,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 20,
+          "total": 300
+        },
+        {
+          "page": 3,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 20,
+          "total": 300
+        },
+        {
+          "page": 4,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 20,
+          "total": 300
+        },
+        {
+          "page": 5,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 20,
+          "total": 300
+        },
+        {
+          "page": 6,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 20,
+          "total": 300
+        },
+        {
+          "page": 7,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 20,
+          "total": 300
+        },
+        {
+          "page": 8,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 20,
+          "total": 300
+        },
+        {
+          "page": 9,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 20,
+          "total": 300
+        },
+        {
+          "page": 10,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 20,
+          "total": 300
+        },
+        {
+          "page": 11,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 20,
+          "total": 300
+        },
+        {
+          "page": 12,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 20,
+          "total": 300
+        },
+        {
+          "page": 13,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 20,
+          "total": 300
+        },
+        {
+          "page": 14,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 20,
+          "total": 300
+        },
+        {
+          "page": 15,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 20,
+          "total": 300
+        },
+        {
+          "page": 16,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 20,
+          "total": 300
+        },
+        {
+          "page": 17,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 20,
+          "total": 300
+        },
+        {
+          "page": 18,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 20,
+          "total": 300
+        },
+        {
+          "page": 19,
+          "received": 15,
+          "hasNextPage": true,
+          "lastPage": 20,
+          "total": 300
+        },
+        {
+          "page": 20,
+          "received": 15,
+          "hasNextPage": false,
+          "lastPage": 20,
+          "total": 300
+        }
+      ]
+    }
+  ],
+  "caveat": "Counts are upstream totals observed during this release verification, not permanent Hanami limits. No writes were performed."
+}
