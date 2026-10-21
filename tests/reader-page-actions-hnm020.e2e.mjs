@@ -197,6 +197,35 @@ try {
     assert.equal(await page.locator("[data-reader-page-action]").count(), 6);
   });
 
+  await scenario("HNM-017 library tab returns a library child screen to libraryRoot before opening Settings", async (page) => {
+    await page.evaluate(() => {
+      window.HanamiReader.close(true);
+      localStorage.setItem("hanami-library", JSON.stringify([{
+        id: "hnm017-library-item", title: "Regresión HNM-017", url: "/fixture/library-item",
+        sourceId: "fixture.source", thumbnailUrl: "/assets/fallen.webp", categories: ["default"],
+        favorite: true, totalChapters: 1, unreadCount: 0, _chapters: [{ url: "/fixture/chapter/1", number: 1 }],
+      }]));
+      localStorage.setItem("hanami-categories", JSON.stringify([{ id: "default", name: "Predeterminada", order: 0 }]));
+    });
+    await page.reload();
+    await page.waitForFunction(() => !!window.HanamiLibrary && !!window.HanamiNavigation && !!window.HanamiScreens);
+    await page.evaluate(() => window.HanamiAppShowTab("library", false));
+    await page.locator(".lib-item").waitFor();
+    await page.evaluate(() => { void window.HanamiLibrary.open("hnm017-library-item"); });
+    await page.locator("#libraryRoot .mihon-detail").waitFor();
+    assert.equal(await page.evaluate(() => document.body.classList.contains("nav-child")), true);
+    // The tablet navigation rail intentionally remains available on child
+    // screens; this is the path that previously opened Settings.
+    await page.evaluate(() => document.body.classList.add("nav-rail"));
+    await page.locator('[data-tab="library"]').click();
+    await page.waitForFunction(() => !document.body.classList.contains("nav-child")
+      && !!document.querySelector("#libraryRoot .library-grid")
+      && !document.querySelector("#modal").open, null, { timeout: 2000 });
+    assert.equal(await page.evaluate(() => window.HanamiScreens.current()?.type), "root");
+    await page.locator('[data-tab="library"]').click();
+    await page.locator("#modal[open] .library-settings-dialog").waitFor();
+  });
+
   await scenario("HNM-018 reader-navigation labels need a 500ms hold and its release does not change settings", async (page, cdp) => {
     const crop = page.locator("[data-r-crop]");
     const label = crop.locator("small");
