@@ -95,6 +95,6 @@ assert(html.includes('data-source-popular')&&html.includes('data-source-latest')
 assert(css.includes('.source-card.in-library'));
 assert(css.includes('.source-saved-badge[hidden]{display:none}'));
 assert(sw.includes("'/source-browser.js'"));
-assert(sw.includes('hanami-crimson-knot-v149'));
-assert.equal(JSON.parse(pkg).version,'5.23.0');
+assert(sw.includes('hanami-crimson-knot-v150'));
+assert.equal(JSON.parse(pkg).version,'5.24.0');
 console.log('PASS: v148 source pages accumulate 247 unique works, preserve retry cursors and mark only verified personal-library matches');

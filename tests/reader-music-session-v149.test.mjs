@@ -23,6 +23,6 @@ assert(reader.includes("function resetMusicForChapter"));
 assert(reader.includes("endSession?.('reader-closed')"));
 assert((reader.match(/endSession\?\.\('chapter-change'\)/g) || []).length >= 2,
   "both replacement and continuous chapter transitions reset music");
-assert(sw.includes("hanami-crimson-knot-v149"));
-assert.equal(JSON.parse(packageText).version, "5.23.0");
+assert(sw.includes("hanami-crimson-knot-v150"));
+assert.equal(JSON.parse(packageText).version, "5.24.0");
 console.log("PASS: v149 bounds playback, queue and player UI to the current reader chapter/session");

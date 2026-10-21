@@ -156,7 +156,7 @@ const [sw, social, groups, sql, packageText] = await Promise.all(
     "supabase/hanami-group-cover-storage-v145.sql", "package.json"]
     .map((path) => readFile(new URL(path, root), "utf8")),
 );
-assert(sw.includes("hanami-crimson-knot-v149"));
+assert(sw.includes("hanami-crimson-knot-v150"));
 assert(sw.includes("'/group-cover.js'"));
 assert(social.includes('import { groupCoverPath, prepareGroupCover }'));
 assert(social.includes("cleanupOldGroupCovers(group.id, group.cover)"));
@@ -165,5 +165,5 @@ assert(groups.includes("releaseGroupCoverPreview"));
 assert(sql.includes("1048576, array['image/webp']"));
 assert(sql.includes("as restrictive for insert to public"));
 assert(!/delete\s+from\s+storage\.objects/i.test(sql));
-assert.equal(JSON.parse(packageText).version, "5.23.0");
+assert.equal(JSON.parse(packageText).version, "5.24.0");
 console.log("PASS: bounded WebP normalization, aspect ratio, no upscale, quality/size fallback, resource cleanup and one UUID path");

@@ -25,6 +25,9 @@ for (const token of [
   "data-group-leave",
   "leaveActiveGroup",
   "data-group-edit-form",
+  "editGroupScreen",
+  "reading-group-admin",
+  "data-group-edit-back",
   "uploadGroupCover",
   "data-group-member-manage",
   "data-group-member-action",
@@ -59,7 +62,18 @@ assert(library.includes("beginSelection"));
 assert(library.includes("data-group-selection-delete"));
 assert(shelf.includes('membership?.state !== "muted"'));
 assert(groupCss.includes(".reading-member-manage"));
+assert(groupCss.includes(".reading-group-admin"));
+assert(groupCss.includes(".reading-group-edit-form"));
 assert(!shelfCss.includes(".group-library-categories button"));
+const adminScreen = groups.slice(
+  groups.indexOf("function editGroupScreen"),
+  groups.indexOf("function memberManageDialog"),
+);
+assert(adminScreen.includes('HanamiScreens.push(\n      "reading-group-admin"'));
+assert(adminScreen.includes('name="cover" type="text" inputmode="url"'));
+assert(!adminScreen.includes("#modal"));
+assert(!adminScreen.includes("showModal"));
+assert(!groups.includes("function editGroupDialog"));
 
 for (const token of [
   "leave_reading_group",
@@ -76,8 +90,8 @@ for (const token of [
 ])
   assert(sql.includes(token), token);
 
-assert(sw.includes("hanami-crimson-knot-v149"));
-assert.equal(pkg.version, "5.23.0");
+assert(sw.includes("hanami-crimson-knot-v150"));
+assert.equal(pkg.version, "5.24.0");
 assert(
   pkg.scripts.test.includes(
     "node tests/reader-music-v128.test.mjs",
@@ -85,5 +99,5 @@ assert(
 );
 
 console.log(
-  "PASS: members can leave while owners can sync room data, moderate members and administer group categories and recommendations",
+  "PASS: room administration is a navigable screen while owners can sync room data, moderate members and administer group categories and recommendations",
 );

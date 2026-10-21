@@ -1,5 +1,17 @@
 # Hanami — Mihon Explore Web + Olympus
 
+## Nuevo en v150: administración de salas como pantalla
+
+- **Editar sala** abre una pantalla dedicada dentro de la pila de navegación,
+  no el diálogo global.
+- Atrás devuelve a la sala sin perder su contexto; Guardar actualiza la sala y
+  vuelve a su detalle.
+- Nombre, frase y portada conservan la misma validación, optimización y
+  sincronización existentes.
+
+Versión `5.24.0` · Olympus `1.6.0` · caché PWA `hanami-crimson-knot-v150`.
+No requiere SQL nuevo ni borrar datos. Detalles: `GROUP_ADMINISTRATION_SCREEN_V150.md`.
+
 ## Nuevo en v149: sesión musical por capítulo
 
 Al cerrar el lector o cambiar de capítulo, Hanami detiene el audio, vacía la cola y cierra el reproductor. La biblioteca y las listas personales se conservan. Detalles: `READER_MUSIC_SESSION_V149.md`.

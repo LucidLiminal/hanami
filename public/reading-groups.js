@@ -206,13 +206,24 @@ function detail(group, restoring = false) {
       { restore: () => detail(groups().find((item) => item.id === group.id), true) },
     );
 }
-function editGroupDialog(group = active()) {
-  if (!group) return;
+function editGroupScreen(group = active(), restoring = false) {
+  if (!group || !root()) return false;
+  if (restoring) window.HanamiAppShowTab?.("library", false);
   releaseGroupCoverPreview();
-  const modal = document.querySelector("#modal");
-  const body = document.querySelector("#modalBody");
-  body.innerHTML = `<form class="dialog-section reading-group-edit-dialog" data-group-edit-form="${esc(group.id)}"><small class="eyebrow">ADMINISTRAR SALA</small><h3>Editar grupo</h3><label>Nombre<input name="name" required minlength="1" maxlength="80" value="${esc(group.name)}"></label><label>Cita<textarea name="quote" maxlength="240">${esc(group.quote || "")}</textarea></label><label>Imagen del grupo<input name="coverFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif"><small class="reading-group-cover-help">Original hasta 10 MB (JPG, PNG, WebP o GIF). WebP optimizado: máximo 1 MB y 1280 px. GIF como imagen estática.</small></label><label>URL alternativa<input name="cover" type="url" value="${esc(group.cover || "")}" placeholder="https://…"></label><img class="reading-group-cover-preview" src="${esc(group.cover || coverFor(0))}" alt="Vista previa"><button class="btn acid" type="submit">Guardar cambios</button></form>`;
-  if (!modal.open) modal.showModal();
+  document.body.classList.remove("group-access-mode");
+  window.HanamiNavigation?.setChild?.(true);
+  setActive(group.id);
+  root().innerHTML = `<section class="reading-group-admin"><header><button data-group-edit-back aria-label="Volver a la sala">←</button><div><small>ROOM CONTROL // V150</small><h2>Administrar sala.</h2></div></header><div class="reading-group-admin-layout"><form class="reading-group-edit-form" data-group-edit-form="${esc(group.id)}"><div class="reading-group-admin-copy"><span>CONFIGURACIÓN DE LA SALA</span><h3>Haced vuestro este espacio.</h3><p>Actualiza el nombre, la frase y la portada sin salir de la navegación de Hanami.</p></div><label>Nombre<input name="name" required minlength="1" maxlength="80" value="${esc(group.name)}"></label><label>Cita<textarea name="quote" maxlength="240">${esc(group.quote || "")}</textarea></label><label>Imagen del grupo<input name="coverFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif"><small class="reading-group-cover-help">Original hasta 10 MB (JPG, PNG, WebP o GIF). WebP optimizado: máximo 1 MB y 1280 px. GIF como imagen estática.</small></label><label>URL alternativa<input name="cover" type="text" inputmode="url" spellcheck="false" value="${esc(group.cover || "")}" placeholder="https://…"></label><img class="reading-group-cover-preview" src="${esc(group.cover || coverFor(0))}" alt="Vista previa de la portada"><button class="btn acid" type="submit">Guardar cambios</button></form><aside><img src="${esc(group.cover || coverFor(0))}" alt=""><div><small>SALA ACTIVA</small><b>${esc(group.name)}</b><p>${esc(group.quote || "Una habitación privada para leer y comentar.")}</p></div><small>Los cambios se guardan para la sala completa.</small></aside></div></section>`;
+  if (!restoring && window.HanamiScreens)
+    window.HanamiScreens.push(
+      "reading-group-admin",
+      { id: group.id },
+      {
+        restore: () => editGroupScreen(groups().find((item) => item.id === group.id), true),
+        suspend: releaseGroupCoverPreview,
+      },
+    );
+  return true;
 }
 function memberManageDialog(group, member) {
   if (!group || !member) return;
@@ -501,6 +512,10 @@ document.addEventListener("click", async (event) => {
     if (root()?.querySelector(".reading-group-detail")) detail(active(), true);
   }
   if (button.hasAttribute("data-group-back")) window.HanamiScreens?.back();
+  if (button.hasAttribute("data-group-edit-back")) {
+    releaseGroupCoverPreview();
+    window.HanamiScreens?.back();
+  }
   if (button.hasAttribute("data-access-back") || button.hasAttribute("data-invites-back"))
     window.HanamiScreens?.back();
   if (button.hasAttribute("data-group-invites"))
@@ -569,9 +584,7 @@ document.addEventListener("click", async (event) => {
       if (result) await invitesScreen(active(), true);
     }
   }
-  if (button.hasAttribute("data-group-rename")) {
-    editGroupDialog(active());
-  }
+  if (button.hasAttribute("data-group-rename")) editGroupScreen(active());
 });
 document.addEventListener("submit", async (event) => {
   const editForm = event.target.closest("[data-group-edit-form]");
@@ -626,8 +639,12 @@ document.addEventListener("submit", async (event) => {
         saveGroups(
           groups().map((item) => (item.id === group.id ? updated : item)),
         );
-      document.querySelector("#modal")?.close();
-      detail(groups().find((item) => item.id === group.id), true);
+      releaseGroupCoverPreview();
+      const current = window.HanamiScreens?.current?.();
+      if (current?.type === "reading-group-admin") {
+        window.HanamiScreens.markClosed(current.id);
+        window.HanamiScreens.back();
+      } else detail(groups().find((item) => item.id === group.id), true);
       window.HanamiSnackbar?.show?.(
         updated.coverCleanupWarning || "Datos del grupo actualizados",
         { kind: updated.coverCleanupWarning ? "error" : "success" },
@@ -746,6 +763,7 @@ addEventListener("hanami-social-state", () => {
 window.HanamiReadingGroups = {
   render,
   detail,
+  editGroupScreen,
   accessScreen,
   invitesScreen,
   groups,
@@ -763,6 +781,9 @@ window.HanamiSocialSync?.ready?.then(() => {
 });
 window.HanamiScreens?.registerType?.("reading-group", (record) =>
   detail(groups().find((item) => item.id === record.data?.id), true),
+);
+window.HanamiScreens?.registerType?.("reading-group-admin", (record) =>
+  editGroupScreen(groups().find((item) => item.id === record.data?.id), true),
 );
 window.HanamiScreens?.registerType?.("reading-group-access", (record) =>
   accessScreen(record.data?.mode || "join", true),
