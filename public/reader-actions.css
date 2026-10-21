@@ -1,10 +1,13 @@
 /* Page actions + standalone music discovery, in Hanami's current theme. */
 #readerViewport:focus-visible { outline: 2px solid var(--acid); outline-offset: -2px; }
 #readerViewport figure > img { -webkit-touch-callout: none; user-select: none; }
+.mihon-reader.reader-page-actions-active #readerBottom { transform: none; opacity: 1; }
+.mihon-reader.reader-page-actions-active #readerViewport { overflow: hidden; touch-action: none; }
 .mihon-reader.reader-page-actions-active [data-reader-navigator] { display: none; }
 .mihon-reader #readerBottom .reader-navigation.reader-page-actions-nav { position: relative; }
 .mihon-reader #readerBottom .reader-page-actions-nav > [data-reader-page-action] {
   position: relative; min-width: 0; padding: 5px 2px; color: #fbf9d1;
+  user-select: none; -webkit-touch-callout: none; touch-action: manipulation;
 }
 .reader-page-actions-nav > [data-reader-page-action] svg {
   width: 26px; height: 26px; fill: none; stroke: #e6cfa9;
@@ -14,7 +17,7 @@
   position: absolute; right: 2px; bottom: 5px; left: 2px; visibility: hidden; pointer-events: none;
   color: #fbf9d1; font: 700 8px/1.1 Arial, sans-serif; overflow-wrap: anywhere;
 }
-.reader-page-actions-nav > [data-reader-page-action]:active > span { visibility: visible; }
+.reader-page-actions-nav > [data-reader-page-action].show-action-label > span { visibility: visible; }
 .reader-page-actions-nav > [data-reader-page-action]:hover { background: #e6cfa911; }
 .reader-page-actions-nav button:disabled { opacity: .4; cursor: not-allowed; }
 .mihon-reader #readerBottom .reader-navigation.reader-page-cover-confirming {

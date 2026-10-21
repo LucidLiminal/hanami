@@ -23,10 +23,19 @@ actions, in this order:
    those same page coordinates.
 
 The actions occupy the existing bottom navigation bar rather than opening a
-dialog. In repose, they show icons only; a label is revealed while its button
-is kept pressed. The original navigator and reader controls are restored after
+dialog. In repose, they show icons only. A 500ms hold reveals `show-action-label`
+for 2400ms using the same gesture as `selection-bottombar`; releasing that hold
+does not execute the action. Short presses execute without revealing labels.
+The original navigator and reader controls are restored after
 an action completes, on Back/Escape, or when the reader surface is tapped
 outside the actions.
+
+The action bar is visible even when the reader controls were hidden. Opening
+it preserves that previous visibility state, cancels pending reader tap timers
+and suspends viewport taps, swipes, pinches, native scrolling and navigation
+shortcuts. An outside tap is consumed in capture phase and only closes the
+actions; it cannot turn a page or toggle the reader bars. Normal gestures and
+the original visibility state resume when the action bar closes.
 
 The gesture retains the pressed figure's chapter and image, including pages
 from neighboring preloaded chapters. Scrolling, pointer cancellation and

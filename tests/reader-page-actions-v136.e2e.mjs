@@ -217,13 +217,13 @@ try {
   const shareBox = await shareButton.boundingBox();
   assert(shareBox);
   await page.mouse.move(shareBox.x + shareBox.width / 2, shareBox.y + shareBox.height / 2);
-  await shareButton.evaluate((button) => button.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopImmediatePropagation();
-  }, { once: true }));
   await page.mouse.down();
+  assert.equal(await shareLabel.evaluate((element) => getComputedStyle(element).visibility), "hidden");
+  await page.waitForTimeout(600);
   assert.equal(await shareLabel.evaluate((element) => getComputedStyle(element).visibility), "visible");
   await page.mouse.up();
+  assert.equal(await navigation.getAttribute("data-reader-page-actions"), "true");
+  await page.waitForTimeout(2450);
   assert.equal(await shareLabel.evaluate((element) => getComputedStyle(element).visibility), "hidden");
   assert.equal(await page.locator(".reader-comment-editor").count(), 0);
   await proof("actions-mobile");

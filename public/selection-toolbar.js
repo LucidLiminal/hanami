@@ -9,10 +9,57 @@ function announce(text){let n=document.getElementById('selectionAnnouncer');if(!
 function visibleClose(){return [...document.querySelectorAll('[data-selection-close],[data-lib-clear],[data-nav-cancel]')].reverse().find(x=>x.getClientRects().length&&!x.closest('.hidden'))}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.body.classList.contains('selection-toolbar-active')){const b=visibleClose();if(b){e.preventDefault();e.stopImmediatePropagation();b.click()} }},true);
 window.HanamiSelectionToolbar={top,bottom,activate,deactivate,announce,icon};
-let actionPress=null;const suppressedActions=new WeakSet();
-document.addEventListener('pointerdown',e=>{const button=e.target.closest('.selection-bottombar button,.library-toolbar-actions button');if(!button||button.disabled)return;actionPress={button,x:e.clientX,y:e.clientY,long:false,timer:setTimeout(()=>{if(!actionPress||actionPress.button!==button)return;actionPress.long=true;button.classList.add('show-action-label');clearTimeout(button._labelTimer);button._labelTimer=setTimeout(()=>button.classList.remove('show-action-label'),2400);navigator.vibrate?.(25)},500)}},true);
-document.addEventListener('pointermove',e=>{if(actionPress&&Math.hypot(e.clientX-actionPress.x,e.clientY-actionPress.y)>12){clearTimeout(actionPress.timer);actionPress=null}},true);
-for(const eventName of ['pointerup','pointercancel'])document.addEventListener(eventName,()=>{if(!actionPress)return;clearTimeout(actionPress.timer);if(actionPress.long)suppressedActions.add(actionPress.button);actionPress=null},true);
-document.addEventListener('click',e=>{const button=e.target.closest('.selection-bottombar button,.library-toolbar-actions button');if(button&&suppressedActions.has(button)){suppressedActions.delete(button);e.preventDefault();e.stopImmediatePropagation()}},true);
-document.addEventListener('contextmenu',e=>{if(e.target.closest('.selection-bottombar button.show-action-label'))e.preventDefault()},true);
+// Selection bars and reader page actions share the same label gesture:
+// a short press executes; a 500ms hold explains the icon without executing it.
+const actionButtonSelector = '.selection-bottombar button,.library-toolbar-actions button,.reader-page-actions-nav > [data-reader-page-action]';
+let actionPress = null;
+const suppressedActions = new WeakSet();
+function cancelActionPress() {
+  if (!actionPress) return;
+  clearTimeout(actionPress.timer);
+  actionPress = null;
+}
+document.addEventListener('pointerdown', e => {
+  cancelActionPress();
+  const button = e.target.closest?.(actionButtonSelector);
+  if (!button || button.disabled || e.button !== 0 || e.isPrimary === false) return;
+  // Cancellation may not generate a click. Never suppress the next intentional
+  // press because the preceding long touch ended with pointercancel.
+  suppressedActions.delete(button);
+  const press = { button, pointerId: e.pointerId, x: e.clientX, y: e.clientY };
+  actionPress = press;
+  press.timer = setTimeout(() => {
+    if (actionPress !== press || !button.isConnected || button.disabled) return;
+    suppressedActions.add(button);
+    button.classList.add('show-action-label');
+    clearTimeout(button._labelTimer);
+    button._labelTimer = setTimeout(() => button.classList.remove('show-action-label'), 2400);
+    navigator.vibrate?.(25);
+  }, 500);
+}, true);
+document.addEventListener('pointermove', e => {
+  if (actionPress?.pointerId === e.pointerId &&
+      Math.hypot(e.clientX - actionPress.x, e.clientY - actionPress.y) > 12) cancelActionPress();
+}, true);
+for (const eventName of ['pointerup', 'pointercancel']) {
+  document.addEventListener(eventName, e => {
+    if (actionPress?.pointerId === e.pointerId) cancelActionPress();
+  }, true);
+}
+document.addEventListener('click', e => {
+  const button = e.target.closest?.(actionButtonSelector);
+  if (!button || !suppressedActions.has(button)) return;
+  suppressedActions.delete(button);
+  // Keyboard and programmatic activation do not belong to the held pointer.
+  if (e.detail === 0) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+}, true);
+document.addEventListener('contextmenu', e => {
+  if (e.target.closest?.(actionButtonSelector)) e.preventDefault();
+}, true);
+window.addEventListener('blur', cancelActionPress);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) cancelActionPress();
+});
 

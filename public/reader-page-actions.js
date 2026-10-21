@@ -102,7 +102,7 @@ function destroy({ focus = true } = {}) {
   const instance = current;
   current = null;
   instance.cleanupGesture?.();
-  instance.root.removeEventListener("click", instance.handleOutsideClick);
+  instance.root.removeEventListener("click", instance.handleOutsideClick, true);
   instance.navigation.removeEventListener("click", instance.handleNavigationClick);
   instance.navigation.removeEventListener("keydown", instance.handleNavigationKeydown);
   instance.navigation.classList.remove("reader-page-actions-nav", "reader-page-cover-confirming");
@@ -310,6 +310,7 @@ function open({ figure, clientX, clientY, reader = {}, onCover, context, gesture
   const navigator = root?.querySelector("[data-reader-navigator]");
   const navigation = root?.querySelector("[data-reader-navigation]");
   if (!root || !navigator || !navigation) return false;
+  window.HanamiReader?.cancelPageGestures?.();
   const instance = {
     root,
     navigator,
@@ -385,12 +386,16 @@ function open({ figure, clientX, clientY, reader = {}, onCover, context, gesture
   };
   instance.handleOutsideClick = (event) => {
     if (current !== instance || navigation.contains(event.target) || event.composedPath?.().includes(navigation)) return;
-    if (event.target.closest?.("#readerSheet,.reader-comment-editor,.reader-music-picker")) return;
+    // Consume dismissal before the viewport or any underlying reader control
+    // sees it. A bubbling listener is too late: tap() has already scheduled
+    // navigation or a bars toggle by then.
+    event.preventDefault();
+    event.stopImmediatePropagation();
     close();
   };
   navigation.addEventListener("click", instance.handleNavigationClick);
   navigation.addEventListener("keydown", instance.handleNavigationKeydown);
-  root.addEventListener("click", instance.handleOutsideClick);
+  root.addEventListener("click", instance.handleOutsideClick, true);
   requestAnimationFrame(() => navigation.querySelector("[data-reader-page-action]:not([disabled])")?.focus({ preventScroll: true }));
   return true;
 }
