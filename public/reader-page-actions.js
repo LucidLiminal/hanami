@@ -26,6 +26,24 @@ const labels = {
 };
 let current = null;
 
+function actionButtons(point) {
+  return Object.entries(labels).map(([action, label]) => `<button type="button" data-reader-page-action="${action}" aria-label="${label}" ${point.kind === "pdf" && ["cover", "copy", "comment"].includes(action) ? 'disabled title="Esta acción necesita una imagen"' : ""}><svg viewBox="0 0 24 24" aria-hidden="true">${icons[action]}</svg><span aria-hidden="true">${label}</span></button>`).join("");
+}
+
+function statusMarkup() {
+  return '<p class="reader-page-action-status" data-page-action-status role="status" aria-live="polite"></p>';
+}
+
+function showActionButtons(instance) {
+  instance.navigation.classList.remove("reader-page-cover-confirming");
+  instance.navigation.innerHTML = `${actionButtons(instance.context)}${statusMarkup()}`;
+}
+
+function showCoverConfirmation(instance) {
+  instance.navigation.classList.add("reader-page-cover-confirming");
+  instance.navigation.innerHTML = `<section class="reader-page-cover-confirm" data-page-cover-confirm><div class="reader-page-cover-confirm-copy"><h3>¿Usar esta página como portada?</h3><p>Cambiará la portada de esta obra en tu biblioteca.</p></div><div class="reader-page-cover-confirm-controls"><button type="button" data-page-cover-cancel>Cancelar</button><button type="button" data-page-cover-accept>Usar portada</button></div></section>${statusMarkup()}`;
+}
+
 export function pageFileName(context, mimeType = "image/jpeg") {
   const extension = {
     "image/png": "png",
@@ -84,9 +102,16 @@ function destroy({ focus = true } = {}) {
   const instance = current;
   current = null;
   instance.cleanupGesture?.();
-  instance.node.remove();
-  for (const [node, inert] of instance.inert) node.inert = inert;
-  document.body.classList.remove("reader-page-actions-open");
+  instance.root.removeEventListener("click", instance.handleOutsideClick);
+  instance.navigation.removeEventListener("click", instance.handleNavigationClick);
+  instance.navigation.removeEventListener("keydown", instance.handleNavigationKeydown);
+  instance.navigation.classList.remove("reader-page-actions-nav", "reader-page-cover-confirming");
+  instance.navigation.removeAttribute("data-reader-page-actions");
+  if (instance.navigationLabel == null) instance.navigation.removeAttribute("aria-label");
+  else instance.navigation.setAttribute("aria-label", instance.navigationLabel);
+  instance.navigation.replaceChildren(...instance.navigationNodes);
+  instance.navigator.hidden = instance.navigatorWasHidden;
+  instance.root.classList.remove("reader-page-actions-active");
   if (focus) readerFocus();
 }
 
@@ -108,7 +133,7 @@ function transition(callback) {
 
 function showStatus(message, error = false) {
   if (!current) return;
-  const status = current.node.querySelector("[data-page-action-status]");
+  const status = current.navigation.querySelector("[data-page-action-status]");
   status.textContent = message;
   status.classList.toggle("error", error);
 }
@@ -226,13 +251,12 @@ async function runAction(action) {
     return;
   }
   if (action === "cover") {
-    instance.node.querySelector("[data-page-action-grid]").hidden = true;
-    instance.node.querySelector("[data-page-cover-confirm]").hidden = false;
-    instance.node.querySelector("[data-page-cover-accept]").focus({ preventScroll: true });
+    showCoverConfirmation(instance);
+    instance.navigation.querySelector("[data-page-cover-accept]")?.focus({ preventScroll: true });
     return;
   }
   instance.busy = true;
-  for (const button of instance.node.querySelectorAll("[data-reader-page-action]")) button.disabled = true;
+  for (const button of instance.navigation.querySelectorAll("button")) button.disabled = true;
   showStatus("Preparando la imagen…");
   try {
     if (action === "copy") {
@@ -269,8 +293,10 @@ async function runAction(action) {
   } finally {
     instance.busy = false;
     if (current === instance) {
-      for (const button of instance.node.querySelectorAll("[data-reader-page-action]")) {
-        button.disabled = instance.context.kind === "pdf" && ["cover", "copy", "comment"].includes(button.dataset.readerPageAction);
+      for (const button of instance.navigation.querySelectorAll("button")) {
+        button.disabled = button.dataset.readerPageAction
+          ? instance.context.kind === "pdf" && ["cover", "copy", "comment"].includes(button.dataset.readerPageAction)
+          : false;
       }
     }
   }
@@ -280,22 +306,30 @@ function open({ figure, clientX, clientY, reader = {}, onCover, context, gesture
   const point = context || pointContext(figure, clientX, clientY, reader);
   if (!point || !figure) return false;
   destroy({ focus: false });
-  const node = document.createElement("section");
-  node.className = "reader-page-actions-overlay";
-  node.innerHTML = `<div class="reader-page-actions bottombar" data-reader-page-actions role="dialog" aria-modal="true" aria-label="Acciones de página" tabindex="-1">
-    <i class="reader-page-actions-handle" aria-hidden="true"></i>
-    <div class="reader-page-actions-grid" data-page-action-grid>${Object.entries(labels).map(([action, label]) => `<button type="button" data-reader-page-action="${action}" aria-label="${label}" ${point.kind === "pdf" && ["cover", "copy", "comment"].includes(action) ? 'disabled title="Esta acción necesita una imagen"' : ""}><svg viewBox="0 0 24 24" aria-hidden="true">${icons[action]}</svg><span aria-hidden="true">${label}</span></button>`).join("")}</div>
-    <section class="reader-page-cover-confirm" data-page-cover-confirm hidden><h3>¿Usar esta página como portada?</h3><p>Cambiará la portada de esta obra en tu biblioteca.</p><div><button type="button" data-page-cover-cancel>Cancelar</button><button type="button" data-page-cover-accept>Usar como portada</button></div></section>
-    <p class="reader-page-action-status" data-page-action-status role="status" aria-live="polite"></p>
-  </div>`;
-  const root = document.querySelector("#reader") || document.body;
-  const inert = [...root.children]
-    .filter((child) => !child.matches(".reader-page-actions-overlay,.reader-comment-editor,.reader-music-picker"))
-    .map((child) => [child, child.inert]);
-  for (const [child] of inert) child.inert = true;
-  root.append(node);
-  current = { node, context: point, figure, onCover, busy: false, inert, screenId: null };
-  const instance = current;
+  const root = document.querySelector("#reader");
+  const navigator = root?.querySelector("[data-reader-navigator]");
+  const navigation = root?.querySelector("[data-reader-navigation]");
+  if (!root || !navigator || !navigation) return false;
+  const instance = {
+    root,
+    navigator,
+    navigation,
+    navigationNodes: [...navigation.childNodes],
+    navigationLabel: navigation.getAttribute("aria-label"),
+    navigatorWasHidden: navigator.hidden,
+    context: point,
+    figure,
+    onCover,
+    busy: false,
+    screenId: null,
+  };
+  current = instance;
+  navigator.hidden = true;
+  root.classList.add("reader-page-actions-active");
+  navigation.classList.add("reader-page-actions-nav");
+  navigation.setAttribute("data-reader-page-actions", "true");
+  navigation.setAttribute("aria-label", "Acciones de página");
+  showActionButtons(instance);
   // A long touch may synthesize a click after the sheet appears under the finger.
   // Ignore only that opening release, never the user's next intentional press.
   if (gesture) {
@@ -305,7 +339,7 @@ function open({ figure, clientX, clientY, reader = {}, onCover, context, gesture
       instance.cleanupGesture?.();
     };
     const guardOpeningClick = (event) => {
-      if (current !== instance || !openingRelease || !node.contains(event.target)) return;
+      if (current !== instance || !openingRelease || !root.contains(event.target)) return;
       event.preventDefault();
       event.stopImmediatePropagation();
       clearOpeningRelease();
@@ -319,7 +353,6 @@ function open({ figure, clientX, clientY, reader = {}, onCover, context, gesture
     document.addEventListener("keydown", clearOpeningRelease, true);
     document.addEventListener("click", guardOpeningClick, true);
   }
-  document.body.classList.add("reader-page-actions-open");
   if (!restoring && window.HanamiScreens) {
     instance.screenId = window.HanamiScreens.push(
       "reader-page-actions",
@@ -330,33 +363,35 @@ function open({ figure, clientX, clientY, reader = {}, onCover, context, gesture
       },
     );
   } else instance.screenId = window.HanamiScreens?.current?.()?.id;
-  node.addEventListener("click", (event) => {
-    if (event.target === node) close();
+  instance.handleNavigationClick = (event) => {
+    if (current !== instance) return;
     const action = event.target.closest("[data-reader-page-action]")?.dataset.readerPageAction;
-    if (action) void runAction(action);
+    if (action) {
+      void runAction(action);
+      return;
+    }
     if (event.target.closest("[data-page-cover-accept]")) void runAction("cover-confirm");
     if (event.target.closest("[data-page-cover-cancel]")) {
-      node.querySelector("[data-page-cover-confirm]").hidden = true;
-      node.querySelector("[data-page-action-grid]").hidden = false;
-      node.querySelector('[data-reader-page-action="cover"]').focus({ preventScroll: true });
+      showActionButtons(instance);
+      navigation.querySelector('[data-reader-page-action="cover"]')?.focus({ preventScroll: true });
     }
-  });
-  node.addEventListener("keydown", (event) => {
+  };
+  instance.handleNavigationKeydown = (event) => {
     if (event.key === "Escape") {
       event.preventDefault();
       event.stopPropagation();
       close();
-    } else if (event.key === "Tab") {
-      const controls = [...node.querySelectorAll("button:not([disabled])")].filter((button) => button.getClientRects().length);
-      const first = controls[0], last = controls.at(-1);
-      if (event.shiftKey && (document.activeElement === first || document.activeElement === node.querySelector('[role="dialog"]'))) {
-        event.preventDefault(); last?.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault(); first?.focus();
-      }
     }
-  });
-  requestAnimationFrame(() => node.querySelector('[role="dialog"]').focus({ preventScroll: true }));
+  };
+  instance.handleOutsideClick = (event) => {
+    if (current !== instance || navigation.contains(event.target) || event.composedPath?.().includes(navigation)) return;
+    if (event.target.closest?.("#readerSheet,.reader-comment-editor,.reader-music-picker")) return;
+    close();
+  };
+  navigation.addEventListener("click", instance.handleNavigationClick);
+  navigation.addEventListener("keydown", instance.handleNavigationKeydown);
+  root.addEventListener("click", instance.handleOutsideClick);
+  requestAnimationFrame(() => navigation.querySelector("[data-reader-page-action]:not([disabled])")?.focus({ preventScroll: true }));
   return true;
 }
 

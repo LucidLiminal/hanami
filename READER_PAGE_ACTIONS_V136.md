@@ -4,8 +4,9 @@ Version: `5.10.0` · PWA cache: `hanami-crimson-knot-v136`.
 
 ## Reader gesture
 
-A long press on a reader page opens a floating bottom sheet with these actions,
-in this order:
+A long press on a reader page replaces `reader-navigator` and the regular
+controls in `nav.reader-navigation[data-reader-navigation]` with these page
+actions, in this order:
 
 1. **Poner como portada** — confirmation, then a compressed custom cover saved
    in the personal library. Add the manga to the library first. Metadata refresh
@@ -21,14 +22,17 @@ in this order:
 6. **Instanciar una pista de música** — opens the independent music selector at
    those same page coordinates.
 
+The actions occupy the existing bottom navigation bar rather than opening a
+dialog. In repose, they show icons only; a label is revealed while its button
+is kept pressed. The original navigator and reader controls are restored after
+an action completes, on Back/Escape, or when the reader surface is tapped
+outside the actions.
+
 The gesture retains the pressed figure's chapter and image, including pages
 from neighboring preloaded chapters. Scrolling, pointer cancellation and
 pinching cancel the hold. The opening release cannot accidentally select an
-action or dismiss the sheet. The next intentional tap remains usable.
-
-Back, Escape, the close button and the backdrop dismiss the sheet. The selector
-and action sheet trap keyboard focus and suspend interaction with the reader
-behind them. Closing comments or music preserves the live reader session.
+action or dismiss the integrated bar. The next intentional tap remains usable.
+Closing comments or music preserves the live reader session.
 Right-click, the context-menu key and Shift+F10 also expose page actions.
 
 For PDF documents, save/share act on the PDF file. Image-only cover, clipboard

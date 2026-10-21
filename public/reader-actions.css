@@ -1,46 +1,44 @@
 /* Page actions + standalone music discovery, in Hanami's current theme. */
 #readerViewport:focus-visible { outline: 2px solid var(--acid); outline-offset: -2px; }
 #readerViewport figure > img { -webkit-touch-callout: none; user-select: none; }
-.reader-page-actions-overlay {
-  position: fixed; inset: 0; z-index: 145; display: flex; align-items: flex-end;
-  justify-content: center; padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
-  background: #080304a6; backdrop-filter: blur(3px);
+.mihon-reader.reader-page-actions-active [data-reader-navigator] { display: none; }
+.mihon-reader #readerBottom .reader-navigation.reader-page-actions-nav { position: relative; }
+.mihon-reader #readerBottom .reader-page-actions-nav > [data-reader-page-action] {
+  position: relative; min-width: 0; padding: 5px 2px; color: #fbf9d1;
 }
-.reader-page-actions {
-  width: min(720px, 100%); max-height: calc(100dvh - 32px); overflow: auto;
-  padding: 10px 16px 16px; border: 1px solid #e6cfa944; border-radius: 24px;
-  background: #291315; color: #fbf9d1; box-shadow: 0 12px 40px #0005; outline: none;
-}
-.reader-page-actions-handle { display: block; width: 36px; height: 4px; margin: 0 auto 10px; border-radius: 4px; background: #c9b69c80; }
-.reader-page-actions button { font: 400 14px/1.35 Arial, sans-serif; color: inherit; cursor: pointer; }
-.reader-page-actions-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.reader-page-actions-grid > button {
-  position: relative; min-width: 0; min-height: 72px; display: grid; place-items: center; padding: 8px;
-  border: 1px solid transparent; border-radius: 14px; background: transparent; text-align: center;
-}
-.reader-page-actions-grid > button svg {
-  width: 30px; height: 30px; flex-shrink: 0; fill: none; stroke: #e6cfa9;
+.reader-page-actions-nav > [data-reader-page-action] svg {
+  width: 26px; height: 26px; fill: none; stroke: #e6cfa9;
   stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round;
 }
-.reader-page-actions-grid > button > span {
-  position: absolute; right: 4px; bottom: 4px; left: 4px; visibility: hidden; pointer-events: none;
-  color: #fbf9d1; font: 700 9px/1.15 Arial, sans-serif; overflow-wrap: anywhere;
+.reader-page-actions-nav > [data-reader-page-action] > span {
+  position: absolute; right: 2px; bottom: 5px; left: 2px; visibility: hidden; pointer-events: none;
+  color: #fbf9d1; font: 700 8px/1.1 Arial, sans-serif; overflow-wrap: anywhere;
 }
-.reader-page-actions-grid > button:active > span { visibility: visible; }
-.reader-page-actions-grid > button:hover { background: #e6cfa911; border-color: #e6cfa92e; }
-.reader-page-actions button:disabled { opacity: .4; cursor: not-allowed; }
-.reader-page-actions button:focus-visible, .reader-music-picker button:focus-visible, .reader-music-picker input:focus-visible, .reader-music-pin:focus-visible {
+.reader-page-actions-nav > [data-reader-page-action]:active > span { visibility: visible; }
+.reader-page-actions-nav > [data-reader-page-action]:hover { background: #e6cfa911; }
+.reader-page-actions-nav button:disabled { opacity: .4; cursor: not-allowed; }
+.mihon-reader #readerBottom .reader-navigation.reader-page-cover-confirming {
+  height: auto; min-height: 62px; display: block; padding: 10px 12px;
+}
+.reader-page-cover-confirm { display: flex; align-items: center; gap: 10px; }
+.reader-page-cover-confirm-copy { flex: 1; min-width: 0; }
+.reader-page-cover-confirm h3 { margin: 0; font: 700 14px/1.25 Arial, sans-serif; }
+.reader-page-cover-confirm p { margin: 3px 0 0; color: #c9b69c; font-size: 11px; line-height: 1.3; }
+.reader-page-cover-confirm-controls { display: flex; flex: 0 0 auto; gap: 6px; }
+.mihon-reader #readerBottom .reader-page-cover-confirm button {
+  min-width: 0; min-height: 40px; flex: 0 1 auto; padding: 7px 9px;
+  border: 1px solid #e6cfa944; border-radius: 10px; background: #fbf9d10a; font: 700 11px/1.2 Arial, sans-serif;
+}
+.mihon-reader #readerBottom .reader-page-cover-confirm [data-page-cover-accept] { background: #e6cfa9; color: #170b0d; }
+.reader-page-actions-nav .reader-page-action-status {
+  position: absolute; right: 10px; bottom: calc(100% + 8px); left: 10px; z-index: 1; margin: 0; padding: 8px 10px;
+  border: 1px solid #e6cfa944; border-radius: 10px; background: #291315f5; color: #c9b69c; font: 12px/1.35 Arial, sans-serif;
+}
+.reader-page-actions-nav .reader-page-action-status:empty { display: none; }
+.reader-page-actions-nav .reader-page-action-status.error { color: #ffd5c5; }
+.reader-page-actions-nav button:focus-visible, .reader-music-picker button:focus-visible, .reader-music-picker input:focus-visible, .reader-music-pin:focus-visible {
   outline: 2px solid #e6cfa9; outline-offset: 3px;
 }
-.reader-page-cover-confirm h3 { margin: 4px 0 12px; font: 700 20px/1.3 Arial, sans-serif; }
-.reader-page-cover-confirm p { margin: 0 0 24px; color: #c9b69c; font-size: 16px; line-height: 1.5; }
-.reader-page-cover-confirm > div { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; }
-.reader-page-cover-confirm button { min-height: 44px; padding: 10px 16px; border: 1px solid #e6cfa944; border-radius: 12px; background: transparent; }
-.reader-page-cover-confirm [data-page-cover-accept] { background: #e6cfa9; color: #170b0d; font-weight: 700; }
-.reader-page-actions [hidden] { display: none !important; }
-.reader-page-action-status { margin: 12px 0 0; color: #c9b69c; font-size: 14px; line-height: 1.5; }
-.reader-page-action-status:empty { display: none; }
-.reader-page-action-status.error { color: #ffd5c5; font-family: Arial, sans-serif; border-radius: 12px; }
 
 #reader .reader-music-picker {
   position: fixed; inset: 0; z-index: 142; margin: 0; padding: 0; border: 0; border-radius: 0;
@@ -144,15 +142,14 @@
 }
 .reader-music-pin svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 @media (min-width: 700px) {
-  .reader-page-actions-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
   .reader-music-picker .music-discovery-content { padding: 24px 32px 48px; }
   .reader-music-picker .music-discovery-top { padding-left: 32px; padding-right: 32px; }
   .reader-music-picker .music-discovery-top h2 { font-size: 40px; }
   .reader-music-picker .music-url-search { max-width: 720px; }
 }
 @media (max-width: 359px) {
-  .reader-page-actions-overlay { padding-left: 8px; padding-right: 8px; }
-  .reader-page-actions { padding-left: 8px; padding-right: 8px; }
+  .reader-page-cover-confirm { align-items: flex-start; }
+  .reader-page-cover-confirm-controls { flex-direction: column; }
   .reader-music-picker .music-discovery-content { padding-left: 16px; padding-right: 16px; }
   .reader-music-picker .music-discovery-section h3 { font-size: 22px; }
 }

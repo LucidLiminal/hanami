@@ -205,6 +205,10 @@ try {
     "Poner como portada", "Copiar al portapapeles", "Compartir", "Guardar",
     "Hacer un comentario", "Instanciar una pista de música",
   ]);
+  const navigation = page.locator("[data-reader-navigation]");
+  assert.equal(await navigation.getAttribute("data-reader-page-actions"), "true");
+  assert.equal(await page.locator("[data-reader-navigator]").isHidden(), true);
+  assert.equal(await navigation.locator("[data-r-mode]").count(), 0);
   assert.equal(await page.locator("[data-reader-page-actions] header").count(), 0);
   assert.equal(await page.locator("[data-page-actions-close]").count(), 0);
   const shareButton = page.locator('[data-reader-page-action="share"]');
@@ -225,6 +229,9 @@ try {
   await proof("actions-mobile");
   await page.locator('[data-reader-page-action="copy"]').click();
   await actionsHidden();
+  assert.equal(await navigation.getAttribute("data-reader-page-actions"), null);
+  assert.equal(await page.locator("[data-reader-navigator]").isVisible(), true);
+  assert.equal(await navigation.locator("[data-r-mode]").count(), 1);
   const copied = await page.evaluate(() => window.__COPIED_IMAGES__);
   assert.equal(copied.length, 1);
   assert.equal(copied[0].type, "image/png");
@@ -373,7 +380,7 @@ try {
   await page.locator('[data-reader-page-action="copy"]').click();
   assert((await page.locator("[data-page-action-status]").textContent()).includes("no permite copiar imágenes"));
   await proof("copy-unavailable-mobile");
-  await page.locator(".reader-page-actions-overlay").click({ position: { x: 2, y: 2 } });
+  await page.keyboard.press("Escape");
   await actionsHidden();
   const barsBefore = await page.locator("#reader").evaluate((node) => node.classList.contains("bars-on"));
   await page.mouse.click(195, 422);
