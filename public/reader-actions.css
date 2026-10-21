@@ -11,26 +11,22 @@
   padding: 10px 16px 16px; border: 1px solid #e6cfa944; border-radius: 24px;
   background: #291315; color: #fbf9d1; box-shadow: 0 12px 40px #0005; outline: none;
 }
-.reader-page-actions-handle { display: block; width: 36px; height: 4px; margin: 0 auto 16px; border-radius: 4px; background: #c9b69c80; }
-.reader-page-actions > header { position: static; width: auto; height: auto; min-height: 0; display: flex; align-items: center; gap: 16px; margin: 0 0 16px; padding: 0; border: 0; background: transparent; }
-.reader-page-actions > header > div { flex: 1; min-width: 0; }
-.reader-page-actions > header small { font: 700 14px/1.4 Arial, sans-serif; letter-spacing: .08em; color: #c9b69c; }
-.reader-page-actions h2 { margin: 4px 0 0; font: 700 22px/1.25 Arial, sans-serif; }
+.reader-page-actions-handle { display: block; width: 36px; height: 4px; margin: 0 auto 10px; border-radius: 4px; background: #c9b69c80; }
 .reader-page-actions button { font: 400 14px/1.35 Arial, sans-serif; color: inherit; cursor: pointer; }
-.reader-page-actions [data-page-actions-close] {
-  width: 44px; height: 44px; flex: 0 0 44px; border: 1px solid #e6cfa92e;
-  border-radius: 50%; background: #fbf9d10a; font-size: 28px;
-}
 .reader-page-actions-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .reader-page-actions-grid > button {
-  min-width: 0; min-height: 112px; display: flex; flex-direction: column;
-  align-items: center; justify-content: flex-start; gap: 10px; padding: 12px 5px;
+  position: relative; min-width: 0; min-height: 72px; display: grid; place-items: center; padding: 8px;
   border: 1px solid transparent; border-radius: 14px; background: transparent; text-align: center;
 }
 .reader-page-actions-grid > button svg {
   width: 30px; height: 30px; flex-shrink: 0; fill: none; stroke: #e6cfa9;
   stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round;
 }
+.reader-page-actions-grid > button > span {
+  position: absolute; right: 4px; bottom: 4px; left: 4px; visibility: hidden; pointer-events: none;
+  color: #fbf9d1; font: 700 9px/1.15 Arial, sans-serif; overflow-wrap: anywhere;
+}
+.reader-page-actions-grid > button:active > span { visibility: visible; }
 .reader-page-actions-grid > button:hover { background: #e6cfa911; border-color: #e6cfa92e; }
 .reader-page-actions button:disabled { opacity: .4; cursor: not-allowed; }
 .reader-page-actions button:focus-visible, .reader-music-picker button:focus-visible, .reader-music-picker input:focus-visible, .reader-music-pin:focus-visible {

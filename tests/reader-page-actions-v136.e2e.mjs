@@ -205,6 +205,22 @@ try {
     "Poner como portada", "Copiar al portapapeles", "Compartir", "Guardar",
     "Hacer un comentario", "Instanciar una pista de música",
   ]);
+  assert.equal(await page.locator("[data-reader-page-actions] header").count(), 0);
+  assert.equal(await page.locator("[data-page-actions-close]").count(), 0);
+  const shareButton = page.locator('[data-reader-page-action="share"]');
+  const shareLabel = shareButton.locator("span");
+  assert.equal(await shareLabel.evaluate((element) => getComputedStyle(element).visibility), "hidden");
+  const shareBox = await shareButton.boundingBox();
+  assert(shareBox);
+  await page.mouse.move(shareBox.x + shareBox.width / 2, shareBox.y + shareBox.height / 2);
+  await shareButton.evaluate((button) => button.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, { once: true }));
+  await page.mouse.down();
+  assert.equal(await shareLabel.evaluate((element) => getComputedStyle(element).visibility), "visible");
+  await page.mouse.up();
+  assert.equal(await shareLabel.evaluate((element) => getComputedStyle(element).visibility), "hidden");
   assert.equal(await page.locator(".reader-comment-editor").count(), 0);
   await proof("actions-mobile");
   await page.locator('[data-reader-page-action="copy"]').click();
@@ -357,7 +373,7 @@ try {
   await page.locator('[data-reader-page-action="copy"]').click();
   assert((await page.locator("[data-page-action-status]").textContent()).includes("no permite copiar imágenes"));
   await proof("copy-unavailable-mobile");
-  await page.locator("[data-page-actions-close]").click();
+  await page.locator(".reader-page-actions-overlay").click({ position: { x: 2, y: 2 } });
   await actionsHidden();
   const barsBefore = await page.locator("#reader").evaluate((node) => node.classList.contains("bars-on"));
   await page.mouse.click(195, 422);

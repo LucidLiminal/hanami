@@ -282,10 +282,9 @@ function open({ figure, clientX, clientY, reader = {}, onCover, context, gesture
   destroy({ focus: false });
   const node = document.createElement("section");
   node.className = "reader-page-actions-overlay";
-  node.innerHTML = `<div class="reader-page-actions bottombar" data-reader-page-actions role="dialog" aria-modal="true" aria-labelledby="readerPageActionsTitle" tabindex="-1">
+  node.innerHTML = `<div class="reader-page-actions bottombar" data-reader-page-actions role="dialog" aria-modal="true" aria-label="Acciones de página" tabindex="-1">
     <i class="reader-page-actions-handle" aria-hidden="true"></i>
-    <header><div><small>ACCIONES DE PÁGINA</small><h2 id="readerPageActionsTitle">Página ${Number(point.pageIndex || 0) + 1}</h2></div><button type="button" data-page-actions-close aria-label="Cerrar acciones">×</button></header>
-    <div class="reader-page-actions-grid" data-page-action-grid>${Object.entries(labels).map(([action, label]) => `<button type="button" data-reader-page-action="${action}" ${point.kind === "pdf" && ["cover", "copy", "comment"].includes(action) ? 'disabled title="Esta acción necesita una imagen"' : ""}><svg viewBox="0 0 24 24" aria-hidden="true">${icons[action]}</svg><span>${label}</span></button>`).join("")}</div>
+    <div class="reader-page-actions-grid" data-page-action-grid>${Object.entries(labels).map(([action, label]) => `<button type="button" data-reader-page-action="${action}" aria-label="${label}" ${point.kind === "pdf" && ["cover", "copy", "comment"].includes(action) ? 'disabled title="Esta acción necesita una imagen"' : ""}><svg viewBox="0 0 24 24" aria-hidden="true">${icons[action]}</svg><span aria-hidden="true">${label}</span></button>`).join("")}</div>
     <section class="reader-page-cover-confirm" data-page-cover-confirm hidden><h3>¿Usar esta página como portada?</h3><p>Cambiará la portada de esta obra en tu biblioteca.</p><div><button type="button" data-page-cover-cancel>Cancelar</button><button type="button" data-page-cover-accept>Usar como portada</button></div></section>
     <p class="reader-page-action-status" data-page-action-status role="status" aria-live="polite"></p>
   </div>`;
@@ -332,7 +331,7 @@ function open({ figure, clientX, clientY, reader = {}, onCover, context, gesture
     );
   } else instance.screenId = window.HanamiScreens?.current?.()?.id;
   node.addEventListener("click", (event) => {
-    if (event.target === node || event.target.closest("[data-page-actions-close]")) close();
+    if (event.target === node) close();
     const action = event.target.closest("[data-reader-page-action]")?.dataset.readerPageAction;
     if (action) void runAction(action);
     if (event.target.closest("[data-page-cover-accept]")) void runAction("cover-confirm");

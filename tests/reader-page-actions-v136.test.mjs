@@ -26,6 +26,11 @@ for (const label of [
   "Poner como portada", "Copiar al portapapeles", "Compartir", "Guardar",
   "Hacer un comentario", "Instanciar una pista de música",
 ]) assert(actions.includes(label), label);
+assert(actions.includes('aria-label="Acciones de página"'));
+assert(actions.includes('aria-label="${label}"'));
+assert(actions.includes('<span aria-hidden="true">${label}</span>'));
+assert(!actions.includes("readerPageActionsTitle"));
+assert(!actions.includes("data-page-actions-close"));
 for (const token of [
   "new ClipboardItem", '"image/png": pngBlob(instance)', "files: [file]",
   "data-page-cover-accept", "originalThumbnailUrl", "customThumbnailUrl",
@@ -70,6 +75,10 @@ assert(files["public/reader-music.js"].includes("sessionId: playbackSessionId"))
 assert(files["public/reader-music.js"].includes('emit("listened")'));
 assert(files["public/reader-actions.css"].includes("grid-template-columns: repeat(3"));
 assert(files["public/reader-actions.css"].includes("prefers-reduced-motion"));
+assert(files["public/reader-actions.css"].includes(".reader-page-actions-grid > button:active > span { visibility: visible; }"));
+assert(files["public/reader-actions.css"].includes("visibility: hidden"));
+assert(!files["public/reader-actions.css"].includes(".reader-page-actions > header"));
+assert(!files["public/reader-actions.css"].includes("[data-page-actions-close]"));
 assert(files["public/library.js"].includes("customThumbnailUrl||d.thumbnailUrl"));
 assert(files["public/app.js"].includes("customThumbnailUrl||manga.thumbnailUrl"));
 
