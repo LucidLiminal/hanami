@@ -33,6 +33,16 @@ visible el texto de la navegación principal.
 - Las acciones de página del lector siguen usando su selector dedicado; los
   botones de confirmación inline no entran en el gesto de etiquetas.
 
+## Hotfix de alineación del indicador activo
+
+- El fondo de `.main-nav button.active::before` usa `top: 50%` y
+  `translate(-50%, -50%)`, por lo que su centro vertical coincide con el
+  centro del `<svg>` cuando la barra está en reposo.
+- La animación `navIndicatorIn` conserva esa traslación vertical en todos sus
+  fotogramas para evitar un salto al cambiar de pestaña.
+- La variante lateral (`nav-rail`) usa el mismo eje vertical, aun con su
+  botón e indicador de mayor tamaño.
+
 ## Archivos modificados
 
 - `public/selection-toolbar.js`
@@ -48,7 +58,9 @@ visible el texto de la navegación principal.
   `reader-navigation`.
 - `npm run test:e2e:navigation-labels-hnm018` verifica en Chromium con entrada
   táctil real que las etiquetas empiezan ocultas, se revelan tras la espera y
-  que soltar no navega ni modifica el ajuste de recorte.
+  que soltar no navega ni modifica el ajuste de recorte. También mide que el
+  centro del pseudo-elemento activo queda a menos de un píxel del centro del
+  icono, tanto en barra inferior como en `nav-rail`.
 - `npm run test:e2e:reader-actions-hnm020`: **20 escenarios PASS** en Chromium.
   Conserva la regresión completa del lector y sus acciones integradas, además
   de los dos escenarios de HNM-018.

@@ -131,6 +131,14 @@ async function holdPage(page, cdp) {
 const labelVisibility = (page) => page.locator('[data-reader-page-action="cover"] > span')
   .evaluate((label) => getComputedStyle(label).visibility);
 const labelOpacity = (locator) => locator.evaluate((label) => getComputedStyle(label).opacity);
+const activeIndicatorOffset = (button) => button.evaluate((node) => {
+  const buttonBox = node.getBoundingClientRect();
+  const iconBox = node.querySelector("svg").getBoundingClientRect();
+  const before = getComputedStyle(node, "::before");
+  const transform = new DOMMatrixReadOnly(before.transform);
+  const pseudoCenter = buttonBox.top + parseFloat(before.top) + transform.m42 + parseFloat(before.height) / 2;
+  return Math.abs(pseudoCenter - (iconBox.top + iconBox.height / 2));
+});
 
 try {
   await scenario("hidden reader controls cannot hide the opened action bar", async (page, cdp) => {
@@ -231,6 +239,11 @@ try {
     await page.waitForFunction(() => document.body.dataset.root === "updates");
     await page.waitForTimeout(380);
     assert.equal(await labelOpacity(updatesLabel), "0", "tab activation must not re-expose its label");
+    assert((await activeIndicatorOffset(updates)) < 1, "the active indicator must center on the main-nav icon");
+    await page.evaluate(() => document.body.classList.add("nav-rail"));
+    await page.waitForTimeout(40);
+    assert((await activeIndicatorOffset(updates)) < 1, "the active indicator must also center on the rail icon");
+    await page.evaluate(() => document.body.classList.remove("nav-rail"));
     const history = page.locator('[data-tab="history"]');
     const historyLabel = history.locator("span");
     const historyBox = await history.boundingBox();

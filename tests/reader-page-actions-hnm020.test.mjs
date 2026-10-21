@@ -15,6 +15,10 @@ assert(toolbar.includes("'.reader-navigation:not(.reader-page-actions-nav)>butto
 assert(styles.includes(".main-nav button>span,"));
 assert(styles.includes("[data-reader-navigation]:not(.reader-page-actions-nav)>button>small"));
 assert(styles.includes(".main-nav button.show-action-label>span,"));
+assert(styles.includes(".main-nav button:before{content:'';position:absolute;z-index:-1;top:50%;left:50%"));
+assert(styles.includes(".main-nav button.active:before{transform:translate(-50%,-50%) scaleX(1);opacity:1}"));
+assert(styles.includes("@keyframes navIndicatorIn{0%{transform:translate(-50%,-50%) scaleX(.18);opacity:0}"));
+assert(styles.includes("body.nav-rail .main-nav button:before{top:50%;width:58px;height:34px}"));
 assert(actions.includes('root.addEventListener("click", instance.handleOutsideClick, true)'));
 assert(actions.includes('instance.root.removeEventListener("click", instance.handleOutsideClick, true)'));
 assert(actions.includes("event.stopImmediatePropagation();\n    close();"));
