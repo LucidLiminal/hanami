@@ -4,7 +4,7 @@ const [more,css,nav,app,lib,html,sw,pkg]=await Promise.all(['more-tab.js','more-
 for(const x of ['HanamiMoreTab','onReselect','more-screen','data-mt-downloaded-only','data-mt-incognito','downloads','categories','stats','storage','settings','support','about','help','data-mt-download-sort-menu','mt-overflow','data-mt-download-clear-all','data-mt-download-toggle','data-mt-category-row','data-category-create','mt-stat-grid','data-mt-settings-search','data-mt-setting-toggle','function openSetting','more-setting','hanami-extension-store/v1','HanamiScreens?.push','pointerdown','dragstart'])assert(more.includes(x),x);
 assert(css.includes('@media(min-width:760px)')&&css.includes('@media(prefers-reduced-motion:reduce)')&&css.includes('@keyframes mtSlide'));
 assert(nav.includes('if(window.HanamiMoreTab)return window.HanamiMoreTab.render()'));
-assert(app.includes("b.dataset.tab==='more'")&&app.includes('HanamiMoreTab?.onReselect?.()'));
+assert(app.includes("else if(tab==='more'&&active)")&&app.includes('HanamiMoreTab?.onReselect?.()')); 
 assert(lib.includes("get('hanami-downloaded-only',false)"));
 assert(html.includes('/more-tab.css')&&html.includes('/more-tab.js'));
 assert(sw.includes('hanami-crimson-knot-v149')&&sw.includes("'/more-tab.css'")&&sw.includes("'/more-tab.js'"));

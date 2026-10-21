@@ -9,7 +9,7 @@ for(const token of [
  'data-browse-display','data-browse-source-more','browse-item-overflow','data-browse-display-mode','comfortable','compact','list','data-browse-open-web','data-browse-source-settings',
  'data-source-filter','data-extension-menu','data-migration-help','data-sort-mode','data-sort-direction','prefers-reduced-motion'
 ])assert(b.includes(token)||c.includes(token)||a.includes(token)||i.includes(token),token);
-assert(a.includes("b.dataset.tab==='explore'&&window.HanamiNavigation?.isActive?.('explore')"));
+assert(a.includes("else if(tab==='explore'&&active)window.HanamiBrowseTab?.onReselect?.()"));
 assert(o.includes("'.browse-item-overflow'"));
 assert(i.includes('/browse-tab.css')&&i.includes('/browse-tab.js'));
 assert(s.includes('hanami-crimson-knot-v149')&&s.includes("'/browse-tab.css'")&&s.includes("'/browse-tab.js'"));

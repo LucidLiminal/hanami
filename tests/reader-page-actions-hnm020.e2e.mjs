@@ -226,6 +226,27 @@ try {
     await page.locator("#modal[open] .library-settings-dialog").waitFor();
   });
 
+  await scenario("HNM-017 active Updates, History, Explore and More child screens return to their tab roots", async (page) => {
+    await page.evaluate(() => window.HanamiReader.close(true));
+    for (const [tab, rootSelector] of [
+      ["updates", "#updates:not(.hidden)"],
+      ["history", "#history:not(.hidden)"],
+      ["explore", "#sources:not(.hidden)"],
+      ["more", "#more:not(.hidden)"],
+    ]) {
+      await page.evaluate((tab) => {
+        window.HanamiAppShowTab(tab, false);
+        window.HanamiNavigation.setChild(true);
+        document.body.classList.add("nav-rail");
+      }, tab);
+      await page.locator(`[data-tab="${tab}"]`).click();
+      await page.waitForFunction(({ tab, rootSelector }) => document.body.dataset.root === tab
+        && !document.body.classList.contains("nav-child")
+        && !!document.querySelector(rootSelector)
+        && !document.querySelector("#modal").open, { tab, rootSelector }, { timeout: 2000 });
+    }
+  });
+
   await scenario("HNM-018 reader-navigation labels need a 500ms hold and its release does not change settings", async (page, cdp) => {
     const crop = page.locator("[data-r-crop]");
     const label = crop.locator("small");
