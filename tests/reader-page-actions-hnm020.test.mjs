@@ -2,14 +2,19 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import vm from "node:vm";
 
-const [reader, actions, css, toolbar] = await Promise.all([
-  "public/reader.js", "public/reader-page-actions.js", "public/reader-actions.css", "public/selection-toolbar.js",
+const [reader, actions, css, toolbar, styles] = await Promise.all([
+  "public/reader.js", "public/reader-page-actions.js", "public/reader-actions.css", "public/selection-toolbar.js", "public/styles.css",
 ].map((file) => readFile(new URL(`../${file}`, import.meta.url), "utf8")));
 
 assert(css.includes(".mihon-reader.reader-page-actions-active #readerBottom { transform: none; opacity: 1; }"));
 assert(css.includes(".mihon-reader.reader-page-actions-active #readerViewport { overflow: hidden; touch-action: none; }"));
 assert(!css.includes("[data-reader-page-action]:active > span"));
 assert(css.includes("[data-reader-page-action].show-action-label > span"));
+assert(toolbar.includes("'.main-nav [data-tab]'"));
+assert(toolbar.includes("'.reader-navigation:not(.reader-page-actions-nav)>button'"));
+assert(styles.includes(".main-nav button>span,"));
+assert(styles.includes("[data-reader-navigation]:not(.reader-page-actions-nav)>button>small"));
+assert(styles.includes(".main-nav button.show-action-label>span,"));
 assert(actions.includes('root.addEventListener("click", instance.handleOutsideClick, true)'));
 assert(actions.includes('instance.root.removeEventListener("click", instance.handleOutsideClick, true)'));
 assert(actions.includes("event.stopImmediatePropagation();\n    close();"));
@@ -84,6 +89,7 @@ function gestureHarness(selector) {
 
 for (const selector of [
   ".selection-bottombar button", ".library-toolbar-actions button",
+  ".main-nav [data-tab]", ".reader-navigation:not(.reader-page-actions-nav)>button",
   ".reader-page-actions-nav > [data-reader-page-action]",
 ]) {
   const h = gestureHarness(selector);
@@ -150,4 +156,4 @@ for (const selector of [
   assert.equal(h.send("contextmenu").prevented, true);
 }
 
-console.log("PASS: HNM-020 keeps actions visible, consumes dismissal and shares cancellable 500ms label holds");
+console.log("PASS: HNM-018/HNM-020 share cancellable 500ms labels without triggering long-press releases");

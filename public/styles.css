@@ -211,3 +211,21 @@ body{background:radial-gradient(circle at 74% 0,#531f21 0,transparent 34%),radia
 .reader-music-soundcloud-source{display:flex;align-items:center;gap:10px;margin:9px 0 0;padding:9px 11px;border:1px solid #ff770045;border-radius:12px;background:linear-gradient(135deg,#ff770014,#fbf9d106)}
 .reader-music-soundcloud-source>span{min-width:0;flex:1}.reader-music-soundcloud-source small,.reader-music-soundcloud-source b{display:block}.reader-music-soundcloud-source small{color:#cf8e66;font:700 7px var(--mono);letter-spacing:.1em}.reader-music-soundcloud-source b{margin-top:3px;color:#ead7b4;font:800 11px Arial}.reader-music-soundcloud-source a{flex:0 0 auto;color:#f0c597;font:800 8px var(--mono);text-decoration:none}.reader-music-soundcloud-source a:hover,.reader-music-soundcloud-source a:focus{text-decoration:underline}
 @media(max-width:430px){.reader-music-soundcloud-source{align-items:flex-start;flex-direction:column}.reader-music-soundcloud-source a{align-self:stretch;padding-top:4px}}
+
+/* HNM-018 — navigation is icon-first. The shared recognizer adds
+   .show-action-label only after a 500ms hold. */
+.main-nav button{gap:0}
+.main-nav button>span,
+.mihon-reader #readerBottom [data-reader-navigation]:not(.reader-page-actions-nav)>button>small{
+  display:block;min-height:0;max-height:0;overflow:hidden;opacity:0;
+  transform:translateY(4px);transition:max-height .16s,opacity .16s,transform .16s;
+}
+/* A selected tab's entrance animation must not force its label visible. */
+.main-nav button:not(.show-action-label)>span{animation:none}
+.main-nav button.show-action-label{gap:4px}
+.main-nav button.show-action-label>span,
+.mihon-reader #readerBottom [data-reader-navigation]:not(.reader-page-actions-nav)>button.show-action-label>small{
+  max-height:20px;opacity:1;transform:none;
+}
+body.nav-rail .main-nav button:not(.show-action-label){gap:0}
+body.nav-rail .main-nav button.show-action-label{gap:5px}

@@ -11,7 +11,15 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.body.class
 window.HanamiSelectionToolbar={top,bottom,activate,deactivate,announce,icon};
 // Selection bars and reader page actions share the same label gesture:
 // a short press executes; a 500ms hold explains the icon without executing it.
-const actionButtonSelector = '.selection-bottombar button,.library-toolbar-actions button,.reader-page-actions-nav > [data-reader-page-action]';
+// All icon-only navigation bars use this recognizer. A short press keeps its
+// normal action; a 500ms hold exposes the accessible text label instead.
+const actionButtonSelector = [
+  '.selection-bottombar button',
+  '.library-toolbar-actions button',
+  '.main-nav [data-tab]',
+  '.reader-navigation:not(.reader-page-actions-nav)>button',
+  '.reader-page-actions-nav > [data-reader-page-action]',
+].join(',');
 let actionPress = null;
 const suppressedActions = new WeakSet();
 function cancelActionPress() {

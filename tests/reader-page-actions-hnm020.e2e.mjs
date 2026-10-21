@@ -130,6 +130,7 @@ async function holdPage(page, cdp) {
 }
 const labelVisibility = (page) => page.locator('[data-reader-page-action="cover"] > span')
   .evaluate((label) => getComputedStyle(label).visibility);
+const labelOpacity = (locator) => locator.evaluate((label) => getComputedStyle(label).opacity);
 
 try {
   await scenario("hidden reader controls cannot hide the opened action bar", async (page, cdp) => {
@@ -186,6 +187,63 @@ try {
     await page.locator("[data-page-cover-confirm]").waitFor();
     await page.locator("[data-page-cover-cancel]").click();
     assert.equal(await page.locator("[data-reader-page-action]").count(), 6);
+  });
+
+  await scenario("HNM-018 reader-navigation labels need a 500ms hold and its release does not change settings", async (page, cdp) => {
+    const crop = page.locator("[data-r-crop]");
+    const label = crop.locator("small");
+    const box = await crop.boundingBox();
+    const x = box.x + box.width / 2, y = box.y + box.height / 2;
+    const cropEnabled = () => page.locator("#reader").evaluate((node) => node.classList.contains("crop"));
+    assert.equal(await labelOpacity(label), "0", "default reader controls must be icon-only");
+    await touch(cdp, "touchStart", x, y);
+    await page.waitForTimeout(120);
+    assert.equal(await labelOpacity(label), "0", "short presses must not reveal reader labels");
+    await touch(cdp, "touchEnd");
+    await page.waitForTimeout(120);
+    assert.equal(await cropEnabled(), true, "a short press keeps the reader action");
+    await crop.click();
+    await page.waitForTimeout(80);
+    assert.equal(await cropEnabled(), false);
+    await touch(cdp, "touchStart", x, y);
+    await page.waitForTimeout(620);
+    assert(Number(await labelOpacity(label)) > .9, "a 500ms hold reveals the reader label");
+    assert.equal(await crop.evaluate((node) => node.classList.contains("show-action-label")), true);
+    await touch(cdp, "touchEnd");
+    await page.waitForTimeout(160);
+    assert.equal(await cropEnabled(), false, "releasing a long press cannot alter reader settings");
+    await page.waitForTimeout(2450);
+    assert.equal(await labelOpacity(label), "0", "reader labels dismiss automatically");
+  });
+
+  await scenario("HNM-018 main navigation labels need a 500ms hold and its release does not navigate", async (page, cdp) => {
+    await page.evaluate(() => window.HanamiReader.close(true));
+    await page.waitForFunction(() => document.querySelector("#reader").classList.contains("hidden"));
+    const updates = page.locator('[data-tab="updates"]');
+    const updatesLabel = updates.locator("span");
+    const updatesBox = await updates.boundingBox();
+    const updateX = updatesBox.x + updatesBox.width / 2, updateY = updatesBox.y + updatesBox.height / 2;
+    assert.equal(await labelOpacity(updatesLabel), "0", "main navigation must be icon-only by default");
+    await touch(cdp, "touchStart", updateX, updateY);
+    await page.waitForTimeout(120);
+    assert.equal(await labelOpacity(updatesLabel), "0", "short presses must not reveal main-nav labels");
+    await touch(cdp, "touchEnd");
+    await page.waitForFunction(() => document.body.dataset.root === "updates");
+    await page.waitForTimeout(380);
+    assert.equal(await labelOpacity(updatesLabel), "0", "tab activation must not re-expose its label");
+    const history = page.locator('[data-tab="history"]');
+    const historyLabel = history.locator("span");
+    const historyBox = await history.boundingBox();
+    const historyX = historyBox.x + historyBox.width / 2, historyY = historyBox.y + historyBox.height / 2;
+    await touch(cdp, "touchStart", historyX, historyY);
+    await page.waitForTimeout(620);
+    assert(Number(await labelOpacity(historyLabel)) > .9, "a 500ms hold reveals the main-nav label");
+    assert.equal(await history.evaluate((node) => node.classList.contains("show-action-label")), true);
+    await touch(cdp, "touchEnd");
+    await page.waitForTimeout(160);
+    assert.equal(await page.evaluate(() => document.body.dataset.root), "updates", "releasing a long press cannot navigate");
+    await page.waitForTimeout(2450);
+    assert.equal(await labelOpacity(historyLabel), "0", "main-nav labels dismiss automatically");
   });
 
   if (process.env.HANAMI_HNM020_BASELINE !== "1") {

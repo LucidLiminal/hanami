@@ -29,7 +29,8 @@
     "test:e2e:back": "node tests/navigation-back-v147.e2e.mjs",
     "test:e2e:source-browser": "node tests/source-browser-v148.e2e.mjs",
     "test:e2e:music-session": "node tests/reader-music-session-v149.e2e.mjs",
-    "test:e2e:reader-actions-hnm020": "node tests/reader-page-actions-hnm020.e2e.mjs"
+    "test:e2e:reader-actions-hnm020": "node tests/reader-page-actions-hnm020.e2e.mjs",
+    "test:e2e:navigation-labels-hnm018": "HANAMI_TEST_FILTER='HNM-018' node tests/reader-page-actions-hnm020.e2e.mjs"
   },
   "engines": {
     "node": ">=20"
