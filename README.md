@@ -1,5 +1,14 @@
 # Hanami — Mihon Explore Web + Olympus
 
+## Hotfix HNM-021: versión visible unificada
+
+- **Acerca de**, la entrada de **Más**, **Ajustes** y el fallback de navegación
+  toman la versión pública de `app-version.js`.
+- La comprobación de regresión exige que ese valor coincida con `package.json`
+  y que no regresen los textos desactualizados.
+- `5.24.0` sigue siendo la versión de esta entrega en desarrollo; no cambia
+  SemVer antes de su despliegue.
+
 ## Nuevo en v150: administración de salas como pantalla
 
 - **Editar sala** abre una pantalla dedicada dentro de la pila de navegación,
@@ -10,7 +19,8 @@
   sincronización existentes.
 
 Versión `5.24.0` · Olympus `1.6.0` · caché PWA `hanami-crimson-knot-v150`.
-No requiere SQL nuevo ni borrar datos. Detalles: `GROUP_ADMINISTRATION_SCREEN_V150.md`.
+No requiere SQL nuevo ni borrar datos. Detalles:
+`GROUP_ADMINISTRATION_SCREEN_V150.md` y `ABOUT_VERSION_HNM021.md`.
 
 ## Nuevo en v149: sesión musical por capítulo
 
