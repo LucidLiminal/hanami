@@ -1,0 +1,57 @@
+/* Interactive cards own their long press on touch devices. Keep editable fields native. */
+@media (pointer: coarse) {
+  :is(
+    button,
+    a[href],
+    [role="button"],
+    [role="menuitem"],
+    [data-hanami-interactive],
+    .lib-item,
+    .updates-item,
+    .history-item,
+    .card,
+    .migrate-result-card,
+    .migrate-manga-row,
+    .reading-room-card,
+    .library-group-item,
+    .group-library-card,
+    .extension-store-card,
+    .music-discovery-card,
+    .track-card,
+    .timeline-item
+  ) {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  :is(
+    button,
+    a[href],
+    [role="button"],
+    [role="menuitem"],
+    [data-hanami-interactive],
+    .lib-item,
+    .updates-item,
+    .history-item,
+    .card,
+    .migrate-result-card,
+    .migrate-manga-row,
+    .reading-room-card,
+    .library-group-item,
+    .group-library-card,
+    .extension-store-card,
+    .music-discovery-card,
+    .track-card,
+    .timeline-item
+  ) img {
+    -webkit-user-drag: none;
+    user-select: none;
+  }
+
+  :is(input, textarea, select, [contenteditable="true"], [contenteditable="plaintext-only"], [data-allow-native-press]) {
+    -webkit-touch-callout: default;
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}

@@ -1,5 +1,14 @@
 # Hanami — Mihon Explore Web + Olympus
 
+## Hotfix HNM-024: pulsación prolongada móvil
+
+- Los ítems interactivos bloquean el menú contextual, la selección y el arrastre
+  nativos cuando se usan con entrada táctil.
+- Las imágenes de tarjetas no ofrecen copiar, descargar, compartir ni abrir en
+  Chrome al mantener pulsadas.
+- Los campos editables conservan sus comportamientos nativos y las pulsaciones
+  prolongadas propias de Hanami siguen funcionando.
+
 ## Hotfix HNM-023: barra de búsqueda global
 
 - La barra de búsqueda global distribuye Atrás, la consulta, el progreso y los
@@ -38,7 +47,8 @@
 Versión `5.24.0` · Olympus `1.6.0` · caché PWA `hanami-crimson-knot-v150`.
 No requiere SQL nuevo ni borrar datos. Detalles:
 `GROUP_ADMINISTRATION_SCREEN_V150.md`, `ABOUT_VERSION_HNM021.md` y
-`SCREEN_SCROLL_HNM022.md` y `GLOBAL_SEARCH_TOOLBAR_HNM023.md`.
+`SCREEN_SCROLL_HNM022.md`, `GLOBAL_SEARCH_TOOLBAR_HNM023.md` y
+`MOBILE_NATIVE_LONGPRESS_HNM024.md`.
 
 ## Nuevo en v149: sesión musical por capítulo
 

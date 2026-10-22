@@ -18,18 +18,23 @@ El hotfix HNM-023 reorganiza la barra de búsqueda global en filas explícitas:
 Atrás, consulta, progreso y filtros quedan visibles y sin solaparse. La
 consulta se ejecuta con Enter o con la acción Buscar del teclado móvil.
 
+El hotfix HNM-024 reserva la pulsación prolongada táctil de los ítems
+interactivos para Hanami: bloquea el menú contextual, la selección y el
+arrastre nativos, sin afectar los campos editables ni los gestos propios.
+
 ## Resultados
 
 | Comprobación | Resultado |
 | --- | --- |
-| `npm test` | 126 PASS |
+| `npm test` | 127 PASS |
 | `npm run test:e2e:group-admin-screen` | PASS |
 | `npm run test:e2e:about-version-hnm021` | PASS |
 | `npm run test:e2e:screen-scroll-hnm022` | PASS |
 | `npm run test:e2e:global-search-toolbar-hnm023` | PASS |
+| `npm run test:e2e:mobile-native-longpress-hnm024` | PASS |
 | `npm run test:e2e:reader-actions-hnm020` | 22 PASS |
 | Sintaxis de `reading-groups.js` | PASS |
-| Sintaxis de `app-version.js`, `more-tab.js`, `navigation.js`, `screen-history.js`, `app.js` y `deep-links.js` | PASS |
+| Sintaxis de `app-version.js`, `more-tab.js`, `navigation.js`, `screen-history.js`, `app.js`, `deep-links.js` y `mobile-interaction-guard.js` | PASS |
 | Validación visual móvil 390 × 844 | PASS |
 
 ## Entrega
@@ -40,4 +45,5 @@ consulta se ejecuta con Enter o con la acción Buscar del teclado móvil.
 - Documento del hotfix: `ABOUT_VERSION_HNM021.md`.
 - Documento del hotfix: `SCREEN_SCROLL_HNM022.md`.
 - Documento del hotfix: `GLOBAL_SEARCH_TOOLBAR_HNM023.md`.
+- Documento del hotfix: `MOBILE_NATIVE_LONGPRESS_HNM024.md`.
 - No hay migraciones SQL nuevas.
