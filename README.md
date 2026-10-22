@@ -1,5 +1,12 @@
 # Hanami — Mihon Explore Web + Olympus
 
+## Hotfix HNM-026: arranque directo en Biblioteca
+
+- La URL base entrega desde el HTML inicial la superficie de **Biblioteca**;
+  Explorar no llega a pintarse mientras cargan los módulos o las fuentes.
+- El panel, la navegación y el estado raíz inicial coinciden antes y después
+  de resolver la ruta.
+
 ## Hotfix HNM-025: estado de capítulos al volver
 
 - Al cerrar el lector, el detalle abierto de la obra recibe el progreso
@@ -56,7 +63,8 @@ Versión `5.24.0` · Olympus `1.6.0` · caché PWA `hanami-crimson-knot-v150`.
 No requiere SQL nuevo ni borrar datos. Detalles:
 `GROUP_ADMINISTRATION_SCREEN_V150.md`, `ABOUT_VERSION_HNM021.md` y
 `SCREEN_SCROLL_HNM022.md`, `GLOBAL_SEARCH_TOOLBAR_HNM023.md` y
-`MOBILE_NATIVE_LONGPRESS_HNM024.md` y `DETAIL_READ_STATE_HNM025.md`.
+`MOBILE_NATIVE_LONGPRESS_HNM024.md`, `DETAIL_READ_STATE_HNM025.md` e
+`INITIAL_LIBRARY_SHELL_HNM026.md`.
 
 ## Nuevo en v149: sesión musical por capítulo
 

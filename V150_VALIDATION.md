@@ -26,17 +26,22 @@ El hotfix HNM-025 sincroniza el detalle de una obra ya montado con los cambios
 de progreso de Biblioteca. Al cerrar el lector, los capítulos completados se
 repintan de inmediato con su estado visual de leídos.
 
+El hotfix HNM-026 prepara el shell estático de Biblioteca en la URL base.
+Así, el primer DOM pintable y el estado de navegación de JavaScript coinciden,
+sin un destello previo de Explorar.
+
 ## Resultados
 
 | Comprobación | Resultado |
 | --- | --- |
-| `npm test` | 128 PASS |
+| `npm test` | 129 PASS |
 | `npm run test:e2e:group-admin-screen` | PASS |
 | `npm run test:e2e:about-version-hnm021` | PASS |
 | `npm run test:e2e:screen-scroll-hnm022` | PASS |
 | `npm run test:e2e:global-search-toolbar-hnm023` | PASS |
 | `npm run test:e2e:mobile-native-longpress-hnm024` | PASS |
 | `npm run test:e2e:detail-read-state-hnm025` | PASS |
+| `npm run test:e2e:initial-library-shell-hnm026` | PASS |
 | `npm run test:e2e:reader-actions-hnm020` | 22 PASS |
 | Sintaxis de `reading-groups.js` | PASS |
 | Sintaxis de `app-version.js`, `more-tab.js`, `navigation.js`, `screen-history.js`, `app.js`, `deep-links.js`, `mobile-interaction-guard.js` y `manga-detail.js` | PASS |
@@ -50,6 +55,7 @@ repintan de inmediato con su estado visual de leídos.
 - Documento del hotfix: `ABOUT_VERSION_HNM021.md`.
 - Documento del hotfix: `SCREEN_SCROLL_HNM022.md`.
 - Documento del hotfix: `GLOBAL_SEARCH_TOOLBAR_HNM023.md`.
+- Documento del hotfix: `INITIAL_LIBRARY_SHELL_HNM026.md`.
 - Documento del hotfix: `MOBILE_NATIVE_LONGPRESS_HNM024.md`.
 - Documento del hotfix: `DETAIL_READ_STATE_HNM025.md`.
 - No hay migraciones SQL nuevas.
