@@ -1,5 +1,14 @@
 # Hanami — Mihon Explore Web + Olympus
 
+## Hotfix HNM-023: barra de búsqueda global
+
+- La barra de búsqueda global distribuye Atrás, la consulta, el progreso y los
+  filtros en filas independientes, sin solapamientos ni controles ocultos.
+- Se elimina el botón visible de búsqueda: **Enter** y la acción Buscar del
+  teclado móvil ejecutan la consulta.
+- Los filtros se ajustan en varias líneas, quedan alineados a la izquierda y
+  no se recortan horizontalmente.
+
 ## Hotfix HNM-022: scroll por pantalla
 
 - Cada pantalla o subpantalla nueva comienza arriba, en lugar de heredar el
@@ -29,7 +38,7 @@
 Versión `5.24.0` · Olympus `1.6.0` · caché PWA `hanami-crimson-knot-v150`.
 No requiere SQL nuevo ni borrar datos. Detalles:
 `GROUP_ADMINISTRATION_SCREEN_V150.md`, `ABOUT_VERSION_HNM021.md` y
-`SCREEN_SCROLL_HNM022.md`.
+`SCREEN_SCROLL_HNM022.md` y `GLOBAL_SEARCH_TOOLBAR_HNM023.md`.
 
 ## Nuevo en v149: sesión musical por capítulo
 
