@@ -30,11 +30,15 @@ El hotfix HNM-026 prepara el shell estático de Biblioteca en la URL base.
 Así, el primer DOM pintable y el estado de navegación de JavaScript coinciden,
 sin un destello previo de Explorar.
 
+El hotfix HNM-027 acota la supresión del clic de liberación al puntero y la
+tarjeta de la pulsación prolongada. El siguiente toque real de Biblioteca no
+se descarta y puede seleccionar o deseleccionar de inmediato.
+
 ## Resultados
 
 | Comprobación | Resultado |
 | --- | --- |
-| `npm test` | 129 PASS |
+| `npm test` | 130 PASS |
 | `npm run test:e2e:group-admin-screen` | PASS |
 | `npm run test:e2e:about-version-hnm021` | PASS |
 | `npm run test:e2e:screen-scroll-hnm022` | PASS |
@@ -42,6 +46,7 @@ sin un destello previo de Explorar.
 | `npm run test:e2e:mobile-native-longpress-hnm024` | PASS |
 | `npm run test:e2e:detail-read-state-hnm025` | PASS |
 | `npm run test:e2e:initial-library-shell-hnm026` | PASS |
+| `npm run test:e2e:library-selection-first-tap-hnm027` | PASS |
 | `npm run test:e2e:reader-actions-hnm020` | 22 PASS |
 | Sintaxis de `reading-groups.js` | PASS |
 | Sintaxis de `app-version.js`, `more-tab.js`, `navigation.js`, `screen-history.js`, `app.js`, `deep-links.js`, `mobile-interaction-guard.js` y `manga-detail.js` | PASS |
@@ -56,6 +61,7 @@ sin un destello previo de Explorar.
 - Documento del hotfix: `SCREEN_SCROLL_HNM022.md`.
 - Documento del hotfix: `GLOBAL_SEARCH_TOOLBAR_HNM023.md`.
 - Documento del hotfix: `INITIAL_LIBRARY_SHELL_HNM026.md`.
+- Documento del hotfix: `LIBRARY_SELECTION_FIRST_TAP_HNM027.md`.
 - Documento del hotfix: `MOBILE_NATIVE_LONGPRESS_HNM024.md`.
 - Documento del hotfix: `DETAIL_READ_STATE_HNM025.md`.
 - No hay migraciones SQL nuevas.
