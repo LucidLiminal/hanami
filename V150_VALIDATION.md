@@ -22,19 +22,24 @@ El hotfix HNM-024 reserva la pulsación prolongada táctil de los ítems
 interactivos para Hanami: bloquea el menú contextual, la selección y el
 arrastre nativos, sin afectar los campos editables ni los gestos propios.
 
+El hotfix HNM-025 sincroniza el detalle de una obra ya montado con los cambios
+de progreso de Biblioteca. Al cerrar el lector, los capítulos completados se
+repintan de inmediato con su estado visual de leídos.
+
 ## Resultados
 
 | Comprobación | Resultado |
 | --- | --- |
-| `npm test` | 127 PASS |
+| `npm test` | 128 PASS |
 | `npm run test:e2e:group-admin-screen` | PASS |
 | `npm run test:e2e:about-version-hnm021` | PASS |
 | `npm run test:e2e:screen-scroll-hnm022` | PASS |
 | `npm run test:e2e:global-search-toolbar-hnm023` | PASS |
 | `npm run test:e2e:mobile-native-longpress-hnm024` | PASS |
+| `npm run test:e2e:detail-read-state-hnm025` | PASS |
 | `npm run test:e2e:reader-actions-hnm020` | 22 PASS |
 | Sintaxis de `reading-groups.js` | PASS |
-| Sintaxis de `app-version.js`, `more-tab.js`, `navigation.js`, `screen-history.js`, `app.js`, `deep-links.js` y `mobile-interaction-guard.js` | PASS |
+| Sintaxis de `app-version.js`, `more-tab.js`, `navigation.js`, `screen-history.js`, `app.js`, `deep-links.js`, `mobile-interaction-guard.js` y `manga-detail.js` | PASS |
 | Validación visual móvil 390 × 844 | PASS |
 
 ## Entrega
@@ -46,4 +51,5 @@ arrastre nativos, sin afectar los campos editables ni los gestos propios.
 - Documento del hotfix: `SCREEN_SCROLL_HNM022.md`.
 - Documento del hotfix: `GLOBAL_SEARCH_TOOLBAR_HNM023.md`.
 - Documento del hotfix: `MOBILE_NATIVE_LONGPRESS_HNM024.md`.
+- Documento del hotfix: `DETAIL_READ_STATE_HNM025.md`.
 - No hay migraciones SQL nuevas.

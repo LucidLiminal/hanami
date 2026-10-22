@@ -1,5 +1,13 @@
 # Hanami — Mihon Explore Web + Olympus
 
+## Hotfix HNM-025: estado de capítulos al volver
+
+- Al cerrar el lector, el detalle abierto de la obra recibe el progreso
+  actualizado y repinta sus filas de capítulo sin recargar la pantalla.
+- Los capítulos completados pasan inmediatamente a su estado visual de leídos.
+- La sincronización conserva la identidad del detalle activo y no permite que
+  una ficha desmontada actualice una pantalla posterior.
+
 ## Hotfix HNM-024: pulsación prolongada móvil
 
 - Los ítems interactivos bloquean el menú contextual, la selección y el arrastre
@@ -48,7 +56,7 @@ Versión `5.24.0` · Olympus `1.6.0` · caché PWA `hanami-crimson-knot-v150`.
 No requiere SQL nuevo ni borrar datos. Detalles:
 `GROUP_ADMINISTRATION_SCREEN_V150.md`, `ABOUT_VERSION_HNM021.md` y
 `SCREEN_SCROLL_HNM022.md`, `GLOBAL_SEARCH_TOOLBAR_HNM023.md` y
-`MOBILE_NATIVE_LONGPRESS_HNM024.md`.
+`MOBILE_NATIVE_LONGPRESS_HNM024.md` y `DETAIL_READ_STATE_HNM025.md`.
 
 ## Nuevo en v149: sesión musical por capítulo
 
