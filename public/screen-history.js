@@ -39,13 +39,26 @@ const debug={
 function persist(){sessionStorage.setItem(KEY,JSON.stringify(records.slice(-80)))}
 function notify(r,action){trace(action);dispatchEvent(new CustomEvent('hanami-screen-change',{detail:{screen:{...r},action}}))}
 function record(screenId){return records.find(x=>x.id===screenId)}
+// New navigable surfaces begin at their top edge. Back/Forward keeps the
+// departed surface position, while Reader tools retain their own scroll owner.
+const ownsWindowScroll=r=>!!r&&!String(r.type||'').startsWith('reader');
+const windowScroll=()=>typeof scrollY==='number'?Math.max(0,Math.round(scrollY)):0;
+function snapshotScroll(r=record(currentId)){
+ if(!ownsWindowScroll(r)||handling||rehydratingId)return;
+ r.data={...(r.data||{}),_scrollY:windowScroll()};
+}
+function resetScroll(r){
+ if(!ownsWindowScroll(r))return;
+ const token=transition;
+ requestAnimationFrame(()=>{if(token===transition&&currentId===r.id&&!handling&&!rehydratingId)scrollTo({top:0,left:0,behavior:'instant'})});
+}
 function updateData(patch={}){const r=record(currentId);if(!r)return null;r.data={...(r.data||{}),...patch};persist();if(!rehydratingId||rehydratingId===r.id){history.replaceState({...history.state,hanamiScreenId:r.id},'');notify(r,'update')}return r}
 function registerType(types,handler){(Array.isArray(types)?types:[types]).forEach(type=>restorers.set(type,handler))}
 async function restoreCurrent(){const target=record(currentId);if(!target){reloadPending=false;return false}rehydratingId=target.id;const token=++transition,chain=[];const seen=new Set();for(let r=target;r&&!seen.has(r.id);r=record(r.parent)){seen.add(r.id);chain.unshift(r)}let restored=false,last=null;for(const r of chain){if(token!==transition)return true;const handler=restorers.get(r.type);if(!handler||r.closed)continue;currentId=r.id;const result=await handler(r);if(token!==transition)return true;if(result===false)continue;restored=true;last=r}reloadPending=false;rehydratingId=null;if(restored&&last){if(last.id!==target.id){target.closed=true;persist()}currentId=last.id;history.replaceState({...history.state,hanamiScreenId:last.id},'');notify(last,'rehydrate');requestAnimationFrame(()=>{if(currentId===last.id)scrollTo({top:Number(last.data?._scrollY)||0,behavior:'instant'})})}return restored}
 function spec(type,data={}){return{id:id(),type,data,parent:currentId,closed:false,at:Date.now()}}
 function bind(r,handlers={}){transition++;handling=false;backPending=false;reloadPending=false;rehydratingId=null;runtime.set(r.id,handlers);currentId=r.id;persist();return r}
-function push(type,data={},handlers={}){const r=spec(type,data);records.push(r);bind(r,handlers);history.pushState({...history.state,hanamiScreenId:r.id},'');notify(r,'push');return r.id}
-function replace(type,data={},handlers={}){const old=record(currentId),r={...spec(type,data),id:currentId||id(),parent:old?.parent||null};records=records.filter(x=>x.id!==r.id);records.push(r);bind(r,handlers);history.replaceState({...history.state,hanamiScreenId:r.id},'');notify(r,'replace');return r.id}
+function push(type,data={},handlers={}){snapshotScroll();const r=spec(type,data);records.push(r);bind(r,handlers);history.pushState({...history.state,hanamiScreenId:r.id},'');notify(r,'push');resetScroll(r);return r.id}
+function replace(type,data={},handlers={}){const old=record(currentId);snapshotScroll(old);const r={...spec(type,data),id:currentId||id(),parent:old?.parent||null};records=records.filter(x=>x.id!==r.id);records.push(r);bind(r,handlers);history.replaceState({...history.state,hanamiScreenId:r.id},'');notify(r,'replace');resetScroll(r);return r.id}
 function root(tab,handlers={}){const current=record(currentId),restore=handlers.restore;if(current?.type!=='root')return push('root',{tab},handlers);const currentTab=current.data?.tab||'library';if(tab===currentTab){runtime.set(current.id,handlers);notify(current,'root');return current.id}if(tab==='library'){const parent=record(current.parent);if(parent?.type==='root'&&parent.data?.tab==='library'&&!parent.closed){current.closed=true;persist();history.back();return parent.id}return replace('root',{tab},handlers)}if(currentTab==='library')return push('root',{tab},handlers);return replace('root',{tab},handlers)}
 function markClosed(screenId=currentId){const r=record(screenId);if(r){r.closed=true;persist()}return r?.parent||null}
 function ancestry(screenId){
@@ -100,7 +113,7 @@ function back(){
 async function onPop(e){
  const destination=e.state?.hanamiScreenId;
  if(!destination||(destination===currentId&&!rehydratingId)){backPending=false;return}
- const previous=currentId,r=record(destination),token=++transition;
+ const previous=currentId; snapshotScroll(record(previous)); const r=record(destination),token=++transition;
  e.stopImmediatePropagation();handling=true;currentId=destination;reloadPending=false;rehydratingId=null;
  window.HanamiOverlays?.discardForNavigation?.();
  trace('pop:start',{from:screenSummary(record(previous)),to:screenSummary(r)});

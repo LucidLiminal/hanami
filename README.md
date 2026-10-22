@@ -1,5 +1,13 @@
 # Hanami — Mihon Explore Web + Olympus
 
+## Hotfix HNM-022: scroll por pantalla
+
+- Cada pantalla o subpantalla nueva comienza arriba, en lugar de heredar el
+  desplazamiento de la superficie anterior.
+- Atrás y Adelante restauran la posición guardada de la pantalla de origen.
+- Las capas del lector conservan su propio propietario de scroll y no desplazan
+  el documento subyacente.
+
 ## Hotfix HNM-021: versión visible unificada
 
 - **Acerca de**, la entrada de **Más**, **Ajustes** y el fallback de navegación
@@ -20,7 +28,8 @@
 
 Versión `5.24.0` · Olympus `1.6.0` · caché PWA `hanami-crimson-knot-v150`.
 No requiere SQL nuevo ni borrar datos. Detalles:
-`GROUP_ADMINISTRATION_SCREEN_V150.md` y `ABOUT_VERSION_HNM021.md`.
+`GROUP_ADMINISTRATION_SCREEN_V150.md`, `ABOUT_VERSION_HNM021.md` y
+`SCREEN_SCROLL_HNM022.md`.
 
 ## Nuevo en v149: sesión musical por capítulo
 
