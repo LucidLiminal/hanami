@@ -34,11 +34,15 @@ El hotfix HNM-027 acota la supresión del clic de liberación al puntero y la
 tarjeta de la pulsación prolongada. El siguiente toque real de Biblioteca no
 se descarta y puede seleccionar o deseleccionar de inmediato.
 
+El hotfix HNM-028 reserva el puntero que toca el backdrop de un modal hasta
+que se complete su liberación. Así el cierre no entrega `pointerup` ni `click`
+a los controles que quedan debajo.
+
 ## Resultados
 
 | Comprobación | Resultado |
 | --- | --- |
-| `npm test` | 130 PASS |
+| `npm test` | 131 PASS |
 | `npm run test:e2e:group-admin-screen` | PASS |
 | `npm run test:e2e:about-version-hnm021` | PASS |
 | `npm run test:e2e:screen-scroll-hnm022` | PASS |
@@ -47,6 +51,7 @@ se descarta y puede seleccionar o deseleccionar de inmediato.
 | `npm run test:e2e:detail-read-state-hnm025` | PASS |
 | `npm run test:e2e:initial-library-shell-hnm026` | PASS |
 | `npm run test:e2e:library-selection-first-tap-hnm027` | PASS |
+| `npm run test:e2e:modal-backdrop-target-guard-hnm028` | PASS |
 | `npm run test:e2e:reader-actions-hnm020` | 22 PASS |
 | Sintaxis de `reading-groups.js` | PASS |
 | Sintaxis de `app-version.js`, `more-tab.js`, `navigation.js`, `screen-history.js`, `app.js`, `deep-links.js`, `mobile-interaction-guard.js` y `manga-detail.js` | PASS |
@@ -62,6 +67,7 @@ se descarta y puede seleccionar o deseleccionar de inmediato.
 - Documento del hotfix: `GLOBAL_SEARCH_TOOLBAR_HNM023.md`.
 - Documento del hotfix: `INITIAL_LIBRARY_SHELL_HNM026.md`.
 - Documento del hotfix: `LIBRARY_SELECTION_FIRST_TAP_HNM027.md`.
+- Documento del hotfix: `MODAL_BACKDROP_TARGET_GUARD_HNM028.md`.
 - Documento del hotfix: `MOBILE_NATIVE_LONGPRESS_HNM024.md`.
 - Documento del hotfix: `DETAIL_READ_STATE_HNM025.md`.
 - No hay migraciones SQL nuevas.

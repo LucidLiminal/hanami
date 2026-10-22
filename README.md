@@ -1,5 +1,12 @@
 # Hanami — Mihon Explore Web + Olympus
 
+## Hotfix HNM-028: backdrop de modal seguro
+
+- Un toque exterior cierra el modal sin dejar que su liberación active el
+  control que permanece por debajo.
+- La protección se limita al puntero que inició el cierre y no afecta a los
+  clics posteriores.
+
 ## Hotfix HNM-027: primer toque de selección
 
 - Tras una pulsación prolongada de una obra, el primer toque posterior vuelve a
@@ -71,7 +78,8 @@ No requiere SQL nuevo ni borrar datos. Detalles:
 `GROUP_ADMINISTRATION_SCREEN_V150.md`, `ABOUT_VERSION_HNM021.md` y
 `SCREEN_SCROLL_HNM022.md`, `GLOBAL_SEARCH_TOOLBAR_HNM023.md` y
 `MOBILE_NATIVE_LONGPRESS_HNM024.md`, `DETAIL_READ_STATE_HNM025.md` e
-`INITIAL_LIBRARY_SHELL_HNM026.md` y `LIBRARY_SELECTION_FIRST_TAP_HNM027.md`.
+`INITIAL_LIBRARY_SHELL_HNM026.md`, `LIBRARY_SELECTION_FIRST_TAP_HNM027.md` y
+`MODAL_BACKDROP_TARGET_GUARD_HNM028.md`.
 
 ## Nuevo en v149: sesión musical por capítulo
 
