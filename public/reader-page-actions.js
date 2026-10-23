@@ -1,6 +1,6 @@
 /*
  * Browser adaptation of Mihon's ReaderPageActionsDialog / ReaderViewModel.
- * See THIRD_PARTY_NOTICES.md for the upstream sources and license.
+ * See ../docs/overview/THIRD_PARTY_NOTICES.md for the upstream sources and license.
  */
 const esc = (value) =>
   String(value ?? "").replace(

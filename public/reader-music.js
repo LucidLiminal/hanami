@@ -3,7 +3,7 @@ import { playerHtml, syncPlayer, installPlayerUI, closeTool } from "./reader-pla
 /*
  * Hanami Reader Music — browser adaptation informed by TSuki's GPL-3.0
  * MediaTrack, local library, editable queue and compact/full player concepts.
- * Upstream attribution: THIRD_PARTY_NOTICES.md
+ * Upstream attribution: ../docs/overview/THIRD_PARTY_NOTICES.md
  */
 const DB_NAME = "hanami-reader-music-v1";
 const DB_VERSION = 1;

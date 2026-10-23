@@ -99,5 +99,5 @@ da por cerrado HNM-028 únicamente por las pruebas locales.
 
 `Hanami-5.24.0-HNM-028-R2-overlay-click-boundary-fix.zip` contiene el proyecto
 completo sin carpeta contenedora, las pruebas revisadas y el manifiesto
-`V150_FILE_MANIFEST.sha256`. La entrega se comprueba por CRC, manifiesto SHA-256
+`../../../checksums/current/V150_FILE_MANIFEST.sha256`. La entrega se comprueba por CRC, manifiesto SHA-256
 y ejecución de pruebas tras extraer el ZIP.

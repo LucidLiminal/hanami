@@ -66,15 +66,15 @@ La incidencia permanece pendiente de confirmación en el dispositivo original.
 
 - Versión de paquete: `5.24.0`.
 - Identificador de caché PWA: `hanami-crimson-knot-v150-hnm028-r2`.
-- Documento de cambio: `GROUP_ADMINISTRATION_SCREEN_V150.md`.
-- Documento del hotfix: `ABOUT_VERSION_HNM021.md`.
-- Documento del hotfix: `SCREEN_SCROLL_HNM022.md`.
-- Documento del hotfix: `GLOBAL_SEARCH_TOOLBAR_HNM023.md`.
-- Documento del hotfix: `INITIAL_LIBRARY_SHELL_HNM026.md`.
-- Documento del hotfix: `LIBRARY_SELECTION_FIRST_TAP_HNM027.md`.
-- Documento del hotfix: `MODAL_BACKDROP_TARGET_GUARD_HNM028.md`.
-- Documento del hotfix: `MOBILE_NATIVE_LONGPRESS_HNM024.md`.
-- Documento del hotfix: `DETAIL_READ_STATE_HNM025.md`.
+- Documento de cambio: `../../features/groups/GROUP_ADMINISTRATION_SCREEN_V150.md`.
+- Documento del hotfix: `../hotfixes/ABOUT_VERSION_HNM021.md`.
+- Documento del hotfix: `../hotfixes/SCREEN_SCROLL_HNM022.md`.
+- Documento del hotfix: `../hotfixes/GLOBAL_SEARCH_TOOLBAR_HNM023.md`.
+- Documento del hotfix: `../hotfixes/INITIAL_LIBRARY_SHELL_HNM026.md`.
+- Documento del hotfix: `../hotfixes/LIBRARY_SELECTION_FIRST_TAP_HNM027.md`.
+- Documento del hotfix: `../hotfixes/MODAL_BACKDROP_TARGET_GUARD_HNM028.md`.
+- Documento del hotfix: `../hotfixes/MOBILE_NATIVE_LONGPRESS_HNM024.md`.
+- Documento del hotfix: `../hotfixes/DETAIL_READ_STATE_HNM025.md`.
 - No hay migraciones SQL nuevas.
 ## Límites y comprobaciones que no pasan
 
@@ -91,3 +91,7 @@ La incidencia permanece pendiente de confirmación en el dispositivo original.
   confirmar el resultado en el navegador y dispositivo originales, así como
   cualquier mejora de rendimiento de extremo a extremo.
 - Ninguna prueba local implica que esta revisión ya esté desplegada.
+
+## Organización de la raíz
+
+La documentación Markdown se reubicó bajo `docs/` por área funcional y los siete manifiestos SHA-256 se trasladaron a `checksums/`. El manifiesto vigente es `checksums/current/V150_FILE_MANIFEST.sha256`; los manifiestos v144–v149 se preservan como archivos históricos en `checksums/archive/`. El inventario completo y el procedimiento de verificación están en `docs/ROOT_FILES_RELOCATION.md` y `checksums/README.md`.

@@ -1,4 +1,4 @@
-> Nota: este documento describe una versión histórica. El modelo de ejecución local fue sustituido por `LOCAL_BROWSER_EXTENSIONS_V89.md`.
+> Nota: este documento describe una versión histórica. El modelo de ejecución local fue sustituido por `../operations/LOCAL_BROWSER_EXTENSIONS_V89.md`.
 
 # Contrato estricto de extensiones Hanami — v88
 

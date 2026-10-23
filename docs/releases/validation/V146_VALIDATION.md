@@ -35,7 +35,7 @@ No requiere SQL nuevo por Olympus. Se mantienen la función de portadas v145 y
 su migración, necesaria si aún no fue aplicada. Desplegar el proyecto completo
 en el mismo Vercel y recargar la PWA, sin borrar los datos del navegador.
 
-Usar V146_FILE_MANIFEST.sha256 para esta entrega. Los documentos y manifiestos
+Usar ../../../checksums/archive/V146_FILE_MANIFEST.sha256 para esta entrega. Los documentos y manifiestos
 V144/V145 conservados son históricos. Guía: OLYMPUS_PUBLIC_CHAPTERS_V146.md.
 Los totales y respuestas de Olympus reflejan la comprobación de esta entrega y
 pueden cambiar posteriormente.

@@ -1,5 +1,7 @@
 # Hanami — Mihon Explore Web + Olympus
 
+> La documentación se organiza por área en [`../INDEX.md`](../INDEX.md). Los manifiestos de integridad se encuentran en [`../../checksums/README.md`](../../checksums/README.md).
+
 ## Hotfix HNM-028 R2: cierre exterior de todos los paneles
 
 - Sustituye la entrega anterior, que no cubría los filtros `.md-settings` ni
@@ -84,15 +86,15 @@
 
 Versión `5.24.0` · Olympus `1.6.0` · caché PWA `hanami-crimson-knot-v150-hnm028-r2`.
 No requiere SQL nuevo ni borrar datos. Detalles:
-`GROUP_ADMINISTRATION_SCREEN_V150.md`, `ABOUT_VERSION_HNM021.md` y
-`SCREEN_SCROLL_HNM022.md`, `GLOBAL_SEARCH_TOOLBAR_HNM023.md` y
-`MOBILE_NATIVE_LONGPRESS_HNM024.md`, `DETAIL_READ_STATE_HNM025.md` e
-`INITIAL_LIBRARY_SHELL_HNM026.md`, `LIBRARY_SELECTION_FIRST_TAP_HNM027.md` y
-`MODAL_BACKDROP_TARGET_GUARD_HNM028.md`.
+`../features/groups/GROUP_ADMINISTRATION_SCREEN_V150.md`, `../releases/hotfixes/ABOUT_VERSION_HNM021.md` y
+`../releases/hotfixes/SCREEN_SCROLL_HNM022.md`, `../releases/hotfixes/GLOBAL_SEARCH_TOOLBAR_HNM023.md` y
+`../releases/hotfixes/MOBILE_NATIVE_LONGPRESS_HNM024.md`, `../releases/hotfixes/DETAIL_READ_STATE_HNM025.md` e
+`../releases/hotfixes/INITIAL_LIBRARY_SHELL_HNM026.md`, `../releases/hotfixes/LIBRARY_SELECTION_FIRST_TAP_HNM027.md` y
+`../releases/hotfixes/MODAL_BACKDROP_TARGET_GUARD_HNM028.md`.
 
 ## Nuevo en v149: sesión musical por capítulo
 
-Al cerrar el lector o cambiar de capítulo, Hanami detiene el audio, vacía la cola y cierra el reproductor. La biblioteca y las listas personales se conservan. Detalles: `READER_MUSIC_SESSION_V149.md`.
+Al cerrar el lector o cambiar de capítulo, Hanami detiene el audio, vacía la cola y cierra el reproductor. La biblioteca y las listas personales se conservan. Detalles: `../features/reader/READER_MUSIC_SESSION_V149.md`.
 
 Primer port manual del catálogo TypeScript de Hanami. Funciona como un único proyecto de Vercel: no usa Docker, Java, Miwayomi ni APK.
 
@@ -115,7 +117,7 @@ Primer port manual del catálogo TypeScript de Hanami. Funciona como un único p
 Versión `5.23.0` · Olympus `1.6.0` · caché PWA `hanami-crimson-knot-v149`.
 Se conservan los arreglos v147, los capítulos públicos v146 y las portadas v145.
 **No requiere SQL nuevo ni borrar datos.** Despliega el proyecto completo en el
-mismo dominio. Guías: `SOURCE_BROWSER_V148.md` y `READER_MUSIC_SESSION_V149.md`; pruebas: `V148_VALIDATION.md` y `V149_VALIDATION.md`.
+mismo dominio. Guías: `../features/explore/SOURCE_BROWSER_V148.md` y `../features/reader/READER_MUSIC_SESSION_V149.md`; pruebas: `../releases/validation/V148_VALIDATION.md` y `../releases/validation/V149_VALIDATION.md`.
 
 ## Nuevo en v147: retroceso y ciclo de vida de pantallas
 
@@ -129,14 +131,14 @@ mismo dominio. Guías: `SOURCE_BROWSER_V148.md` y `READER_MUSIC_SESSION_V149.md`
   ficha o el lector después de salir. Incluye biblioteca personal y grupos.
 - Diagnóstico opcional: `HanamiScreens.debug.enable()` y
   `HanamiScreens.debug.report()`. Desactivado por defecto; guía en
-  `NAVIGATION_BACK_V147.md` y comprobaciones en `V147_VALIDATION.md`.
+  `../features/navigation/NAVIGATION_BACK_V147.md` y comprobaciones en `../releases/validation/V147_VALIDATION.md`.
 
 Versión `5.21.0` · Olympus `1.5.0` · caché PWA `hanami-crimson-knot-v147`.
 Se conservan la recuperación pública de Olympus v146 y las portadas v145.
 No requiere SQL nuevo ni borrar datos del navegador.
 
 **No hay SQL nuevo por Olympus.** Se conservan las mejoras y la migración de
-portadas v145. Detalles y despliegue: `OLYMPUS_PUBLIC_CHAPTERS_V146.md`.
+portadas v145. Detalles y despliegue: `../features/explore/OLYMPUS_PUBLIC_CHAPTERS_V146.md`.
 
 ## Nuevo en v145: portadas ligeras y sin acumulación
 
@@ -149,7 +151,7 @@ portadas v145. Detalles y despliegue: `OLYMPUS_PUBLIC_CHAPTERS_V146.md`.
 Versión `5.19.0` · caché PWA `hanami-crimson-knot-v145`.
 **Aplicar `supabase/hanami-group-cover-storage-v145.sql` antes de desplegar.**
 Los archivos antiguos se limpian al sustituir la portada con esta versión.
-Guía, despliegue y límites: `GROUP_COVER_STORAGE_V145.md`.
+Guía, despliegue y límites: `../features/groups/GROUP_COVER_STORAGE_V145.md`.
 
 ## Nuevo en v144: identidad estable y recuperación segura
 
@@ -168,7 +170,7 @@ Versión `5.18.0` · caché PWA `hanami-crimson-knot-v144` · Olympus `1.4.0`.
 `supabase/hanami-chapter-identity-v144.sql` antes de desplegar en el mismo
 proyecto y dominio de Vercel. No borres los datos del navegador ni cambies de
 origen para hacer la migración. Guía, compatibilidad y límites:
-`CHAPTER_IDENTITY_V144.md`.
+`../features/reader/CHAPTER_IDENTITY_V144.md`.
 
 ## Nuevo en v143: capas visibles y estables en el lector
 
@@ -182,7 +184,7 @@ origen para hacer la migración. Guía, compatibilidad y límites:
 
 Versión `5.17.0` · caché PWA `hanami-crimson-knot-v143`.
 No hay una migración SQL nueva. Detalles y pruebas:
-`READER_OVERLAY_STABILITY_V143.md`.
+`../features/reader/READER_OVERLAY_STABILITY_V143.md`.
 
 ## Nuevo en v142: comentarios anclados tras recargar
 
@@ -195,7 +197,7 @@ No hay una migración SQL nueva. Detalles y pruebas:
 
 Versión `5.16.0` · caché PWA `hanami-crimson-knot-v142`.
 No hay una migración SQL nueva. Detalles y pruebas:
-`READER_COMMENT_COORDINATES_V142.md`.
+`../features/reader/READER_COMMENT_COORDINATES_V142.md`.
 
 ## Nuevo en v141: arrastre de pins estable en táctil
 
@@ -210,7 +212,7 @@ No hay una migración SQL nueva. Detalles y pruebas:
 
 Versión `5.15.0` · caché PWA `hanami-crimson-knot-v141`.
 No hay una migración SQL nueva. Detalles y pruebas:
-`READER_MUSIC_V141.md`.
+`../features/reader/READER_MUSIC_V141.md`.
 
 ## Nuevo en v140: sincronización completa de música de grupo
 
@@ -225,7 +227,7 @@ No hay una migración SQL nueva. Detalles y pruebas:
 
 Versión `5.14.0` · caché PWA `hanami-crimson-knot-v140`.
 No hay una migración SQL nueva. Detalles y pruebas:
-`READER_MUSIC_V140.md`.
+`../features/reader/READER_MUSIC_V140.md`.
 
 ## Nuevo en v139: cambiar y recolocar los pins musicales
 
@@ -242,7 +244,7 @@ No hay una migración SQL nueva. Detalles y pruebas:
 
 Versión `5.13.0` · caché PWA `hanami-crimson-knot-v139`.
 No hay una migración SQL nueva. Detalles y pruebas:
-`READER_MUSIC_V139.md`.
+`../features/reader/READER_MUSIC_V139.md`.
 
 ## Nuevo en v138: tarjetas laterales, listas locales y reproducción continua
 
@@ -262,7 +264,7 @@ No hay una migración SQL nueva. Detalles y pruebas:
 Versión `5.12.0` · caché PWA `hanami-crimson-knot-v138`.
 No hay una migración SQL nueva: si v137 ya estaba configurada, basta con
 desplegar este proyecto y recargar o reabrir la PWA.
-Detalles y pruebas: `READER_MUSIC_V138.md`.
+Detalles y pruebas: `../features/reader/READER_MUSIC_V138.md`.
 
 ## Nuevo en v137: reproductor completo y música compartida
 
@@ -282,7 +284,7 @@ Para activar **pistas compartidas**, ejecuta
 con las migraciones sociales v117 y v124 ya aplicadas. El ZIP incluye la
 migración, pero no la ejecuta en producción.
 
-Detalles de modos, privacidad, límites y pruebas: `READER_PLAYER_V137.md`.
+Detalles de modos, privacidad, límites y pruebas: `../features/reader/READER_PLAYER_V137.md`.
 Versión `5.11.0` · caché PWA `hanami-crimson-knot-v137`.
 Después de desplegar, recarga o reabre la PWA.
 
@@ -305,7 +307,7 @@ sesión existente; no se necesita una clave `service_role` en el cliente.
 Sin servidor, migración, conexión o actividad suficiente se muestra el estado
 correspondiente, nunca una lista ficticia de canciones.
 
-Detalles, límites de navegador y pruebas: `READER_PAGE_ACTIONS_V136.md`.
+Detalles, límites de navegador y pruebas: `../features/reader/READER_PAGE_ACTIONS_V136.md`.
 El selector continúa separado del reproductor completo de v137.
 
 ## Incluido
@@ -434,7 +436,7 @@ un enlace a la pista original. Shazam y algunos proveedores de letras son
 servicios externos y pueden cambiar o limitar solicitudes; el micrófono solo se
 activa tras una acción explícita.
 
-Consulta `READER_PLAYER_V137.md`, `SOUNDCLOUD_WIDGET_V135.md`, `READER_MUSIC_V128.md` y
+Consulta `../features/reader/READER_PLAYER_V137.md`, `../features/reader/SOUNDCLOUD_WIDGET_V135.md`, `../features/reader/READER_MUSIC_V128.md` y
 `THIRD_PARTY_NOTICES.md` para la arquitectura, configuración y atribución.
 
 ## Identidad visual v133

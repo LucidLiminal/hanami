@@ -76,7 +76,7 @@ no está relacionada con el error 520 de Olympus.
   lector y conservación del progreso en móvil y escritorio sin producción.
 - Comprobación real de lectura: URL antigua y canónica de El mecánico legendario,
   metadatos y todas las páginas públicas de capítulos. El resultado observado
-  se registra en `V146_VALIDATION.md`; el total puede cambiar después.
+  se registra en `../../releases/validation/V146_VALIDATION.md`; el total puede cambiar después.
 
 Las pruebas de navegador requieren Playwright, Sharp y Chromium local
 (`CHROMIUM_PATH` permite indicar su ejecutable).

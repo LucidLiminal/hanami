@@ -122,4 +122,4 @@ npm run test:e2e:back
 
 Las E2E necesitan Playwright y Chromium en el entorno de desarrollo. Los fixtures
 no acceden a servicios externos ni modifican proyectos de Supabase o Vercel.
-Resultados y alcance: `V148_VALIDATION.md`.
+Resultados y alcance: `../../releases/validation/V148_VALIDATION.md`.

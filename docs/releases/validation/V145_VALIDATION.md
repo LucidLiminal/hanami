@@ -31,5 +31,5 @@ la eliminación física deberán verificarse después de aplicar el SQL y desple
 El SQL no borra imágenes antiguas: se normalizan y limpian al sustituirlas con
 v145. Una limpieza fallida puede dejar duplicados antiguos temporalmente.
 
-Usar V145_FILE_MANIFEST.sha256 para verificar esta entrega. Los documentos y
+Usar ../../../checksums/archive/V145_FILE_MANIFEST.sha256 para verificar esta entrega. Los documentos y
 manifiestos V144 conservados son históricos. Detalles: GROUP_COVER_STORAGE_V145.md.

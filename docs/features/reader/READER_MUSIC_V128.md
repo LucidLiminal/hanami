@@ -52,7 +52,7 @@ Provider-specific native extractors, Android equalizer effects and Together
 sessions were not copied. External playback uses documented web integrations;
 Hanami does not bypass advertisements, DRM or protected streaming services.
 
-See `THIRD_PARTY_NOTICES.md` and
+See `../../overview/THIRD_PARTY_NOTICES.md` and
 `docs/licenses/TSuki-GPL-3.0.txt`.
 
 ## Regression coverage

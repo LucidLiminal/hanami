@@ -107,9 +107,9 @@ visualmente ocultas son intencionales, no fallos de layout.
 - Manifiesto, registro y exportación de Olympus coinciden en `1.6.0`.
 - No se modifica ningún archivo SQL ni el esquema de Supabase.
 - Los manifiestos de versiones anteriores se conservan como histórico.
-  `V148_FILE_MANIFEST.sha256` es el inventario correspondiente a esta entrega.
+  `../../../checksums/archive/V148_FILE_MANIFEST.sha256` es el inventario correspondiente a esta entrega.
 - El paquete está preparado para desplegar; no se ha desplegado en producción.
 
 Desplegar el proyecto completo en el mismo origen. No borrar almacenamiento
 del navegador, bibliotecas, grupos, archivos ni cachés de lectura del usuario.
-Detalles: `SOURCE_BROWSER_V148.md`.
+Detalles: `../../features/explore/SOURCE_BROWSER_V148.md`.

@@ -20,4 +20,4 @@ La cola de música se descarta al cerrar el lector y antes de pasar a otro capí
 - La caché PWA cambia a `hanami-crimson-knot-v149` para que Vercel instale los módulos nuevos al desplegar el proyecto completo.
 - Las migraciones y archivos SQL se mantienen sin cambios frente a v148.
 
-Detalles funcionales: `READER_MUSIC_SESSION_V149.md`.
+Detalles funcionales: `../../features/reader/READER_MUSIC_SESSION_V149.md`.
