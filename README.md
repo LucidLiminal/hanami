@@ -1,11 +1,20 @@
 # Hanami — Mihon Explore Web + Olympus
 
-## Hotfix HNM-028: backdrop de modal seguro
+## Hotfix HNM-028 R2: cierre exterior de todos los paneles
 
-- Un toque exterior cierra el modal sin dejar que su liberación active el
-  control que permanece por debajo.
-- La protección se limita al puntero que inició el cierre y no afecta a los
-  clics posteriores.
+- Sustituye la entrega anterior, que no cubría los filtros `.md-settings` ni
+  los menús no nativos y cuyo test sintetizaba solo un caso de `<dialog>`.
+- Filtros, menús y diálogos permanecen activos hasta consumir el clic exterior
+  en captura; no se cierran en `pointerdown` ni `pointerup` y no dejan pasar
+  ese gesto a los controles inferiores. No hay temporizador de supresión.
+- El primer toque deliberado posterior funciona; el padding del diálogo no se
+  confunde con el backdrop y se conservan las acciones internas, Escape y Atrás.
+- El observador evita barridos completos por cambios de clase ajenos a las
+  capas: 40 cambios de prueba pasan de 40 barridos a 0. No es un benchmark
+  global de rendimiento.
+- Incluye regresiones con toques/ratón reales y actualización de una PWA previa
+  con arranque offline. Candidata validada localmente; pendiente de confirmar
+  en el dispositivo del reporte.
 
 ## Hotfix HNM-027: primer toque de selección
 
@@ -73,7 +82,7 @@
 - Nombre, frase y portada conservan la misma validación, optimización y
   sincronización existentes.
 
-Versión `5.24.0` · Olympus `1.6.0` · caché PWA `hanami-crimson-knot-v150`.
+Versión `5.24.0` · Olympus `1.6.0` · caché PWA `hanami-crimson-knot-v150-hnm028-r2`.
 No requiere SQL nuevo ni borrar datos. Detalles:
 `GROUP_ADMINISTRATION_SCREEN_V150.md`, `ABOUT_VERSION_HNM021.md` y
 `SCREEN_SCROLL_HNM022.md`, `GLOBAL_SEARCH_TOOLBAR_HNM023.md` y

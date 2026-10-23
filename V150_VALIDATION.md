@@ -1,6 +1,6 @@
 # Validación de v150
 
-Hanami `5.24.0` · PWA `hanami-crimson-knot-v150`.
+Hanami `5.24.0` · PWA `hanami-crimson-knot-v150-hnm028-r2`.
 
 ## Alcance
 
@@ -34,9 +34,11 @@ El hotfix HNM-027 acota la supresión del clic de liberación al puntero y la
 tarjeta de la pulsación prolongada. El siguiente toque real de Biblioteca no
 se descarta y puede seleccionar o deseleccionar de inmediato.
 
-El hotfix HNM-028 reserva el puntero que toca el backdrop de un modal hasta
-que se complete su liberación. Así el cierre no entrega `pointerup` ni `click`
-a los controles que quedan debajo.
+El hotfix HNM-028 R2 sustituye la protección anterior limitada a `<dialog>`.
+Los filtros `.md-settings`, los menús y los diálogos consumen el clic exterior
+antes de cerrar, sin cierres en `pointerdown`/`pointerup` ni temporizadores.
+La observación de mutaciones se limita a cambios relevantes para las capas.
+La incidencia permanece pendiente de confirmación en el dispositivo original.
 
 ## Resultados
 
@@ -51,7 +53,10 @@ a los controles que quedan debajo.
 | `npm run test:e2e:detail-read-state-hnm025` | PASS |
 | `npm run test:e2e:initial-library-shell-hnm026` | PASS |
 | `npm run test:e2e:library-selection-first-tap-hnm027` | PASS |
-| `npm run test:e2e:modal-backdrop-target-guard-hnm028` | PASS |
+| `npm run test:e2e:modal-backdrop-target-guard-hnm028` | PASS: Chromium táctil 390 × 844 y escritorio 1280 × 900 |
+| `npm run test:e2e:modal-update-hnm028` | PASS: PWA previa, actualización, offline y conservación de cachés de datos válidos |
+| `npm run test:e2e:music-session` | PASS |
+| 40 cambios de clase ajenos a las capas | 0 barridos completos (40 con el código anterior) |
 | `npm run test:e2e:reader-actions-hnm020` | 22 PASS |
 | Sintaxis de `reading-groups.js` | PASS |
 | Sintaxis de `app-version.js`, `more-tab.js`, `navigation.js`, `screen-history.js`, `app.js`, `deep-links.js`, `mobile-interaction-guard.js` y `manga-detail.js` | PASS |
@@ -60,7 +65,7 @@ a los controles que quedan debajo.
 ## Entrega
 
 - Versión de paquete: `5.24.0`.
-- Identificador de caché PWA: `hanami-crimson-knot-v150`.
+- Identificador de caché PWA: `hanami-crimson-knot-v150-hnm028-r2`.
 - Documento de cambio: `GROUP_ADMINISTRATION_SCREEN_V150.md`.
 - Documento del hotfix: `ABOUT_VERSION_HNM021.md`.
 - Documento del hotfix: `SCREEN_SCROLL_HNM022.md`.
@@ -71,3 +76,18 @@ a los controles que quedan debajo.
 - Documento del hotfix: `MOBILE_NATIVE_LONGPRESS_HNM024.md`.
 - Documento del hotfix: `DETAIL_READ_STATE_HNM025.md`.
 - No hay migraciones SQL nuevas.
+## Límites y comprobaciones que no pasan
+
+- La misma nueva E2E falla con el `overlay-dismiss.js` del ZIP anterior:
+  tocar Atrás fuera de los filtros también desmonta la ficha. En R2 conserva
+  la ficha y consume todos los eventos del botón inferior.
+- `npm run test:e2e:back` no pasa: la suite histórica v147 registra
+  «La copia previa sigue en curso» durante el arranque del subsistema de
+  copias. Se repitió contra el código anterior y contra R2; ambas ejecuciones
+  produjeron 59 escenarios fallidos con ese diagnóstico. No se etiqueta PASS
+  ni se modifica aquí el subsistema de copias. Las pruebas específicas de
+  Atrás/Escape de HNM-028 y las otras regresiones enumeradas sí pasan.
+- No hay WebKit/Safari ni Firefox instalados en el entorno de prueba. Falta
+  confirmar el resultado en el navegador y dispositivo originales, así como
+  cualquier mejora de rendimiento de extremo a extremo.
+- Ninguna prueba local implica que esta revisión ya esté desplegada.

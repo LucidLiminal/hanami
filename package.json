@@ -38,9 +38,10 @@
     "test:e2e:library-nav-hnm017": "HANAMI_TEST_FILTER='HNM-017' node tests/reader-page-actions-hnm020.e2e.mjs",
     "test:e2e:mobile-native-longpress-hnm024": "node tests/mobile-native-longpress-hnm024.e2e.mjs",
     "test:e2e:detail-read-state-hnm025": "node tests/detail-read-state-hnm025.e2e.mjs",
-  "test:e2e:initial-library-shell-hnm026": "node tests/initial-library-shell-hnm026.e2e.mjs",
-  "test:e2e:library-selection-first-tap-hnm027": "node tests/library-selection-first-tap-hnm027.e2e.mjs",
-  "test:e2e:modal-backdrop-target-guard-hnm028": "node tests/modal-backdrop-target-guard-hnm028.e2e.mjs"
+    "test:e2e:initial-library-shell-hnm026": "node tests/initial-library-shell-hnm026.e2e.mjs",
+    "test:e2e:library-selection-first-tap-hnm027": "node tests/library-selection-first-tap-hnm027.e2e.mjs",
+    "test:e2e:modal-backdrop-target-guard-hnm028": "node tests/modal-backdrop-target-guard-hnm028.e2e.mjs",
+    "test:e2e:modal-update-hnm028": "node tests/modal-update-hnm028.e2e.mjs"
   },
   "engines": {
     "node": ">=20"
