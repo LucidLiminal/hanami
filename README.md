@@ -1,6 +1,17 @@
 # Hanami — Mihon Explore Web + Olympus
 
-> La documentación se organiza por área en [`../INDEX.md`](../INDEX.md). Los manifiestos de integridad se encuentran en [`../../checksums/README.md`](../../checksums/README.md).
+Hanami es una aplicación web/PWA para explorar fuentes de manga y manhwa, organizar una biblioteca y leer capítulos, con grupos de lectura, comentarios y música integrada.
+
+## Documentación
+
+- [Índice de documentación](docs/INDEX.md): acceso a la documentación técnica, funcional y de mantenimiento por área.
+- [Manifiestos de integridad](checksums/README.md): cómo verificar la entrega actual y consultar los manifiestos históricos.
+- [Avisos de terceros](docs/overview/THIRD_PARTY_NOTICES.md): atribuciones y licencias de componentes externos.
+
+## Licencia
+
+El estado de la licencia del proyecto y las referencias a componentes de terceros se describen en [LICENSE](LICENSE).
+
 
 ## Hotfix HNM-028 R2: cierre exterior de todos los paneles
 
@@ -441,4 +452,4 @@ Consulta `../features/reader/READER_PLAYER_V137.md`, `../features/reader/SOUNDCL
 
 ## Identidad visual v133
 
-La piel **Crimson Knot** incorpora el logo de nudo y agujas, una paleta cálida carmesí y recursos PWA renovados. Consulta [BRANDING_V133.md](BRANDING_V133.md).
+La piel **Crimson Knot** incorpora el logo de nudo y agujas, una paleta cálida carmesí y recursos PWA renovados. Consulta [BRANDING_V133.md](docs/overview/BRANDING_V133.md).

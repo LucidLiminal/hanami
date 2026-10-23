@@ -1,13 +1,18 @@
 # Reorganización de los archivos de la raíz
 
-Esta entrega traslada los documentos Markdown y los manifiestos SHA-256 que estaban en la raíz, sin cambiar el contenido funcional de la aplicación.
+Esta entrega trasladó los documentos Markdown y los manifiestos SHA-256 que estaban en la raíz, sin cambiar el contenido funcional de la aplicación. La portada de GitHub posterior devuelve exclusivamente `README.md` y `LICENSE` a la raíz.
 
 ## Convención final
 
-- La raíz contiene archivos operativos y de configuración (`package.json`, `dev.mjs`, `vercel.json` y archivos de entorno).
+- La raíz conserva los puntos de entrada convencionales de GitHub (`README.md` y `LICENSE`) junto con los archivos operativos y de configuración (`package.json`, `dev.mjs`, `vercel.json` y archivos de entorno).
 - `docs/` agrupa la documentación por área funcional, operación y release.
 - `checksums/current/` contiene el manifiesto verificable del estado actual.
 - `checksums/archive/` preserva los manifiestos históricos de v144 a v149 como registros de sus entregas originales.
+
+## Documentos convencionales de GitHub en la raíz
+
+- `README.md` — portada principal y acceso a `docs/INDEX.md`.
+- `LICENSE` — estado de licencia del proyecto y referencias a los avisos de terceros.
 
 ## Inventario trasladado
 
@@ -143,12 +148,11 @@ Esta entrega traslada los documentos Markdown y los manifiestos SHA-256 que esta
 - `RUNTIME_CONSOLE_FIXES_V130.md`
 - `SETTINGS_DATA_SCREEN_PORT_V74.md`
 
-### `docs/overview/` (7)
+### `docs/overview/` (6)
 
 - `BRANDING_V133.md`
 - `HANAMI_AESTHETIC_AND_PROGRESS.md`
 - `HANAMI_VISUAL_IDENTITY.md`
-- `README.md`
 - `SCREEN_STATE_MACHINE.md`
 - `STRICT_HANAMI_EXTENSION_CONTRACT_V88.md`
 - `THIRD_PARTY_NOTICES.md`

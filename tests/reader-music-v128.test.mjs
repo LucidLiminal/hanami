@@ -9,7 +9,7 @@ const [music, reader, css, html, sw, notices, readme, packageText] =
     readFile(new URL("../public/index.html", import.meta.url), "utf8"),
     readFile(new URL("../public/sw.js", import.meta.url), "utf8"),
     readFile(new URL("../docs/overview/THIRD_PARTY_NOTICES.md", import.meta.url), "utf8"),
-    readFile(new URL("../docs/overview/README.md", import.meta.url), "utf8"),
+    readFile(new URL("../README.md", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
 const pkg = JSON.parse(packageText);

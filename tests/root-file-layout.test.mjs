@@ -5,10 +5,17 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-const rootDocs=fs.readdirSync(root,{withFileTypes:true})
-  .filter(entry=>entry.isFile() && ['.md','.sha256'].includes(path.extname(entry.name).toLowerCase()))
-  .map(entry=>entry.name);
-assert.deepEqual(rootDocs,[],`Documentation and checksum files must not return to the project root: ${rootDocs.join(', ')}`);
+const rootMarkdown=fs.readdirSync(root,{withFileTypes:true})
+  .filter(entry=>entry.isFile() && path.extname(entry.name).toLowerCase()==='.md')
+  .map(entry=>entry.name).sort();
+const rootChecksums=fs.readdirSync(root,{withFileTypes:true})
+  .filter(entry=>entry.isFile() && path.extname(entry.name).toLowerCase()==='.sha256')
+  .map(entry=>entry.name).sort();
+assert.deepEqual(rootMarkdown,['README.md'],`Only the conventional GitHub README may live at the project root: ${rootMarkdown.join(', ')}`);
+assert.deepEqual(rootChecksums,[],`Checksum files must remain outside the project root: ${rootChecksums.join(', ')}`);
+assert.ok(fs.statSync(path.join(root,'LICENSE')).isFile(),'The root LICENSE status file must remain visible to GitHub visitors');
+assert.ok(fs.readFileSync(path.join(root,'README.md'),'utf8').includes('(docs/INDEX.md)'),'The root README must link to docs/INDEX.md');
+assert.ok(!fs.existsSync(path.join(root,'docs/overview/README.md')),'README must not be duplicated below docs/overview');
 for(const directory of [
   'docs/overview','docs/features/library','docs/features/reader','docs/features/groups',
   'docs/features/explore','docs/features/navigation','docs/features/migration','docs/operations',
@@ -16,6 +23,18 @@ for(const directory of [
 ]) assert.ok(fs.statSync(path.join(root,directory)).isDirectory(),`Missing organized directory: ${directory}`);
 for(const file of ['docs/INDEX.md','docs/ROOT_FILES_RELOCATION.md','checksums/README.md','checksums/current/V150_FILE_MANIFEST.sha256'])
   assert.ok(fs.statSync(path.join(root,file)).isFile(),`Missing documentation artifact: ${file}`);
+const walk=directory=>fs.readdirSync(directory,{withFileTypes:true}).flatMap(entry=>{
+  const target=path.join(directory,entry.name);
+  return entry.isDirectory()?walk(target):[target];
+});
+for(const source of walk(root).filter(file=>path.extname(file).toLowerCase()==='.md')){
+  const content=fs.readFileSync(source,'utf8');
+  for(const match of content.matchAll(/\[[^\]]*\]\(([^)]+)\)/g)){
+    const reference=match[1].split('#',1)[0].trim();
+    if(!reference || /^[a-z][a-z0-9+.-]*:/i.test(reference)) continue;
+    assert.ok(fs.existsSync(path.resolve(path.dirname(source),reference)),`Broken local Markdown link: ${path.relative(root,source)} -> ${reference}`);
+  }
+}
 const manifest=path.join(root,'checksums/current/V150_FILE_MANIFEST.sha256');
 const rows=fs.readFileSync(manifest,'utf8').trim().split('\n').filter(Boolean);
 assert.ok(rows.length>0,'The current manifest must contain file checksums');
@@ -29,4 +48,4 @@ for(const row of rows){
   const actual=crypto.createHash('sha256').update(fs.readFileSync(target)).digest('hex');
   assert.equal(actual,expected,`Checksum mismatch: ${relative}`);
 }
-console.log('PASS: root Markdown/checksum files are organized and the current manifest is valid');
+console.log('PASS: GitHub root documents, organized docs and the current manifest are valid');

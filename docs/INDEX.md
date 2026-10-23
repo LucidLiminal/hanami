@@ -1,6 +1,11 @@
 # Índice de documentación
 
-La raíz del repositorio conserva solo los archivos operativos y de configuración. La documentación de producto y mantenimiento vive bajo `docs/`; los manifiestos SHA-256 viven bajo `checksums/`.
+La raíz del repositorio conserva los puntos de entrada convencionales de GitHub —[`README.md`](../README.md) y [`LICENSE`](../LICENSE)— junto con los archivos operativos y de configuración. La documentación extensa de producto y mantenimiento vive bajo `docs/`; los manifiestos SHA-256 viven bajo `checksums/`.
+
+## Entrada desde GitHub
+
+- [`README.md`](../README.md) presenta el proyecto y enlaza a este índice.
+- [`LICENSE`](../LICENSE) deja explícito el estado de licencia del proyecto y dirige a los avisos de terceros.
 
 ## Estructura
 

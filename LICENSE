@@ -1,0 +1,18 @@
+SPDX-License-Identifier: NOASSERTION
+
+Hanami — estado de licencia del proyecto
+
+Esta distribución del código fuente no declara una licencia propia para Hanami.
+Este archivo no concede permisos de uso, copia, modificación ni distribución del
+código del proyecto. Antes de reutilizarlo o distribuirlo, confirma los términos
+con la persona titular del proyecto.
+
+Los materiales de terceros mantienen sus términos respectivos. Sus avisos y
+copias de licencia se conservan en:
+
+- docs/overview/THIRD_PARTY_NOTICES.md
+- docs/licenses/Mihon-APACHE-2.0.txt
+- docs/licenses/TSuki-GPL-3.0.txt
+
+Nada de este archivo modifica ni sustituye los términos aplicables a esos
+componentes de terceros.

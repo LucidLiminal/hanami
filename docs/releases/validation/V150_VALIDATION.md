@@ -94,4 +94,4 @@ La incidencia permanece pendiente de confirmación en el dispositivo original.
 
 ## Organización de la raíz
 
-La documentación Markdown se reubicó bajo `docs/` por área funcional y los siete manifiestos SHA-256 se trasladaron a `checksums/`. El manifiesto vigente es `checksums/current/V150_FILE_MANIFEST.sha256`; los manifiestos v144–v149 se preservan como archivos históricos en `checksums/archive/`. El inventario completo y el procedimiento de verificación están en `docs/ROOT_FILES_RELOCATION.md` y `checksums/README.md`.
+La raíz conserva `README.md` como portada de GitHub y `LICENSE` como estado de licencia y acceso a los avisos de terceros. La documentación técnica, de arquitectura, mantenimiento y referencia permanece organizada bajo `docs/`; los siete manifiestos SHA-256 siguen bajo `checksums/`. El manifiesto vigente es `checksums/current/V150_FILE_MANIFEST.sha256`; los manifiestos v144–v149 se preservan como archivos históricos en `checksums/archive/`. El inventario y el procedimiento de verificación están en `docs/ROOT_FILES_RELOCATION.md` y `checksums/README.md`.
